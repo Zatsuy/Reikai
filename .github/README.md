@@ -12,8 +12,10 @@ fork adds the Japanese-immersion layer on top.
 ## Status
 
 In preparation. The fork currently matches Reikai's in-progress 0.4.0 release; the Japanese
-features are being built in the order of the [roadmap](../docs/fork/ROADMAP.md). Nothing here is
-released yet.
+features are being built in the order of the [roadmap](../docs/fork/ROADMAP.md).
+
+**Install:** the newest build is on [Releases](https://github.com/Zatsuy/Reikai/releases/latest)
+and updates itself from inside the app; [how to install](../docs/fork/install.md).
 
 ## Planned
 

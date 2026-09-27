@@ -44,7 +44,8 @@ android {
         // app from eu.kanade.tachiyomi.y2k, so it installs beside an older build instead of over it;
         // the release notes carry the backup-and-restore steps. versionCode still only ever climbs,
         // so later releases upgrade this one in place.
-        applicationId = "app.reikai"
+        // FORK: Reikai JP installs beside upstream Reikai (decision D-006)
+        applicationId = "app.reikai.jp"
 
         // versionCode climbs mid-cycle whenever a migration needs it, because a version-gated
         // migration is a no-op until the shipped versionCode reaches its gate and cannot be exercised
@@ -128,7 +129,8 @@ android {
         create("nightly") {
             initWith(release)
 
-            applicationIdSuffix = ".debug"
+            // FORK: the nightly is Reikai JP's published build, so it keeps the plain app.reikai.jp id
+            applicationIdSuffix = ""
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
         }

@@ -1,0 +1,111 @@
+name: App release
+
+# Publishes Reikai JP on this repository's GitHub Releases with nobody's attention (decisions D-015,
+# D-017). Once a day, when app files changed since the last release, it runs the fork's checks,
+# builds the signed nightly build type (id app.reikai.jp, updater on, no telemetry: the default
+# local distribution) and publishes it as r<commit count>, which the in-app updater compares with
+# its own number. A failed run publishes nothing; the next agent session sees it at session start.
+# Adapted from upstream Reikai's deleted nightly.yml (8d310012a^:.github/workflows/nightly.yml).
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: app-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Check, build, publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history: the tag is the commit count, and the check diffs against the last tag.
+          fetch-depth: 0
+
+      - name: Decide whether there is anything new to publish
+        id: check
+        run: python3 scripts/fork/release.py check | tee -a "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up the build
+        if: steps.check.outputs.skip != 'true'
+        uses: ./.github/actions/setup-build
+
+      - name: Check the code
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          python3 scripts/fork/seams.py --check
+          pwsh -NoProfile -File scripts/di-interop-check.ps1
+          ./gradlew spotlessCheck verifySqlDelightMigration test --console=plain
+
+      # The build reads a keystore path, never the base64 secret (see app/build.gradle.kts).
+      - name: Decode the signing keystore
+        if: steps.check.outputs.skip != 'true'
+        run: echo "$SIGNING_KEY" | base64 -d > "${{ runner.temp }}/reikai-jp.keystore"
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+
+      - name: Build the signed app
+        if: steps.check.outputs.skip != 'true'
+        run: ./gradlew assembleNightly -Penable-updater -Ppreview-docs --console=plain
+        env:
+          REIKAI_GITHUB_RELEASE: "true"
+          storeFile: ${{ runner.temp }}/reikai-jp.keystore
+          storePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyAlias: ${{ secrets.ALIAS }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      # Keeps the R8 mapping so a crash report from a release can be read.
+      - name: Keep the R8 mapping
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mapping-${{ steps.check.outputs.tag }}
+          path: app/build/outputs/mapping/nightly
+          retention-days: 90
+
+      - name: Publish the release
+        if: steps.check.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+          PREVIOUS: ${{ steps.check.outputs.previous }}
+        run: |
+          # The updater picks the asset named for the device's ABI, else the one with none (universal).
+          dir=app/build/outputs/apk/nightly
+          files=()
+          for abi in universal arm64-v8a armeabi-v7a x86_64 x86; do
+            if [ "$abi" = universal ]; then out="reikai-jp-$TAG.apk"; else out="reikai-jp-$abi-$TAG.apk"; fi
+            mv "$dir/app-$abi-nightly.apk" "$out"
+            files+=("$out")
+          done
+          python3 scripts/fork/release.py notes "$PREVIOUS" > notes.md
+          gh release create "$TAG" "${files[@]}" --target "$GITHUB_SHA" --title "Reikai JP $TAG" \
+            --notes-file notes.md --latest
+
+      - name: Prune old releases
+        if: steps.check.outputs.skip != 'true'
+        run: python3 scripts/fork/release.py prune 10
+
+  keepalive:
+    # GitHub switches off a public repository's schedules after 60 days without activity. Re-enabling
+    # this workflow on each run resets that clock, as in fork-upstream-sync.yml.
+    name: Keep the schedule alive
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/fork-release.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}

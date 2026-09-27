@@ -40,7 +40,8 @@ class AppUpdateChecker(
 //        build that already polls the old one.
 val GITHUB_REPO: String by lazy {
     if (isNightlyBuildType) {
-        "unseensnick/Reikai-preview"
+        // FORK: Reikai JP's nightlies are this fork's releases
+        jp.reikai.ForkRelease.REPO
     } else {
         "unseensnick/Reikai"
     }

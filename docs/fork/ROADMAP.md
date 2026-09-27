@@ -35,6 +35,11 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   skip when no app files changed since the last release, pruning old releases, and the same
   keepalive job as `fork-upstream-sync.yml`. The session-start hook already watches
   `fork-release.yml`.
+  Ruling: publish upstream's `nightly` build type with its `.debug` suffix removed - it already
+  compares `r<count>` tags and shows "Nightly r<count>" in About, so five one-line seams suffice -
+  cost if wrong: About says "Nightly" and a few dev-only options show, as in upstream's nightlies.
+  Ruling: keep upstream's Website link in About, point GitHub at this fork - the site documents
+  features the fork keeps - cost if wrong: one line.
 - [ ] **1.2 Language filter for novel extensions** (your report). The extension list gets a
   language filter for novels, sharing one setting with manga extensions; installing a plugin turns
   its language on so it never disappears. *Done when:* choosing only 日本語 shows only Japanese
