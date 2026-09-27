@@ -143,6 +143,10 @@ class LnPluginHost(
             bridge.setStorage(args[0] as String, args[1] as String, args.getOrNull(2) as? String)
             null
         }
+        // TextDecoder labels other than UTF-8 (Shift_JIS, EUC-JP, GBK) decode here
+        q.function("__lnDecode") { args ->
+            LnBodyDecoder.decodeBase64(args[0] as String, args[1] as String)
+        }
         q.asyncFunction("__lnFetch") { args ->
             withContext(Dispatchers.IO) {
                 bridge.runFetch(args[0] as String, args.getOrNull(1) as? String ?: "{}") { fetchFailure = it }
