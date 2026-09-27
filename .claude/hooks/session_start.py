@@ -39,7 +39,7 @@ def failed_automation():
     m = re.search(r"github\.com[:/]([^/]+/[^/.]+)", url)
     if not m:
         return []
-    api = f"https://api.github.com/repos/{m.group(1)}/actions/runs?branch=main&status=completed&per_page=40"
+    api = f"https://api.github.com/repos/{m.group(1)}/actions/runs?branch=main&per_page=40"
     try:
         req = urllib.request.Request(api, headers={"Accept": "application/vnd.github+json"})
         with urllib.request.urlopen(req, timeout=4) as resp:
@@ -52,8 +52,8 @@ def failed_automation():
         if name in WATCHED and name not in latest and r.get("event") != "pull_request":
             latest[name] = r
     lines = []
-    for name, r in latest.items():
-        if r.get("conclusion") in ("failure", "timed_out", "startup_failure"):
+    for name, r in latest.items():  # a newer run still in progress supersedes an older failure
+        if r.get("status") == "completed" and r.get("conclusion") in ("failure", "timed_out", "startup_failure"):
             label, action = WATCHED[name]
             lines.append(f"GitHub automation failed: {label} on {r['created_at'][:10]} ({r['html_url']}); {action}.")
     return lines
