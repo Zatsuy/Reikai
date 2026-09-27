@@ -273,6 +273,8 @@ dependencies {
     implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.compose.animationGraphics)
     debugImplementation(libs.androidx.compose.uiTooling)
+    // FORK: the Yomitan spike (jp.reikai, debug only) talks to its WebViews through androidx.webkit
+    debugImplementation(libs.androidx.webkit)
     implementation(libs.androidx.compose.uiToolingPreview)
     implementation(libs.androidx.compose.uiUtil)
 
