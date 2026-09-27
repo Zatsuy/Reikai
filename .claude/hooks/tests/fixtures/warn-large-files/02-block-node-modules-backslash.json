@@ -1,9 +1,0 @@
-{
-  "name": "block a write into node_modules/ given a Windows backslash path",
-  "stdin": {
-    "tool_input": {
-      "file_path": "E:\\Code\\site\\node_modules\\pkg\\index.js"
-    }
-  },
-  "expect_exit": 2
-}

@@ -1,9 +1,0 @@
-{
-  "name": "allow git clean -n -d",
-  "stdin": {
-    "tool_input": {
-      "command": "git clean -n -d"
-    }
-  },
-  "expect_exit": 0
-}

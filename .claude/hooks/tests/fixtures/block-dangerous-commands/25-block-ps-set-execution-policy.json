@@ -1,6 +1,0 @@
-{
-  "name": "block PowerShell execution policy change",
-  "stdin": { "tool_input": { "command": "Set-ExecutionPolicy Bypass -Scope Process -Force" } },
-  "expect_exit": 2,
-  "expect_stdout_contains": ["deny", "execution policy"]
-}

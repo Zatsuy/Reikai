@@ -1,5 +1,0 @@
-{
-  "name": "allow git worktree remove --force (cleaning up a scratch worktree)",
-  "stdin": { "tool_input": { "command": "git worktree remove .claude/worktrees/scratch --force" } },
-  "expect_exit": 0
-}

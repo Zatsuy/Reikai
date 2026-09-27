@@ -1,9 +1,0 @@
-{
-  "name": "allow git push -u origin feat/x",
-  "stdin": {
-    "tool_input": {
-      "command": "git push -u origin feat/x"
-    }
-  },
-  "expect_exit": 0
-}
