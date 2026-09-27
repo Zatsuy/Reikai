@@ -869,6 +869,8 @@ data object LibraryTab : Tab {
 
         LaunchedEffect(state.isLoading) {
             if (!state.isLoading) {
+                // FORK: timing mark for the performance baseline (scripts/fork/perf.py)
+                jp.reikai.perf.PerfMarks.libraryReady()
                 (context as? MainActivity)?.ready = true
             }
         }

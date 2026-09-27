@@ -380,6 +380,8 @@ class NovelReaderProvider(
                     renderedGeneration = state.generation
                     val anchor = viewModel.landingOf(state)
                     viewport.load(anchor, settings)
+                    // FORK: timing mark for the performance baseline (scripts/fork/perf.py)
+                    jp.reikai.perf.PerfMarks.chapterShown(host)
                     // The renderer has let go of the window it had, so its reports count again.
                     viewModel.rendererLanded(state.generation)
                     viewModel.readAloud.onRendererLanded(anchor.chapterId)
