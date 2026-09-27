@@ -93,7 +93,7 @@ class LnBodyDecoderTest {
         "sjis, windows-31j",
         "x-sjis, windows-31j",
         "MS932, windows-31j",
-        "euc-jp, EUC-JP",
+        "euc-jp, x-eucJP-Open",
         "gb2312, GB18030",
         "gbk, GB18030",
         "UTF8, UTF-8",
@@ -101,6 +101,46 @@ class LnBodyDecoderTest {
     )
     fun `labels resolve as browsers resolve them`(label: String, charset: String) {
         LnBodyDecoder.charsetFor(label)?.name() shouldBe charset
+    }
+
+    @Test
+    fun `euc-jp decodes the circled digits of the NEC row`() {
+        LnBodyDecoder.decode(byteArrayOf(0xAD.toByte(), 0xA1.toByte()), "euc-jp", null).text shouldBe "①"
+    }
+
+    @Test
+    fun `a meta tag after a long head is still found`() {
+        val page = """<head><script>${"x".repeat(4000)}</script><meta charset="Shift_JIS"></head><p>$novel</p>"""
+
+        LnBodyDecoder.decode(page.toByteArray(sjis), null, "text/html").text shouldContain novel
+    }
+
+    @Test
+    fun `an unknown header charset falls through to the meta tag`() {
+        val page = """<meta charset="Shift_JIS"><p>$novel</p>"""
+
+        LnBodyDecoder.decode(page.toByteArray(sjis), null, "text/html; charset=bogus").text shouldContain novel
+    }
+
+    @Test
+    fun `a meta tag claiming utf-16 means utf-8`() {
+        val page = """<meta charset="utf-16"><p>$novel</p>"""
+
+        LnBodyDecoder.decode(page.toByteArray(), null, "text/html").text shouldContain novel
+    }
+
+    @Test
+    fun `an xml feed's encoding declaration is read`() {
+        val feed = """<?xml version="1.0" encoding="Shift_JIS"?><rss><title>$novel</title></rss>"""
+
+        LnBodyDecoder.decode(feed.toByteArray(sjis), null, "application/rss+xml").text shouldContain novel
+    }
+
+    @Test
+    fun `a text-only caller gets no raw copy`() {
+        val bytes = """<meta charset="Shift_JIS">$novel""".toByteArray(sjis)
+
+        LnBodyDecoder.decode(bytes, null, "text/html", keepRaw = false).rawBase64.shouldBeNull()
     }
 
     @Test

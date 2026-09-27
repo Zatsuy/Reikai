@@ -661,11 +661,12 @@
     return makeResponse(raw);
   }
 
-  // FORK --> lnreader's third argument names the page's charset (the Kotlin bridge decodes)
+  // FORK --> lnreader's third argument names the page's charset (the Kotlin bridge decodes); text
+  // only, so the bridge sends no raw copy of a non-UTF-8 page
   async function fetchText(url, init, encoding) {
     var res = await fetchApi(
       url,
-      encoding ? Object.assign({}, init, { encoding: encoding }) : init,
+      Object.assign({}, init, { encoding: encoding, textOnly: true }),
     );
     // FORK <--
     if (!res.ok) return "";

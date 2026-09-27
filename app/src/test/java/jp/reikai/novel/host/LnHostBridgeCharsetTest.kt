@@ -1,7 +1,9 @@
 package jp.reikai.novel.host
 
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
@@ -37,6 +39,9 @@ class LnHostBridgeCharsetTest {
     private fun bodyOf(json: String): String =
         LnHostBridge.JSON.parseToJsonElement(json).jsonObject.getValue("body").jsonPrimitive.content
 
+    private fun rawOf(json: String): String? =
+        LnHostBridge.JSON.parseToJsonElement(json).jsonObject.getValue("bodyBase64").jsonPrimitive.contentOrNull
+
     @Test
     fun `a shift_jis page named only in its meta tag reaches the plugin as text`() {
         val page = """<meta charset="Shift_JIS"><p>$novel</p>""".toByteArray(Charset.forName("windows-31j"))
@@ -54,5 +59,15 @@ class LnHostBridgeCharsetTest {
             },
         ) shouldBe
             "吾輩は猫である"
+    }
+
+    @Test
+    fun `fetchText's pages come without a raw copy`() {
+        val page = """<meta charset="Shift_JIS"><p>$novel</p>""".toByteArray(Charset.forName("windows-31j"))
+
+        rawOf(
+            bridgeServing(page, "text/html").runFetch("https://example.jp/", """{"textOnly":true}""") {
+            },
+        ).shouldBeNull()
     }
 }

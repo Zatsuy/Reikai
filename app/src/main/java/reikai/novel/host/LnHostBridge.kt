@@ -93,6 +93,7 @@ class LnHostBridge(
                     res.body.bytes(),
                     opts.encoding,
                     res.header("Content-Type"),
+                    keepRaw = !opts.textOnly,
                 )
                 bodyText = decoded.text
                 bodyBase64 = decoded.rawBase64
@@ -169,8 +170,11 @@ class LnHostBridge(
         // Set by fetchProto: base64 request body + flag to return the response base64 (binary-safe).
         val bodyBase64: String? = null,
         val binary: Boolean = false,
-        // FORK: lnreader's fetchText(url, init, encoding) label, read by LnBodyDecoder
+        // FORK --> lnreader's fetchText(url, init, encoding) label, read by LnBodyDecoder; fetchText reads
+        // only text, so it needs no raw bytes
         val encoding: String? = null,
+        val textOnly: Boolean = false,
+        // FORK <--
     )
 
     @Serializable

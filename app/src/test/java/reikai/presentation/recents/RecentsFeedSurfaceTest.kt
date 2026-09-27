@@ -78,14 +78,18 @@ class RecentsFeedSurfaceTest {
         excluded: Long,
     ) = runTest {
         val asked = mutableListOf<List<Long>>()
-        // FORK: the model too, to end its work below
+        // FORK --> end the model's IO work while Main is still the test's, even when the wait times out:
+        // finishing later, it resumes on Main after resetMain and fails the next test
         val (model, state) = feed.build(surface, preferences) { asked += it }
-        backgroundScope.launch { state.collect { } }
+        try {
+            backgroundScope.launch { state.collect { } }
 
-        // The query runs on the IO dispatcher, which virtual time does not reach.
-        withContext(Dispatchers.Default) { withTimeout(5_000) { while (asked.isEmpty()) delay(10) } }
-        // FORK: end the model's IO work while Main is still the test's, or it resumes after resetMain
-        jp.reikai.testing.cancelAndJoinScope(model)
+            // The query runs on the IO dispatcher, which virtual time does not reach.
+            withContext(Dispatchers.Default) { withTimeout(5_000) { while (asked.isEmpty()) delay(10) } }
+        } finally {
+            jp.reikai.testing.cancelAndJoinScope(model)
+        }
+        // FORK <--
 
         asked.first() shouldBe listOf(excluded)
     }
