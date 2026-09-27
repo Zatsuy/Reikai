@@ -99,7 +99,9 @@ note types named Lapis, and the bridge is the same code on both.
    page's own scripts (a browser keeps content scripts apart), so any script on that origin can
    call any backend action or reach AnkiDroid. Harmless for the spike's static test page; in
    Phase 3 chapter HTML must not share the engine's origin (or runs without scripts behind a
-   token-checked bridge), and only the backend document may reach the Anki bridge.
+   token-checked bridge), and only the backend document may reach the Anki bridge. The app's
+   message routing must also settle a request whose target page went away (the spike's waits
+   forever).
 9. **Yomitan's in-page popup does not fit a portrait phone with vertical text.** It opened mostly
    off the left edge and the page scrolled to show it. Phase 3.4's own phone popup (a bottom sheet
    or a floating card around Yomitan's results page) is needed, not optional.

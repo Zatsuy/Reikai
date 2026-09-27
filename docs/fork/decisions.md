@@ -31,6 +31,7 @@ the log; *Standing decisions* is the current state.
 | D-022 | **The Phase 1 fixes are not offered upstream** (was a Phase 1 question): the charset decoding and the three test fixes for upstream Reikai and the Kakuyomu fix for LNReader stay in the fork; their branches and texts are kept in `docs/fork/upstream-prs/` (owner, 2026-09-27). | 2026-09-27 |
 | D-021 | **GitHub Actions minutes are scarce (free plan).** Agents never spend CI runs to prove something they can prove locally: a flaky test is fixed when a local harness that forces the bad timing fails before the fix and passes after, not after repeated CI runs (owner, 2026-09-27). | 2026-09-27 |
 | D-023 | **A connected device is the owner's go-ahead to use it.** When the owner connects the tablet or phone, the agent may use it for the whole session and temporarily change the settings it needs (above all keeping the screen awake while plugged in). It tells the owner straight away when it changes a setting, puts every setting back as it was once it is done with that device for the session, says so at that moment, and repeats it in the final report (owner, 2026-09-27). | 2026-09-27 |
+| D-024 | **Go: the lookup engine is Yomitan's own code** (was the Phase 2 go/no-go). The spike ran Yomitan 26.9.8.0 unmodified on both devices within the popup budget; Phase 3 builds the engine on it and must fix what the spike found (dictionary pictures, the import path, engine start and first popup, chapter pages kept off the engine's origin, a popup placed by the app on phones). Details: `docs/fork/research/yomitan-spike-2026-09.md` (owner, 2026-09-27). | 2026-09-27 |
 
 ## Open
 
@@ -41,6 +42,9 @@ item asks with AskUserQuestion and moves the answer to *Standing decisions*.
 
 ## Log
 
+- **2026-09-27** Owner, on the Yomitan spike: the test card goes in a test deck that is deleted
+  afterwards; no note type in use yet, so Lapis 1.7.0 was added to the collection. With the numbers:
+  "Go" (now D-024); the spike's test data removed from both devices, Lapis kept.
 - **2026-09-27** Owner, starting Phase 2: "if I connect the device it's because I have this
   intention"; change the settings needed ("especially to keep them awake") and set them back after,
   telling them when each is changed and restored, as a rule for every later phase (now D-023).

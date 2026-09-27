@@ -20,7 +20,92 @@ into the fork, checks it, and pushes it; once a day, when the app changed, a new
 published and Reikai JP offers it on its **New version available!** screen when you next open it. When something fails, nothing breaks: it just stops, GitHub may
 email you (safe to ignore), and the next agent session you start sees it and fixes it.
 
-## Now: Phase 1, quick wins and groundwork
+## Now: Phase 3, Yomitan engine and the lookup popup
+
+- [ ] **3.1 Engine module**: pinned Yomitan, the browser-extension stand-in, its tripwire, start
+  only when needed. From the spike (findings in [research](research/yomitan-spike-2026-09.md)),
+  required: dictionary pictures (a SharedWorker handshake the app brokers), imports that do not
+  depend on a worker starting a worker, the engine started when a Japanese novel opens and the
+  popup frame ready before the first tap, chapter pages kept off the engine's origin with only the
+  backend reaching Anki, requests to a vanished page settled, and the engine's memory measured on
+  its own to set its budget.
+- [ ] **3.2 Anki**: add cards through AnkiDroid (duplicate check, audio, pictures).
+  **You:** grant the AnkiDroid permission when the app asks; pick your note type (Lapis is
+  already in your collection).
+- [ ] **3.3 Audio**: online sources, the local `android.db` audio collection, phone TTS as backup.
+  **You (optional):** copy a local audio collection to the tablet.
+- [ ] **3.4 The popup**: Yomitan's results in a phone-friendly sheet; a dictionary search screen;
+  "Look up in Reikai JP" from any app's text-selection menu. Required by the spike: Yomitan's own
+  in-page popup opened off screen on the phone in vertical text, so the app places the popup.
+- [ ] **3.5 Settings**: a simple Japanese section plus Yomitan's full settings; import your desktop
+  Yomitan backup. **You (optional):** export your desktop Yomitan settings and dictionaries.
+- [ ] **3.6 Automatic Yomitan updates**: a weekly check vendors a new Yomitan release, runs its
+  tests through our stand-in, and applies it by itself when they pass (a failure waits for the
+  next agent session, D-015).
+
+## Next: Phase 4, Japanese reading mode
+
+- [ ] **4.1 The reader**: vertical or horizontal text (your choice), pages or scrolling, furigana
+  modes, Japanese fonts and line breaking, position kept when fonts change.
+- [ ] **4.2 Default for Japanese, never forced**: opens automatically for Japanese novels, explains
+  itself the first time, and one tap in the reader menu returns to the standard reader (remembered
+  per novel).
+- [ ] **4.3 Tap to look up** in the reader, with the sentence, highlight, book title, chapter and
+  cover filled into the card.
+- [ ] **4.4 Character counts and reading statistics**, compatible with ttu.
+- [ ] **4.5 Tsundoku parity**: list what Tsundoku's reader has that 0.4.0 lacks, then build the
+  ones you want. **You:** pick from the list.
+
+## Later
+
+- **Phase 5, local books**: import EPUB and TXT files as novels; they get the Japanese mode, lookup
+  and statistics too.
+- **Phase 6, learning extras**: a mining log with a jump back to the passage; colouring of known,
+  unknown and frequent words from your Anki cards; sentences with exactly one unknown word; TTS
+  sentence audio for cards.
+- **Phase 7, manga lookup**: tap text on manga pages: first `.mokuro` files, then a region you draw
+  read on the phone (model downloaded on request), then automatic text detection.
+
+## Ideas, not scheduled
+
+- ttu-compatible progress sync; audiobook read-along; machine translation of sentences.
+
+## Recurring
+
+- **Upstream syncs**: automatic every Monday (`fork-upstream-sync.yml`); an agent runs
+  `/sync-upstream` only when the session-start lines report a failed run. Log:
+  - 2026-09-27: fork moved onto `upstream/feat/0.4.0` at `668d48c34`.
+- **Retro** (`/retro`, after a large item or when you ask): see [harness.md](harness.md).
+
+## Done: Phase 2, Yomitan spike: go (2026-09-27)
+
+- [x] **2.1 Prove Yomitan runs inside the app, on your tablet and phone.** Yomitan 26.9.8.0 ran
+  unmodified in a debug-only spike screen on both devices, with Jitendex, JPDB frequencies and
+  Kanjium pitch accents. A tapped word in vertical text shows Yomitan's own popup in 88-108 ms on
+  the tablet and 64-99 ms on the phone (p50-p95, target 150-200); Jitendex imports in 2.4 and 3.5
+  min; a Lapis card went into AnkiDroid from Yomitan's own add button, filled by Yomitan's
+  templates (word, furigana, definition, the sentence with the word in bold, pitch, frequency).
+  Missed or open: the engine starts in 1.4-2.5 s (target 1 s), the first popup of a session takes
+  0.3-0.8 s, reading with a popup costs about +350 MB (tablet) / +230 MB (phone), dictionary
+  pictures do not draw, Yomitan's own import screen hangs (the spike imports from a page), and
+  Yomitan's popup does not fit a phone in vertical text. All of it is carried into Phase 3 below.
+  Findings: [research/yomitan-spike-2026-09.md](research/yomitan-spike-2026-09.md).
+  **You:** decided go (D-024); nothing else was needed: AnkiDroid was already installed and the
+  agent downloaded the dictionaries itself.
+  Ruling: Jitendex in place of plain JMdict - it is JMdict plus more and what Yomitan recommends -
+  cost if wrong: none, the import path is the same.
+  Ruling: the Anki card on the tablet only - creating Lapis on both devices before they sync would
+  give you two note types named Lapis - cost if wrong: the phone's AnkiDroid is checked in 3.2.
+  Ruling: import from a page instead of Yomitan's worker - Android WebView never serves a worker
+  started by a worker - cost if wrong: a stand-in change in 3.1.
+  **Done 2026-09-27** in `b18c76007`, `4ccf77481`, `a173550f6`, `5340c22cc`. Agent's device use
+  (D-023): "stay awake while charging" was on for both devices during the tests and switched back
+  off afterwards. The test card and deck were deleted; Lapis 1.7.0 stays in your AnkiDroid
+  collection (your next AnkiDroid sync uploads it). Your choice afterwards: the spike's test data
+  was removed from both devices (about 400 MB each) and the developer app uninstalled from the
+  phone; the spike's code stays in the repository for Phase 3.
+
+## Done: Phase 1, quick wins and groundwork (2026-09-27)
 
 - [x] **1.1 Reikai JP on your tablet, updating itself.** The app gets its own name and id
   (`app.reikai.jp`; agents' debug builds `app.reikai.jp.dev`) so it installs beside upstream Reikai,
@@ -128,66 +213,6 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   retry. **Done 2026-09-27** in `f9313a161`, `1289fa879`, `49fbd9527`.
   Fork CI then passed without the retry (run 36350606321). Upstream-style branch
   `pr/recents-test-flakes` on the fork, not offered (D-022).
-
-## Next: Phase 2, Yomitan spike (go or no-go)
-
-- [ ] **2.1 Prove Yomitan runs inside the app, on your tablet and phone.** A throwaway build that imports
-  JMdict plus a frequency and a pitch dictionary, measures lookup speed, looks up a word tapped in
-  vertical text, and adds a Lapis card to AnkiDroid. Targets: popup in under about 150-200 ms,
-  import without crashing. **You:** install AnkiDroid, download the dictionaries the agent links
-  (they are free but not ours to ship), keep the devices connected, then decide go or no-go with the
-  numbers. If no-go, agents present the fallbacks in [architecture.md](architecture.md).
-
-## Then: Phase 3, Yomitan engine and the lookup popup
-
-- [ ] **3.1 Engine module**: pinned Yomitan, the browser-extension stand-in, its tripwire, start
-  only when needed.
-- [ ] **3.2 Anki**: add cards through AnkiDroid (duplicate check, audio, pictures).
-  **You:** grant the AnkiDroid permission when the app asks; pick your note type (Lapis
-  recommended).
-- [ ] **3.3 Audio**: online sources, the local `android.db` audio collection, phone TTS as backup.
-  **You (optional):** copy a local audio collection to the tablet.
-- [ ] **3.4 The popup**: Yomitan's results in a phone-friendly sheet; a dictionary search screen;
-  "Look up in Reikai JP" from any app's text-selection menu.
-- [ ] **3.5 Settings**: a simple Japanese section plus Yomitan's full settings; import your desktop
-  Yomitan backup. **You (optional):** export your desktop Yomitan settings and dictionaries.
-- [ ] **3.6 Automatic Yomitan updates**: a weekly check vendors a new Yomitan release, runs its
-  tests through our stand-in, and applies it by itself when they pass (a failure waits for the
-  next agent session, D-015).
-
-## Then: Phase 4, Japanese reading mode
-
-- [ ] **4.1 The reader**: vertical or horizontal text (your choice), pages or scrolling, furigana
-  modes, Japanese fonts and line breaking, position kept when fonts change.
-- [ ] **4.2 Default for Japanese, never forced**: opens automatically for Japanese novels, explains
-  itself the first time, and one tap in the reader menu returns to the standard reader (remembered
-  per novel).
-- [ ] **4.3 Tap to look up** in the reader, with the sentence, highlight, book title, chapter and
-  cover filled into the card.
-- [ ] **4.4 Character counts and reading statistics**, compatible with ttu.
-- [ ] **4.5 Tsundoku parity**: list what Tsundoku's reader has that 0.4.0 lacks, then build the
-  ones you want. **You:** pick from the list.
-
-## Later
-
-- **Phase 5, local books**: import EPUB and TXT files as novels; they get the Japanese mode, lookup
-  and statistics too.
-- **Phase 6, learning extras**: a mining log with a jump back to the passage; colouring of known,
-  unknown and frequent words from your Anki cards; sentences with exactly one unknown word; TTS
-  sentence audio for cards.
-- **Phase 7, manga lookup**: tap text on manga pages: first `.mokuro` files, then a region you draw
-  read on the phone (model downloaded on request), then automatic text detection.
-
-## Ideas, not scheduled
-
-- ttu-compatible progress sync; audiobook read-along; machine translation of sentences.
-
-## Recurring
-
-- **Upstream syncs**: automatic every Monday (`fork-upstream-sync.yml`); an agent runs
-  `/sync-upstream` only when the session-start lines report a failed run. Log:
-  - 2026-09-27: fork moved onto `upstream/feat/0.4.0` at `668d48c34`.
-- **Retro** (`/retro`, after a large item or when you ask): see [harness.md](harness.md).
 
 ## Done: Phase 0, foundation (2026-09-27)
 
