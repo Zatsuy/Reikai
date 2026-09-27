@@ -108,7 +108,13 @@ class ExtensionsEngineTest {
         val preferences = mockk<ReikaiSourcePreferences> {
             every { browseContentType.changes() } returns MutableStateFlow(chip)
         }
-        val engine = ExtensionsEngine(providers.toList(), MutableStateFlow<String?>(null), preferences)
+        // FORK --> the engine also takes the extension language filter, here one that hides nothing
+        val languages = mockk<jp.reikai.browse.ExtensionLanguages> {
+            every { enabled } returns MutableStateFlow(emptySet())
+            every { offered(any(), any()) } answers { firstArg() }
+        }
+        val engine = ExtensionsEngine(providers.toList(), MutableStateFlow<String?>(null), preferences, languages)
+        // FORK <--
         backgroundScope.launch { engine.state.collect {} }
         val state = engine.state.first { !it.isLoading && it.contentType == chip }
         // Cleared as a screen would clear it, while the test dispatcher is still Main: its scope works on

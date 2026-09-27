@@ -27,20 +27,19 @@ the log; *Standing decisions* is the current state.
 | D-017 | **The app updates itself from this fork's GitHub Releases**, through the built-in updater (a "new version" screen with one button, as in Mihon). Releases are signed with one permanent key, made on 2026-09-27 by `scripts/fork/setup-github.sh` and stored as the secrets `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `ALIAS`, `KEY_PASSWORD` (backup in the owner's `~/.local/share/reikai-jp/signing/`). The key is never replaced and agents never read it. | 2026-09-27 |
 | D-018 | **No Claude in CI** (was O-002). Automation that cannot finish on its own waits for an agent session the owner starts ("if the automatic updates break something I'll have an agent fix it"). | 2026-09-27 |
 | D-019 | **Devices are connected only when needed.** The tablet and phone are not always on or plugged in. When a check needs one and `adb devices` does not list it, the agent asks the owner with AskUserQuestion, naming the device, and continues once they connect it; it does not skip the check or swap it for written test steps unless the owner says so. | 2026-09-27 |
+| D-020 | **One language filter for manga and novel extensions; installed novel sources keep their own** (was O-001). Browse → Extensions filters manga extensions, novel extension apps and LNReader plugins by Mihon's enabled languages. Browse → Sources → Filter → Novels keeps Reikai's separate per-language switches for installed novels, so nothing installed vanishes and no migration runs (owner, 2026-09-27). | 2026-09-27 |
 
 ## Open
 
 Questions that need the owner. Each has options and a recommendation; the agent that reaches the
 item asks with AskUserQuestion and moves the answer to *Standing decisions*.
 
-- **O-001 Novel source language filter: one mechanism or two?** Extensions will share Mihon's
-  enabled-languages setting (both content types). Installed *novel sources* still use Reikai's
-  separate disabled-languages list. Options: keep the two (no migration), or fold novels into the
-  shared setting (a migration). Recommendation: decide when the language-filter item is built,
-  after seeing both on the device.
+(none)
 
 ## Log
 
+- **2026-09-27** Owner chose to keep the Sources screen's novel language switches separate from
+  the shared extension language filter (O-001, now D-020).
 - **2026-09-27** Owner: "my devices will not always be on or connected, if you need them just send
   a user question and I'll answer after connecting the specific device needed. Make sure it's a
   rule as well." And: the tracked upstream branch "will likely not remain the most updated one for

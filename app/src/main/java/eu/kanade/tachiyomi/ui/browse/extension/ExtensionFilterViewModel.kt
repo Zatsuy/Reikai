@@ -31,13 +31,16 @@ class ExtensionFilterViewModel(
     private val preferences: SourcePreferences,
     private val getExtensionLanguages: GetExtensionLanguages,
     private val toggleLanguage: ToggleLanguage,
+    // FORK: the filter lists novel extension and plugin languages too
+    private val extensionLanguages: jp.reikai.browse.ExtensionLanguages,
 ) : ViewModel() {
 
     private val _events: Channel<ExtensionFilterEvent> = Channel()
     val events: Flow<ExtensionFilterEvent> = _events.receiveAsFlow()
 
     val state: StateFlow<ExtensionFilterState> = combine(
-        getExtensionLanguages.subscribe(),
+        // FORK: the filter lists novel extension and plugin languages too
+        extensionLanguages.withNovelLanguages(getExtensionLanguages.subscribe()),
         preferences.enabledLanguages.changes(),
     ) { extensionLanguages, enabledLanguages ->
         ExtensionFilterState.Success(

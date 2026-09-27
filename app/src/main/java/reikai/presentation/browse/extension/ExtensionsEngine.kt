@@ -40,6 +40,9 @@ class ExtensionsEngine(
     @Assisted private val providers: List<ExtensionsProvider>,
     @Assisted private val query: StateFlow<String?>,
     private val sourcePreferences: ReikaiSourcePreferences,
+    // FORK --> novels answer to the extension language filter too
+    private val languages: jp.reikai.browse.ExtensionLanguages,
+    // FORK <--
 ) : ViewModel() {
 
     val state: StateFlow<State> = combine(
@@ -48,10 +51,15 @@ class ExtensionsEngine(
         // Debounced because the available list runs to thousands of rows and every keystroke
         // re-filters and re-sorts all of them; the search field itself stays live either way.
         query.debouncedBrowseQuery(),
-    ) { snapshots, contentType, query ->
+        // FORK -->
+        languages.enabled,
+    ) { snapshots, contentType, query, enabledLanguages ->
+        // FORK <--
         val active = providers.indices.filter { providers[it].shows(contentType) }
         // A provider serving both types is active under either chip, so its rows are filtered too.
         val rows = active.flatMap { snapshots[it].rows.orEmpty() }.filter { contentType.includes(it.key.contentType) }
+            // FORK: novel rows on offer follow the enabled languages, as manga rows already do
+            .let { languages.offered(it, enabledLanguages) }
         val shown = rows.filter { matchesExtensionQuery(it, query) }
         State(
             contentType = contentType,

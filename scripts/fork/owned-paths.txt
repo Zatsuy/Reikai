@@ -13,3 +13,4 @@ LICENSES/
 docs/fork/
 scripts/fork/
 app/src/main/java/jp/reikai/
+app/src/test/java/jp/reikai/

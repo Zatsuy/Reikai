@@ -106,7 +106,8 @@ fun Screen.reikaiExtensionsTab(
     val updatesCount by extensionsViewModel.updatesCount.collectAsStateWithLifecycle()
     val novelCount by browseViewModel.novelUpdatesCount.collectAsStateWithLifecycle()
     val totalCount by browseViewModel.totalUpdatesCount.collectAsStateWithLifecycle()
-    val contentType by browseViewModel.contentType.collectAsStateWithLifecycle()
+    // FORK --> the Filter action no longer depends on the chip, so the chip is not read here
+    // FORK <--
     val openRepos = { navigator.push(RepositoriesScreen()) }
 
     return TabContent(
@@ -114,12 +115,12 @@ fun Screen.reikaiExtensionsTab(
         badgeNumber = totalCount.takeIf { it > 0 },
         searchEnabled = true,
         actions = listOfNotNull(
-            // Mihon's manga extension-language filter; it does nothing for novel plugins, so hide it
-            // on the Novels chip, matching the Sources tab's content-type-aware filter.
+            // FORK --> one language filter for manga extensions and novel plugins alike
             AppBar.OverflowAction(
                 title = stringResource(MR.strings.action_filter),
                 onClick = { navigator.push(ExtensionFilterScreen()) },
-            ).takeIf { contentType != ContentType.NOVELS },
+            ),
+            // FORK <--
             AppBar.OverflowAction(
                 title = stringResource(MR.strings.repos),
                 onClick = openRepos,
