@@ -539,9 +539,8 @@
 
   function makeResponse(payload) {
     var headersObj = payload.headers || {};
-    // arrayBuffer / blob read bytes: an explicit binary body (bodyBase64, e.g. fetchProto) if present,
-    // else the UTF-8 bytes of the text body. Text sources still read through the charset-aware text()
-    // path, so this never disturbs them (no charset-guessing binary fetch; that is deliberately parked).
+    // arrayBuffer / blob read bytes: the raw body (bodyBase64: fetchProto, or a page that is not UTF-8)
+    // if present, else the UTF-8 bytes of the text body, which are then the same bytes.
     function bodyBytes() {
       if (payload.bodyBase64 != null) return base64ToBytes(payload.bodyBase64);
       return new TextEncoder().encode(payload.body || "");
@@ -659,11 +658,12 @@
     return makeResponse(raw);
   }
 
-  // lnreader's third argument names the page's charset (the Kotlin bridge decodes)
+  // lnreader's third argument names the page's charset (the Kotlin bridge decodes); text
+  // only, so the bridge sends no raw copy of a non-UTF-8 page
   async function fetchText(url, init, encoding) {
     var res = await fetchApi(
       url,
-      encoding ? Object.assign({}, init, { encoding: encoding }) : init,
+      Object.assign({}, init, { encoding: encoding, textOnly: true }),
     );
     if (!res.ok) return "";
     return await res.text();

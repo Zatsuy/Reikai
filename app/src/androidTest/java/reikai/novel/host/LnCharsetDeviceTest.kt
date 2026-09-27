@@ -48,6 +48,12 @@ class LnCharsetDeviceTest {
         )
     }
 
+    // EUC-JP's NEC row (①, Roman numerals): Android's ICU table must have it, as browsers do.
+    @Test
+    fun textDecoderDecodesTheEucJpNecRow() = runBlocking {
+        assertEquals("①", host().run("td-eucjp", "return new TextDecoder('euc-jp').decode(new Uint8Array([173,161]));"))
+    }
+
     @Test
     fun textDecoderStillDecodesUtf8WithoutALabel() = runBlocking {
         assertEquals(
