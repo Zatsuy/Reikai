@@ -8,28 +8,40 @@ unless a **You:** step is still waiting. Why things are built this way:
 
 ## Your checklist right now
 
-1. **Let the fork's GitHub automation open pull requests** (2 minutes, once). On GitHub open
-   `Zatsuy/Reikai` → **Settings** → **Actions** → **General**. Under *Workflow permissions* choose
-   **Read and write permissions** and tick **Allow GitHub Actions to create and approve pull
-   requests**, then **Save**. This lets the weekly upstream check propose merges for you.
-2. **Connect your phone once** so agents can install and check builds themselves (5 minutes):
-   [testing/phone-setup.md](testing/phone-setup.md). Needed from item 1.2 on; until then agents
-   write test steps for you instead.
-3. Then type `/next` in Claude Code.
+Nothing is waiting on you. Start a **new** Claude Code conversation and type `/next` (one roadmap
+item per conversation keeps agents fast and cheap).
+
+**What runs without you** (decision D-015): every Monday GitHub merges upstream Reikai's new work
+into the fork, checks it, and pushes it; once item 1.1 lands, new versions of the app reach your
+tablet through its update screen. When something fails, nothing breaks: it just stops, GitHub may
+email you (safe to ignore), and the next agent session you start sees it and fixes it.
 
 ## Now: Phase 1, quick wins and groundwork
 
-- [ ] **1.1 App identity: "Reikai JP".** The app installs beside upstream Reikai with its own name
-  and id (`app.reikai.jp`, debug `app.reikai.jp.dev`), its update check points at this fork (or is
-  off), and About links here. *Done when:* both apps sit side by side on your phone.
-  **You:** after it lands, install the debug build once (the agent gives you the steps).
+- [ ] **1.1 Reikai JP on your tablet, updating itself.** The app gets its own name and id
+  (`app.reikai.jp`; agents' debug builds `app.reikai.jp.dev`) so it installs beside upstream Reikai,
+  and About links here. A release workflow builds a signed app and publishes it on this fork's
+  GitHub Releases whenever `main` has app changes (checked daily, so at most one update a day), and
+  the built-in updater checks this fork: a "new version" screen with one button, as in Mihon.
+  Includes a one-page install-and-update guide. *Done when:* the app on your tablet offers a new
+  release and installs it. **You:** install the first release once, following the guide (Android
+  asks you to allow installs from your browser once).
+  *For the agent:* the build already signs from `REIKAI_GITHUB_RELEASE` plus
+  `storeFile`/`storePassword`/`keyAlias`/`keyPassword` (`app/build.gradle.kts`), and the secrets
+  exist (D-017). The updater needs `-Penable-updater` (the default `local` profile turns it off)
+  and a seam at `GITHUB_REPO` (`AppUpdateChecker.kt`). The preview comparison fits: tags
+  `r<commit count>` (upstream's deleted `nightly.yml` is a starting point:
+  `git show 8d310012a^:.github/workflows/nightly.yml`). Needs `permissions: contents: write`, a
+  skip when no app files changed since the last release, pruning old releases, and the same
+  keepalive job as `fork-upstream-sync.yml`. The session-start hook already watches
+  `fork-release.yml`.
 - [ ] **1.2 Language filter for novel extensions** (your report). The extension list gets a
   language filter for novels, sharing one setting with manga extensions; installing a plugin turns
   its language on so it never disappears. *Done when:* choosing only 日本語 shows only Japanese
   extensions. **You:** answer one question when asked (decision O-001).
-- [ ] **1.3 Performance baseline.** Repeatable measurements on your phone (cold start, library
-  open, novel chapter open, memory), saved so every later change is compared against real numbers.
-  **You:** phone connected.
+- [ ] **1.3 Performance baseline.** Repeatable measurements on your tablet and phone (cold start,
+  library open, novel chapter open, memory), saved so every later change is compared against real
+  numbers. **You:** devices connected.
 - [ ] **1.4 Japanese sites in the plugin host.** Shift-JIS and EUC-JP pages decode correctly, and
   plugin calls stop waiting behind one lock (faster global search). These are general fixes, so
   they are also prepared as a pull request for upstream Reikai. **You (optional):** open that pull
@@ -40,11 +52,11 @@ unless a **You:** step is still waiting. Why things are built this way:
 
 ## Next: Phase 2, Yomitan spike (go or no-go)
 
-- [ ] **2.1 Prove Yomitan runs inside the app, on your phone.** A throwaway build that imports
+- [ ] **2.1 Prove Yomitan runs inside the app, on your tablet and phone.** A throwaway build that imports
   JMdict plus a frequency and a pitch dictionary, measures lookup speed, looks up a word tapped in
   vertical text, and adds a Lapis card to AnkiDroid. Targets: popup in under about 150-200 ms,
   import without crashing. **You:** install AnkiDroid, download the dictionaries the agent links
-  (they are free but not ours to ship), keep the phone connected, then decide go or no-go with the
+  (they are free but not ours to ship), keep the devices connected, then decide go or no-go with the
   numbers. If no-go, agents present the fallbacks in [architecture.md](architecture.md).
 
 ## Then: Phase 3, Yomitan engine and the lookup popup
@@ -55,13 +67,14 @@ unless a **You:** step is still waiting. Why things are built this way:
   **You:** grant the AnkiDroid permission when the app asks; pick your note type (Lapis
   recommended).
 - [ ] **3.3 Audio**: online sources, the local `android.db` audio collection, phone TTS as backup.
-  **You (optional):** copy a local audio collection to the phone.
+  **You (optional):** copy a local audio collection to the tablet.
 - [ ] **3.4 The popup**: Yomitan's results in a phone-friendly sheet; a dictionary search screen;
   "Look up in Reikai JP" from any app's text-selection menu.
 - [ ] **3.5 Settings**: a simple Japanese section plus Yomitan's full settings; import your desktop
   Yomitan backup. **You (optional):** export your desktop Yomitan settings and dictionaries.
-- [ ] **3.6 Automatic Yomitan updates**: a weekly check vendors a new Yomitan release on a branch,
-  runs its tests through our stand-in, and opens a pull request.
+- [ ] **3.6 Automatic Yomitan updates**: a weekly check vendors a new Yomitan release, runs its
+  tests through our stand-in, and applies it by itself when they pass (a failure waits for the
+  next agent session, D-015).
 
 ## Then: Phase 4, Japanese reading mode
 
@@ -88,14 +101,14 @@ unless a **You:** step is still waiting. Why things are built this way:
 
 ## Ideas, not scheduled
 
-- Let agents resolve upstream merges and Yomitan updates on GitHub by themselves (decision O-002).
 - ttu-compatible progress sync; audiobook read-along; machine translation of sentences.
 
 ## Recurring
 
-- **Upstream syncs** (`/sync-upstream`, or the weekly pull request). Log:
+- **Upstream syncs**: automatic every Monday (`fork-upstream-sync.yml`); an agent runs
+  `/sync-upstream` only when the session-start lines report a failed run. Log:
   - 2026-09-27: fork moved onto `upstream/feat/0.4.0` at `668d48c34`.
-- **Retro** (`/retro`, weekly or after a large item): see [harness.md](harness.md).
+- **Retro** (`/retro`, after a large item or when you ask): see [harness.md](harness.md).
 
 ## Done: Phase 0, foundation (2026-09-27)
 
@@ -104,4 +117,6 @@ unless a **You:** step is still waiting. Why things are built this way:
 - [x] Research, architecture, decisions and this roadmap.
 - [x] New harness: `AGENTS.md`, skills, hooks, rules, fork scripts, self-measurement.
 - [x] Licence: GPL-3.0-or-later, upstream's Apache notices kept.
-- [x] Fork CI (build check, weekly upstream watch). **You:** checklist item 1 above.
+- [x] Fork CI and the automatic upstream sync (every Monday, pushes when its checks pass).
+- [x] You: GitHub CLI installed and logged in; one-time GitHub setup run (sync key, app signing
+  key); tablet and phone connected over adb.

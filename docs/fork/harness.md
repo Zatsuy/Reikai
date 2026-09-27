@@ -96,9 +96,14 @@ $78 with 22 research subagents. The next retro compares against it.
 
 The fork runs only its own workflows (decision D-013):
 - `fork-ci.yml`: harness fixtures, seams, format, DI ownership, migrations, compile and unit tests
-  on pull requests and code pushes to `main`. No secrets, publishes nothing.
-- `fork-upstream-watch.yml`: every Monday, merges new upstream commits on a branch, tests them and
-  opens a pull request; fails with the conflict list when a person or agent must merge.
+  on pull requests and code pushes to `main` (not on the sync's own merges, already checked). No
+  secrets, publishes nothing. Pushes to `main` save the Gradle cache so later builds start warm.
+- `fork-upstream-sync.yml`: every Monday, merges upstream, runs the same checks and pushes to
+  `main` with the `SYNC_DEPLOY_KEY` deploy key. A failure pushes nothing. A keepalive job stops
+  GitHub switching the schedule off after 60 quiet days.
+- Automation needs none of the owner's attention (decision D-015). A failed run reaches the next
+  agent through the session-start hook, which asks GitHub's API for the latest run of each fork
+  workflow on `main`.
 - Upstream's workflows are deleted, and `sync_upstream.py` drops any new ones on every merge.
 
 ## Changing the harness

@@ -57,9 +57,10 @@ while staying a thin, mergeable layer over Reikai.
   the backend a message port directly (Yomitan otherwise waits on a service worker that a WebView
   never registers, `ext/js/comm/api.js:488-505`). A **tripwire** reports any extension API Yomitan
   calls that the stand-in does not provide, so a new Yomitan version fails in tests, not silently.
-- **Updates:** a workflow checks Yomitan releases, vendors the new one on a branch, runs Yomitan's
-  own golden-file tests through the stand-in in Node, and opens a pull request. Nothing in
-  Yomitan's files is edited by hand.
+- **Updates:** a workflow checks Yomitan releases, vendors the new one, runs Yomitan's own
+  golden-file tests through the stand-in in Node, and applies it by itself when they pass
+  (decision D-015); a failure waits for the next agent session. Nothing in Yomitan's files is
+  edited by hand.
 - **Escape hatch:** if IndexedDB proves too slow on a phone, only the database layer changes. The
   translator touches eight database functions (`findTermsBulk`, `findTermMetaBulk`, ...), which can
   be backed natively (hoshidicts' GPL branch fits the licence) without touching lookup, UI or Anki.
@@ -140,7 +141,7 @@ while staying a thin, mergeable layer over Reikai.
 
 ## Performance budgets
 
-Targets to confirm in the Phase 2 spike on the owner's phone, then enforced by measurement:
+Targets to confirm in the Phase 2 spike on the owner's tablet and phone, then enforced by measurement:
 
 | Path | Target |
 |---|---|

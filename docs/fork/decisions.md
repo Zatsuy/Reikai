@@ -21,7 +21,11 @@ the log; *Standing decisions* is the current state.
 | D-011 | **The upstream harness is replaced** by a lean, self-improving one (`docs/fork/harness.md`). | 2026-09-27 |
 | D-012 | **Model floor: Opus 5.5** for every agent, no Haiku or Sonnet (inferred from the owner's global settings and their other project; confirm or change here). | 2026-09-27 |
 | D-013 | **The fork runs none of upstream's CI pipelines**; it has its own workflows only. | 2026-09-27 |
-| D-014 | **JDK 25 locally; nothing gets installed.** The owner's JDK 25 builds the project (verified: `:app:compileDebugKotlin` succeeds on Gradle 9.7.1). CI keeps upstream's JDK 21. | 2026-09-27 |
+| D-014 | **JDK 25 locally; agents install nothing.** The owner's JDK 25 builds the project (verified: `:app:compileDebugKotlin` succeeds on Gradle 9.7.1). CI keeps upstream's JDK 21. The owner installed the GitHub CLI (`gh`, logged in as Zatsuy) on 2026-09-27. | 2026-09-27 |
+| D-015 | **Automation needs none of the owner's attention.** A hobby project the owner will not tend for long: updates apply themselves when the automated checks pass (upstream merges, Yomitan updates, app releases); what fails stops quietly, pushes nothing, and waits for the owner's next agent session, whose session-start lines report it. No pull requests to review, no weekly chores, nothing to remember. Agents never add a recurring owner task. | 2026-09-27 |
+| D-016 | **The owner reads mostly on a tablet**: Galaxy Tab S10 FE (SM-X520, Android 16, 1440x2304). Also a Galaxy A54 phone (SM-A546E, Android 16). Both connect over adb; device checks start on the tablet. The app keeps working on every device Reikai supports. | 2026-09-27 |
+| D-017 | **The app updates itself from this fork's GitHub Releases**, through the built-in updater (a "new version" screen with one button, as in Mihon). Releases are signed with one permanent key, made on 2026-09-27 by `scripts/fork/setup-github.sh` and stored as the secrets `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `ALIAS`, `KEY_PASSWORD` (backup in the owner's `~/.local/share/reikai-jp/signing/`). The key is never replaced and agents never read it. | 2026-09-27 |
+| D-018 | **No Claude in CI** (was O-002). Automation that cannot finish on its own waits for an agent session the owner starts ("if the automatic updates break something I'll have an agent fix it"). | 2026-09-27 |
 
 ## Open
 
@@ -33,13 +37,19 @@ item asks with AskUserQuestion and moves the answer to *Standing decisions*.
   separate disabled-languages list. Options: keep the two (no migration), or fold novels into the
   shared setting (a migration). Recommendation: decide when the language-filter item is built,
   after seeing both on the device.
-- **O-002 Claude in CI.** Letting agents resolve upstream-sync conflicts and Yomitan bumps on
-  GitHub needs a `CLAUDE_CODE_OAUTH_TOKEN` secret (from `claude setup-token`). Without it, CI only
-  opens pull requests for clean updates and local agents handle the rest. Recommendation: start
-  without; revisit after Phase 2.
 
 ## Log
 
+- **2026-09-27** Owner, on the weekly upstream pull request: "I really don't want to have to
+  remember this hobby project every week for the rest of time ... for this kind of project I feel
+  like automated workflows should require less work ... Make this a principle, I won't work on
+  this project for that long, I want updates to be automatic and have some easy to follow way with
+  a guide to update the app in my tablet (making it automatic if possible, Mihon updates are just a
+  screen where I press a button) ... if the automatic updates break something I'll have an agent
+  fix it if I still use the app." Reads mostly on the tablet; the app must work on any device
+  Reikai works on. Approved the Bash guard fix. Installed and logged in `gh`, ran
+  `scripts/fork/setup-github.sh` (deploy key verified able to push workflow changes; signing key
+  created).
 - **2026-09-27** Owner: fork follows upstream's newest branch locally and on GitHub; run Yomitan
   directly with automatic updates; vertical *and* horizontal Japanese modes; keep Reikai as the
   upstream; GPL fine ("not making this product for selling ... no problem with keeping it

@@ -30,9 +30,13 @@ lands on `main` first. `scripts/fork/sync_upstream.py` works this out on every r
 2. `scripts/fork/sync_upstream.py` merges, restores fork-owned paths, and commits when nothing else
    conflicts. Real conflicts are resolved by hand, keeping upstream's change and re-applying the
    fork's fenced seam inside it.
-3. Verify (compile, full unit tests, migrations, seams) and push. The `/sync-upstream` skill runs
-   all of this; the weekly `Upstream watch` workflow does steps 1 and 2 on GitHub and opens a pull
-   request when the merge is clean.
+3. Verify (compile, full unit tests, migrations, seams) and push.
+
+Every Monday the `Upstream sync` workflow (`.github/workflows/fork-upstream-sync.yml`) does all
+three on GitHub and pushes to `main` when the checks pass, with nobody watching (decision D-015).
+When the merge has real conflicts or a check fails, it pushes nothing; the next agent session sees
+the failed run in its session-start lines and runs `/sync-upstream`, which does the same steps
+locally with a person's judgement for the conflicts.
 
 ## Carrying knowledge over
 

@@ -1,6 +1,10 @@
-# Connect your phone for agent testing
+# Connect your tablet or phone for agent testing
 
-Once your phone is connected, agents can install a build, open it, take screenshots and read
+**Your devices** (2026-09-27, over USB): Galaxy Tab S10 FE (`SM_X520`, your main reader) and
+Galaxy A54 (`SM_A546E`). The session-start line lists what is connected. The steps below say
+"phone"; they are the same on the tablet.
+
+Once a device is connected, agents can install a build, open it, take screenshots and read
 crash logs themselves, instead of asking you to test by hand. It takes about five minutes, once.
 Your phone and the computer must be on the same Wi-Fi network.
 
