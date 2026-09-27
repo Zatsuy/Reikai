@@ -21,8 +21,9 @@ out of your context.
 | Faster | before and after numbers from the same measurement on the device |
 | A subagent did it | `git diff` shows it |
 
-**On a device** (only when `adb devices -l` lists it; the debug package is `app.reikai.dev` until
-the identity item lands, then `app.reikai.jp.dev`). The owner reads on the tablet (`SM_X520`),
+**On a device** (when `adb devices -l` does not list the one you need, ask the owner to connect it
+with AskUserQuestion and wait: D-019; the debug package is `app.reikai.dev` until the identity
+item lands, then `app.reikai.jp.dev`). The owner reads on the tablet (`SM_X520`),
 so check there first, then the phone (`SM_A546E`). With both connected every `adb` command needs
 `-s <serial>` (serials from `adb devices -l`); `installDebug` installs on all of them.
 - install: `scripts/fork/gw :app:installDebug`

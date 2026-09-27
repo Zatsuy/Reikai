@@ -17,5 +17,5 @@ The owner is not a professional developer; every step must be doable without gue
   to confirm it worked.
 - **Where it lives**: short steps go in the roadmap item's "You:" list; a longer test script goes in
   `docs/fork/testing/<item>.md`, linked from the item.
-- For device testing, prefer steps the agent can then check (the owner leaves the phone connected
-  and the agent reads the UI dump) over steps that need the owner to judge.
+- For device testing, prefer steps the agent can then check (the owner connects the device when
+  asked, D-019, and the agent reads the UI dump) over steps that need the owner to judge.

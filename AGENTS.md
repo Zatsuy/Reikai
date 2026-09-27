@@ -21,7 +21,8 @@ Not a professional developer. Wants agents to run development themselves and to 
 what only they can answer or do (AskUserQuestion, grouped, options with a recommendation).
 Automation must never need their routine attention (D-015): updates apply themselves when checks
 pass, failures wait quietly for the next agent session; never create a chore, review or pull
-request for them. They read mostly on a tablet (D-016).
+request for them. They read mostly on a tablet (D-016). Devices are plugged in only on request: when a check needs
+the tablet or phone and adb does not list it, ask the owner to connect it and wait (D-019).
 Explain in plain English without dumbing down. When a request does not fit the evidence, say so
 and suggest the better option. Performance and smoothness of the app are a pillar.
 

@@ -128,7 +128,8 @@ def main():
         lines += automation.result()
         found = adb.result()
         lines.append(f"Devices over adb: {', '.join(found)}." if found else
-                     "Devices over adb: none (docs/fork/testing/phone-setup.md).")
+                     "Devices over adb: none; when a check needs one, ask the owner to connect it (D-019, "
+                     "docs/fork/testing/phone-setup.md).")
     print("\n".join(lines))
 
 

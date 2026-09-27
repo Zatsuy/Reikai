@@ -27,7 +27,9 @@ do. This skill is that loop.
    seam. Keep one Gradle build running at a time.
 7. **Review** the item's diff with `/review` and fix what the reviewers confirm.
 8. **Device check** for anything user-visible: tablet first (the owner's main reader), then the
-   phone, install and look (`/verify`); none connected, write the owner's test steps with
+   phone, install and look (`/verify`); the one you need not connected, ask the owner to connect it
+   (AskUserQuestion naming the device, D-019) and continue when they answer. Only steps that need
+   the owner's own judgement, or a declined request, become test steps with
    `/owner-steps`.
 9. **Land.** Tick the item in the roadmap with its commit SHAs and any "You:" steps, add a line to
    `docs/fork/CHANGELOG.md` if the owner will notice the change, commit, and push `origin main`

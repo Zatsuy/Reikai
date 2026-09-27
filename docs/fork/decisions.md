@@ -26,6 +26,7 @@ the log; *Standing decisions* is the current state.
 | D-016 | **The owner reads mostly on a tablet**: Galaxy Tab S10 FE (SM-X520, Android 16, 1440x2304). Also a Galaxy A54 phone (SM-A546E, Android 16). Both connect over adb; device checks start on the tablet. The app keeps working on every device Reikai supports. | 2026-09-27 |
 | D-017 | **The app updates itself from this fork's GitHub Releases**, through the built-in updater (a "new version" screen with one button, as in Mihon). Releases are signed with one permanent key, made on 2026-09-27 by `scripts/fork/setup-github.sh` and stored as the secrets `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `ALIAS`, `KEY_PASSWORD` (backup in the owner's `~/.local/share/reikai-jp/signing/`). The key is never replaced and agents never read it. | 2026-09-27 |
 | D-018 | **No Claude in CI** (was O-002). Automation that cannot finish on its own waits for an agent session the owner starts ("if the automatic updates break something I'll have an agent fix it"). | 2026-09-27 |
+| D-019 | **Devices are connected only when needed.** The tablet and phone are not always on or plugged in. When a check needs one and `adb devices` does not list it, the agent asks the owner with AskUserQuestion, naming the device, and continues once they connect it; it does not skip the check or swap it for written test steps unless the owner says so. | 2026-09-27 |
 
 ## Open
 
@@ -40,6 +41,11 @@ item asks with AskUserQuestion and moves the answer to *Standing decisions*.
 
 ## Log
 
+- **2026-09-27** Owner: "my devices will not always be on or connected, if you need them just send
+  a user question and I'll answer after connecting the specific device needed. Make sure it's a
+  rule as well." And: the tracked upstream branch "will likely not remain the most updated one for
+  that long considering it's a feature branch"; there should be a check that it is still the right
+  one (now at every session start).
 - **2026-09-27** Owner, on the weekly upstream pull request: "I really don't want to have to
   remember this hobby project every week for the rest of time ... for this kind of project I feel
   like automated workflows should require less work ... Make this a principle, I won't work on
