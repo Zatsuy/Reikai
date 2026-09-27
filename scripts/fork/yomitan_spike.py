@@ -190,10 +190,21 @@ def tap(args):
         targets = json.loads(saved.read_text())
     else:
         sys.exit("no tap targets: run cmd DEVICE '{\"do\":\"reader\"}' first")
+    width, height = map(int, re.search(r"(\d+)x(\d+)", adb(serial, "shell", "wm size").splitlines()[-1]).groups())
     times = []
     for _ in range(args.rounds):
         for word in args.words:
+            # The reader reports new places when it scrolls; the newest report wins.
+            fresh = result_of([l.split(": ", 1)[-1] for l in adb(serial, "logcat", "-d", "-v", "brief", "-s", f"{TAG}:*").splitlines()], "targets")
+            if fresh:
+                targets = fresh
+            if word not in targets:
+                print(f"{word}: not on the page")
+                continue
             x, y = targets[word]
+            if not (0 < x < width and 0 < y < height):
+                print(f"{word}: off screen now")
+                continue
             adb(serial, "logcat", "-c")
             adb(serial, "shell", f"input tap {x} {y}")
             lines = follow(serial, r"^RESULT popup_shown ", 15, quiet=True)

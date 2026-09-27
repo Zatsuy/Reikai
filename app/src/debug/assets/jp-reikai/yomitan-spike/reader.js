@@ -9,7 +9,7 @@
     addEventListener('pointerdown', (e) => post({t: 'result', name: 'tap_down'}, JSON.stringify({at: now(e)})), {capture: true, passive: true});
     addEventListener('pointerup', (e) => post({t: 'result', name: 'tap_up'}, JSON.stringify({at: now(e)})), {capture: true, passive: true});
 
-    const WORDS = ['喫茶店', '傘', '冷めて', '連絡', '小説', '主人公', '巻き込まれて', '不思議'];
+    const WORDS = ['喫茶店', '傘', '冷めて', '連絡', '小説', '主人公', '巻き込まれて', '不思議', '馬酔木'];
     const locate = () => {
         const rects = {};
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -28,4 +28,10 @@
         post({t: 'rects', name: 'targets', done: true}, JSON.stringify(rects));
     };
     addEventListener('load', () => requestAnimationFrame(locate));
+    // The page can scroll (a narrow phone holds fewer columns): report the words' new places.
+    let pending = 0;
+    addEventListener('scroll', () => {
+        clearTimeout(pending);
+        pending = setTimeout(locate, 150);
+    }, {passive: true});
 })();
