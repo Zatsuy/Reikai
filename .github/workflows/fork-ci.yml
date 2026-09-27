@@ -30,6 +30,9 @@ jobs:
 
       - name: Harness checks
         run: |
+          # The edit hook tells upstream-owned files apart by looking them up in upstream's tree.
+          git remote add upstream https://github.com/unseensnick/Reikai.git
+          git fetch --quiet --depth 1 upstream main
           python3 .claude/hooks/test_hooks.py
           python3 scripts/fork/seams.py --check
 
