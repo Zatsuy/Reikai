@@ -52,7 +52,9 @@ jobs:
         run: |
           python3 scripts/fork/seams.py --check
           pwsh -NoProfile -File scripts/di-interop-check.ps1
-          ./gradlew spotlessCheck verifySqlDelightMigration test --console=plain
+          ./gradlew spotlessCheck verifySqlDelightMigration --console=plain
+          # A few upstream unit tests are flaky (ROADMAP 1.6); a second run retries what failed, so a real break still fails.
+          ./gradlew test --console=plain || ./gradlew test --console=plain
 
       # The build reads a keystore path, never the base64 secret (see app/build.gradle.kts).
       - name: Decode the signing keystore

@@ -54,6 +54,12 @@ email you (safe to ignore), and the next agent session you start sees it and fix
 - [ ] **1.5 Kakuyomu Popular/Latest.** A plugin bug, not an app bug (the site changed its page);
   the issue text is ready in [research](research/landscape-2026-09.md). **You (optional):** file it
   at `LNReader/lnreader-plugins`, or tell an agent to prepare a fix pull request for that repo.
+- [ ] **1.6 Steady automated checks** (agents only). Upstream's Recents unit tests fail at
+  random on GitHub (`RecentsEngineTest` "a read row leaves the downloaded filter once its download
+  is deleted", `RecentsFeedSurfaceTest` with `UncaughtExceptionsBeforeTest`, a coroutine leaking
+  from an earlier test): Fork CI failed 3 of 9 runs on 2026-09-27. The workflows retry the tests
+  once meanwhile. Find the leak with `/debug`, fix it as a seam, offer the fix upstream. *Done
+  when:* 20 CI runs in a row pass without the retry.
 
 ## Next: Phase 2, Yomitan spike (go or no-go)
 
