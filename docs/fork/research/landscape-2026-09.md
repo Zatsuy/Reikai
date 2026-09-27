@@ -36,8 +36,12 @@ which explain the owner's reports:
    pages come from `ncode.syosetu.com`.
 
 Reikai's own gaps for Japanese sites: `fetchText` ignores its encoding argument and `TextDecoder`
-is UTF-8 only (Shift-JIS/EUC-JP sites would garble); `Intl` is a locale-blind stub; one engine-wide
-lock runs every plugin call, network time included, one at a time (global search is sequential).
+is UTF-8 only (Shift-JIS/EUC-JP sites would garble); `Intl` is a locale-blind stub. *Corrected
+2026-09-27 (roadmap 1.4):* the host already decoded by the Content-Type charset (OkHttp), so only
+pages that name their charset in `<meta>` garbled (Aozora Bunko); no LNReader plugin passes an
+encoding today. The "one engine-wide lock" was gone before the fork began: upstream `93d8a0425`
+gives each plugin its own engine and lock, and global search runs 5 sources at a time
+(`ENTRY_ROW_CONCURRENCY`). Only calls to the same plugin still queue.
 
 **Kakuyomu Popular/Latest is a plugin bug.** The rankings page moved to Next.js; the selector
 `.widget-media-genresWorkList-right > .widget-work` (`kakuyomu.ts:68`) matches nothing, so every host

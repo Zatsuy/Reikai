@@ -8,6 +8,8 @@
 //   __lnGetStorage(pluginId, key)      -- sync, returns string|null
 //   __lnSetStorage(pluginId, key, val) -- sync, val null deletes
 //   __lnFetch(url, optsJson)           -- async, returns a JSON FetchResponse string
+// FORK: TextDecoder's non-UTF-8 labels
+//   __lnDecode(label, base64)          -- sync, returns the decoded string
 //
 // Plugin source is downloaded by Kotlin (LnPluginLoader) and passed into __lnLoadPlugin. All HTTP
 // routes through Kotlin OkHttp (so the CloudflareInterceptor / Flaresolverr keep applying); native
@@ -251,8 +253,14 @@
       return a;
     };
     globalThis.TextEncoder = TE;
-    var TD = function () {};
+    // FORK --> keep the label; the Kotlin host decodes the ones that are not UTF-8
+    var TD = function (label) {
+      this._label = label == null ? "" : String(label);
+    };
     TD.prototype.decode = function (b) {
+      if (!/^\s*(utf-?8|unicode-1-1-utf-8)?\s*$/i.test(this._label))
+        return __lnDecode(this._label, bytesToBase64(new Uint8Array(b || [])));
+      // FORK <--
       var a = new Uint8Array(b);
       var s = "";
       for (var i = 0; i < a.length; i++) s += String.fromCharCode(a[i]);
@@ -653,8 +661,13 @@
     return makeResponse(raw);
   }
 
-  async function fetchText(url, init) {
-    var res = await fetchApi(url, init);
+  // FORK --> lnreader's third argument names the page's charset (the Kotlin bridge decodes)
+  async function fetchText(url, init, encoding) {
+    var res = await fetchApi(
+      url,
+      encoding ? Object.assign({}, init, { encoding: encoding }) : init,
+    );
+    // FORK <--
     if (!res.ok) return "";
     return await res.text();
   }

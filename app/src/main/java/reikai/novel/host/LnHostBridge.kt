@@ -88,8 +88,15 @@ class LnHostBridge(
                 bodyText = ""
                 bodyBase64 = Base64.encodeToString(res.body.bytes(), Base64.NO_WRAP)
             } else {
-                bodyText = res.body.string()
-                bodyBase64 = null
+                // FORK --> decode like a browser (plugin label, header, <meta charset>) so Shift_JIS pages read
+                val decoded = jp.reikai.novel.host.LnBodyDecoder.decode(
+                    res.body.bytes(),
+                    opts.encoding,
+                    res.header("Content-Type"),
+                )
+                bodyText = decoded.text
+                bodyBase64 = decoded.rawBase64
+                // FORK <--
             }
             JSON.encodeToString(
                 FetchResponseDto.serializer(),
@@ -162,6 +169,8 @@ class LnHostBridge(
         // Set by fetchProto: base64 request body + flag to return the response base64 (binary-safe).
         val bodyBase64: String? = null,
         val binary: Boolean = false,
+        // FORK: lnreader's fetchText(url, init, encoding) label, read by LnBodyDecoder
+        val encoding: String? = null,
     )
 
     @Serializable
