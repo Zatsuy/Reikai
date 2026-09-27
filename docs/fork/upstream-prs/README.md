@@ -1,13 +1,14 @@
 # Fixes offered to other projects
 
-General fixes the fork made that belong upstream. Each has its patch or branch and the text for
-the pull request. Opening one is optional and public, under the owner's GitHub account.
+General fixes the fork made that could go upstream. Each has its patch or branch and the text for
+the pull request. The owner chose not to offer the Phase 1 fixes (D-022); they are kept here in case
+that changes. Opening one is public, under the owner's GitHub account.
 
 | Fix | For | Where it is | State |
 |---|---|---|---|
-| Plugin pages in Shift_JIS and other non-UTF-8 charsets | `unseensnick/Reikai` (`feat/0.4.0`) | branch `pr/plugin-charsets` on `Zatsuy/Reikai`; text below | ready, not opened |
-| Three tests that fail at random | `unseensnick/Reikai` (`feat/0.4.0`) | branch `pr/recents-test-flakes` on `Zatsuy/Reikai`; text below | ready, not opened |
-| Kakuyomu Popular and Latest | `LNReader/lnreader-plugins` (`master`) | [lnreader-plugins-kakuyomu.patch](lnreader-plugins-kakuyomu.patch); text below | ready, not opened |
+| Plugin pages in Shift_JIS and other non-UTF-8 charsets | `unseensnick/Reikai` (`feat/0.4.0`) | branch `pr/plugin-charsets` on `Zatsuy/Reikai`; text below | ready, not offered (D-022) |
+| Three tests that fail at random | `unseensnick/Reikai` (`feat/0.4.0`) | branch `pr/recents-test-flakes` on `Zatsuy/Reikai`; text below | ready, not offered (D-022) |
+| Kakuyomu Popular and Latest | `LNReader/lnreader-plugins` (`master`) | [lnreader-plugins-kakuyomu.patch](lnreader-plugins-kakuyomu.patch); text below | ready, not offered (D-022) |
 
 ## Reikai: decode plugin pages that are not UTF-8
 

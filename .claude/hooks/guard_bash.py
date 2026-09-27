@@ -15,7 +15,10 @@ SECRET_FILE = r"(google-services\.json|keystore\.properties|[\w.-]+\.jks|[\w.-]+
 READ_VERBS = r"\b(cat|less|more|head|tail|cp|mv|base64|xxd|od|strings|scp|rsync|curl|openssl|keytool|nano|vi|vim)\b"
 
 DENY = [
-    (r"\bgit\s+push\b[^|;&]*\bupstream\b|\bgit\s+push\b[^|;&]*unseensnick",
+    # The remote named upstream (first argument after any options, or --repo), or its URL; a branch
+    # name that merely contains "upstream" is fine.
+    (r"\bgit\s+push(\s+-[^\s=]+(=\S+)?)*\s+upstream(?![\w/.-])|\bgit\s+push\b[^|;&]*--repo[= ]upstream\b"
+     r"|\bgit\s+push\b[^|;&]*unseensnick",
      "Never push to upstream Reikai. The fork pushes only to origin (Zatsuy/Reikai)."),
     (r"\bgit\s+remote\s+set-url\s+origin\b[^|;&]*unseensnick",
      "origin must stay the owner's fork (Zatsuy/Reikai)."),

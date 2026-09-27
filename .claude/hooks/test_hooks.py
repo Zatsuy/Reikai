@@ -11,6 +11,10 @@ ROOT = HERE.parents[1]
 BASH = [
     ("git push origin main", None),
     ("git push upstream main", "deny"),
+    ("git push -u upstream feat/x", "deny"),
+    ("git push --repo=upstream", "deny"),
+    ("git push git@github.com:unseensnick/Reikai.git main", "deny"),
+    ("git push origin upstream-pr/fix", None),
     ("git push --force origin main", "deny"),
     ("git push -f origin HEAD", "deny"),
     ("cat app/google-services.json", "deny"),

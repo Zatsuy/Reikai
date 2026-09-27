@@ -28,6 +28,7 @@ the log; *Standing decisions* is the current state.
 | D-018 | **No Claude in CI** (was O-002). Automation that cannot finish on its own waits for an agent session the owner starts ("if the automatic updates break something I'll have an agent fix it"). | 2026-09-27 |
 | D-019 | **Devices are connected only when needed.** The tablet and phone are not always on or plugged in. When a check needs one and `adb devices` does not list it, the agent asks the owner with AskUserQuestion, naming the device, and continues once they connect it; it does not skip the check or swap it for written test steps unless the owner says so. | 2026-09-27 |
 | D-020 | **One language filter for manga and novel extensions; installed novel sources keep their own** (was O-001). Browse → Extensions filters manga extensions, novel extension apps and LNReader plugins by Mihon's enabled languages. Browse → Sources → Filter → Novels keeps Reikai's separate per-language switches for installed novels, so nothing installed vanishes and no migration runs (owner, 2026-09-27). | 2026-09-27 |
+| D-022 | **The Phase 1 fixes are not offered upstream** (was a Phase 1 question): the charset decoding and the three test fixes for upstream Reikai and the Kakuyomu fix for LNReader stay in the fork; their branches and texts are kept in `docs/fork/upstream-prs/` (owner, 2026-09-27). | 2026-09-27 |
 | D-021 | **GitHub Actions minutes are scarce (free plan).** Agents never spend CI runs to prove something they can prove locally: a flaky test is fixed when a local harness that forces the bad timing fails before the fix and passes after, not after repeated CI runs (owner, 2026-09-27). | 2026-09-27 |
 
 ## Open
@@ -39,6 +40,9 @@ item asks with AskUserQuestion and moves the answer to *Standing decisions*.
 
 ## Log
 
+- **2026-09-27** Owner answered the Phase 1 questions: don't offer the three upstream fixes
+  (D-022); narrow the push guard so it blocks only real pushes to upstream Reikai (approved); test
+  on the phone too ("I'm back and just plugged the phone in, keep it awake during tests").
 - **2026-09-27** Owner, on roadmap item 1.6: "there's no need to run 20 CI runs, that sounds like
   a waste and I'm on the free plan on github. Make sure you can guarantee it without wasting runs"
   (now D-021). Also asked the agent to finish the rest of Phase 1 in one session and to keep the

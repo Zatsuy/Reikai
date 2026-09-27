@@ -90,8 +90,8 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   EUC-JP and other non-UTF-8 charsets, including sites that name the charset only inside the page
   (Aozora Bunko used to arrive garbled). The "one lock" half was already fixed upstream before the
   fork began (`93d8a0425` gives each plugin its own engine, and global search runs 5 sources at a
-  time), so global search does not get faster from this item. **You (optional):** offer the fix to
-  upstream Reikai ([upstream-prs](upstream-prs/README.md)).
+  time), so global search does not get faster from this item. The fix stays in Reikai JP: you chose
+  not to offer it upstream (D-022; ready in [upstream-prs](upstream-prs/README.md) if that changes).
   Ruling: no lock change - already fixed upstream; only two calls to the same plugin still queue,
   and removing that needs a second engine per plugin (memory, D-008) - cost if wrong: that engine
   later.
@@ -105,16 +105,15 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   `LnBodyDecoderTest`, `LnHostBridgeCharsetTest` (a mutation check fails 4 of them); on the tablet
   `LnCharsetDeviceTest` 6/6 in the real QuickJS host (Shift_JIS and EUC-JP `TextDecoder` with ①,
   the live Aozora page, the encoding argument, raw bytes for `arrayBuffer`), and upstream's
-  plugin sweep `HeadlessJsIntegrationTest` 7/7 (35 live plugins loaded, 6 full chains).
-  Upstream-style branch `pr/plugin-charsets` on the fork, not opened.
+  plugin sweep `HeadlessJsIntegrationTest` 7/7 (35 live plugins loaded, 6 full chains); the same
+  6/6 and 7/7 on the phone. Upstream-style branch `pr/plugin-charsets` on the fork, not offered.
 - [x] **1.5 Kakuyomu Popular/Latest.** A plugin bug, not an app bug (D-010): the site's ranking
   pages moved to Next.js. The agent wrote a fix for the plugin's own project (Popular read from the
   page's data, Latest added, version 1.1.0; its checker passes) and tried it in the debug app on
   the tablet through a local test repository: Popular, filters, paging, Latest, search and a
-  chapter all worked. Nothing changes in Reikai JP itself: Kakuyomu's lists start working once
-  LNReader accepts the fix and the plugin updates. **You (optional):** offer it to
-  `LNReader/lnreader-plugins` ([upstream-prs](upstream-prs/README.md)); that project requires the
-  text to say an AI agent helped.
+  chapter all worked. Nothing changes in Reikai JP itself, and you chose not to offer the fix to
+  LNReader (D-022), so Kakuyomu's Popular and Latest stay empty until someone fixes the plugin
+  upstream; the tested patch is kept in [upstream-prs](upstream-prs/README.md).
   **Done 2026-09-27** in `63f538ed2` (the patch and its pull request text).
 - [x] **1.6 Steady automated checks** (agents only). Three upstream tests failed at random on
   GitHub. The tests were at fault, not the app: one deleted a download before the screen was
@@ -127,8 +126,8 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   passed, and removing the feed fix makes it fail again 5/5. Sweeps of all 3,683 unit tests under
   the forcings that caught these found no other. The full unit suite passes locally without the
   retry. **Done 2026-09-27** in `f9313a161`, `1289fa879`, `49fbd9527`.
-  Offered upstream as branch `pr/recents-test-flakes`
-  (optional, [upstream-prs](upstream-prs/README.md)).
+  Fork CI then passed without the retry (run 36350606321). Upstream-style branch
+  `pr/recents-test-flakes` on the fork, not offered (D-022).
 
 ## Next: Phase 2, Yomitan spike (go or no-go)
 
