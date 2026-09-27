@@ -30,6 +30,7 @@ the log; *Standing decisions* is the current state.
 | D-020 | **One language filter for manga and novel extensions; installed novel sources keep their own** (was O-001). Browse → Extensions filters manga extensions, novel extension apps and LNReader plugins by Mihon's enabled languages. Browse → Sources → Filter → Novels keeps Reikai's separate per-language switches for installed novels, so nothing installed vanishes and no migration runs (owner, 2026-09-27). | 2026-09-27 |
 | D-022 | **The Phase 1 fixes are not offered upstream** (was a Phase 1 question): the charset decoding and the three test fixes for upstream Reikai and the Kakuyomu fix for LNReader stay in the fork; their branches and texts are kept in `docs/fork/upstream-prs/` (owner, 2026-09-27). | 2026-09-27 |
 | D-021 | **GitHub Actions minutes are scarce (free plan).** Agents never spend CI runs to prove something they can prove locally: a flaky test is fixed when a local harness that forces the bad timing fails before the fix and passes after, not after repeated CI runs (owner, 2026-09-27). | 2026-09-27 |
+| D-023 | **A connected device is the owner's go-ahead to use it.** When the owner connects the tablet or phone, the agent may use it for the whole session and temporarily change the settings it needs (above all keeping the screen awake while plugged in). It tells the owner straight away when it changes a setting, puts every setting back as it was once it is done with that device for the session, says so at that moment, and repeats it in the final report (owner, 2026-09-27). | 2026-09-27 |
 
 ## Open
 
@@ -40,6 +41,9 @@ item asks with AskUserQuestion and moves the answer to *Standing decisions*.
 
 ## Log
 
+- **2026-09-27** Owner, starting Phase 2: "if I connect the device it's because I have this
+  intention"; change the settings needed ("especially to keep them awake") and set them back after,
+  telling them when each is changed and restored, as a rule for every later phase (now D-023).
 - **2026-09-27** Owner answered the Phase 1 questions: don't offer the three upstream fixes
   (D-022); narrow the push guard so it blocks only real pushes to upstream Reikai (approved); test
   on the phone too ("I'm back and just plugged the phone in, keep it awake during tests").
