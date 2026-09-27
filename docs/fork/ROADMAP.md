@@ -8,17 +8,21 @@ unless a **You:** step is still waiting. Why things are built this way:
 
 ## Your checklist right now
 
-Nothing is waiting on you. Start a **new** Claude Code conversation and type `/next` (one roadmap
-item per conversation keeps agents fast and cheap).
+1. *(When you have five minutes)* Open **Reikai JP** on the tablet (already installed and updated
+   by the agent) and go through its **Welcome!** setup: pick a new storage folder, and restore a
+   backup from upstream Reikai if you want your library there. Steps:
+   [install guide](install.md). On the phone, install it with the same guide if you like.
+2. Start a **new** Claude Code conversation and type `/next` (one roadmap item per conversation
+   keeps agents fast and cheap).
 
 **What runs without you** (decision D-015): every Monday GitHub merges upstream Reikai's new work
-into the fork, checks it, and pushes it; once item 1.1 lands, new versions of the app reach your
-tablet through its update screen. When something fails, nothing breaks: it just stops, GitHub may
+into the fork, checks it, and pushes it; once a day, when the app changed, a new version is
+published and Reikai JP offers it on its **New version available!** screen when you next open it. When something fails, nothing breaks: it just stops, GitHub may
 email you (safe to ignore), and the next agent session you start sees it and fixes it.
 
 ## Now: Phase 1, quick wins and groundwork
 
-- [ ] **1.1 Reikai JP on your tablet, updating itself.** The app gets its own name and id
+- [x] **1.1 Reikai JP on your tablet, updating itself.** The app gets its own name and id
   (`app.reikai.jp`; agents' debug builds `app.reikai.jp.dev`) so it installs beside upstream Reikai,
   and About links here. A release workflow builds a signed app and publishes it on this fork's
   GitHub Releases whenever `main` has app changes (checked daily, so at most one update a day), and
@@ -40,6 +44,11 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   cost if wrong: About says "Nightly" and a few dev-only options show, as in upstream's nightlies.
   Ruling: keep upstream's Website link in About, point GitHub at this fork - the site documents
   features the fork keeps - cost if wrong: one line.
+  **Done 2026-09-27** in `eed0c4f28`, `24c809c10`, `a6b7c4c83`, `e70101419` (tests retried once:
+  see 1.6). Releases r2665 and r2668 published by the workflow; the agent installed r2665 on the
+  tablet over adb, the app offered r2668 on its update screen and installed it through Download,
+  the one-time install permission and Update (`versionName 0.3.2-2665` to `0.3.2-2668`). The
+  owner's first-install step was done by the agent; the Welcome setup is left to the owner.
 - [ ] **1.2 Language filter for novel extensions** (your report). The extension list gets a
   language filter for novels, sharing one setting with manga extensions; installing a plugin turns
   its language on so it never disappears. *Done when:* choosing only 日本語 shows only Japanese

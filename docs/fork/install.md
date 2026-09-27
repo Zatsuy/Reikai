@@ -12,7 +12,8 @@ it once by hand; after that the app offers each new version itself.
    file without `arm64-v8a` in its name works on any device but is larger). If the browser warns
    that the file could be harmful, tap **Download anyway**.
 3. When the download finishes, tap **Open**. Android says the browser is not allowed to install
-   apps: tap **Settings**, turn on **Allow from this source**, go back.
+   apps: tap **Settings**, turn on the switch (**Allow permission** on Samsung, **Allow from this
+   source** elsewhere), go back, and tap **Install** if Android does not show it again by itself.
 4. Tap **Install**. Google Play Protect may ask to scan the app: either choice works.
 5. Open **Reikai JP** (the icon's label reads "Reikai JP"). It starts with a **Welcome!** setup:
    tap **Next** through it. When it asks for a storage folder, pick a new one (for example
@@ -29,9 +30,10 @@ fresh (after you swipe it away from recent apps, or the tablet restarts), it loo
 finds one, a **New version available!** screen appears:
 
 1. Tap **Download**, then **Install** when it finishes.
-2. The first time only, Android asks to allow Reikai JP to install apps: tap **Settings**, turn on
-   **Allow from this source**, go back.
-3. Android asks whether to update the app: tap **Update**.
+2. The first time only, Android says the tablet is not allowed to install apps from this source:
+   tap **Settings**, turn on the switch (**Allow permission** on Samsung), go back until you see
+   Reikai JP's screen again, and tap **Install** once more.
+3. Android asks **Update this app?**: tap **Update**, then **Open** or **Done**.
 
 To check by hand at any time: **More > About > Check for updates**. The version there reads
 `Nightly r<number>`; a higher number is newer.
