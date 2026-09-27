@@ -1,0 +1,77 @@
+name: Upstream sync
+
+# Keeps the fork current with upstream Reikai with nobody's attention (decision D-015). Every Monday
+# it merges upstream's newest development branch into main, runs the same checks as Fork CI, and
+# pushes when they pass. When the merge has real conflicts or a check fails, the run fails and pushes
+# nothing: the next agent session sees it in its session-start lines and runs /sync-upstream.
+# Pushes with the SYNC_DEPLOY_KEY deploy key (scripts/fork/setup-github.sh), because GitHub's own
+# Actions token cannot push commits that change workflow files, and upstream's history sometimes does.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Merge, check, push
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.SYNC_DEPLOY_KEY }}
+
+      - name: Merge upstream
+        id: merge
+        run: |
+          set -o pipefail
+          git remote add upstream https://github.com/unseensnick/Reikai.git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          before="$(git rev-parse HEAD)"
+          python3 scripts/fork/sync_upstream.py | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$(git rev-parse HEAD)" = "$before" ]; then
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "merged=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up the build
+        if: steps.merge.outputs.merged == 'true'
+        uses: ./.github/actions/setup-build
+        with:
+          cache-read-only: false
+
+      - name: Check the merge
+        if: steps.merge.outputs.merged == 'true'
+        run: |
+          python3 .claude/hooks/test_hooks.py
+          python3 scripts/fork/seams.py --check
+          pwsh -NoProfile -File scripts/di-interop-check.ps1
+          ./gradlew spotlessCheck verifySqlDelightMigration :app:compileDebugKotlin test --console=plain
+
+      - name: Push to main
+        if: steps.merge.outputs.merged == 'true'
+        run: git push origin HEAD:main
+
+  keepalive:
+    # GitHub switches off a public repository's schedules after 60 days without activity. Re-enabling
+    # this workflow on each run resets that clock (the approach the common keepalive actions rely on).
+    name: Keep the schedule alive
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/fork-upstream-sync.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}

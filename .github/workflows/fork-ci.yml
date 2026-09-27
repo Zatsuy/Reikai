@@ -22,6 +22,8 @@ permissions:
 jobs:
   check:
     name: Harness, format, compile, tests
+    # The upstream sync runs these same checks before it pushes its merge, so it is not built twice.
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(sync): merge upstream') }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -38,6 +40,9 @@ jobs:
 
       - name: Set up the build
         uses: ./.github/actions/setup-build
+        with:
+          # main saves the Gradle cache so later builds start warm; pull requests only read it.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Format
         run: ./gradlew spotlessCheck --console=plain
