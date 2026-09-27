@@ -1,5 +1,7 @@
 package reikai.presentation.recents
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.ui.history.HistoryViewModel
@@ -9,11 +11,13 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -78,11 +82,18 @@ class RecentsFeedSurfaceTest {
         excluded: Long,
     ) = runTest {
         val asked = mutableListOf<List<Long>>()
-        val state = feed.build(surface, preferences) { asked += it }
-        backgroundScope.launch { state.collect { } }
+        // End the model's IO work while Main is still the test's, even when the wait times out:
+        // finishing later, it resumes on Main after resetMain and fails the next test (cancelling alone is
+        // not enough: the join waits for the IO work)
+        val (model, state) = feed.build(surface, preferences) { asked += it }
+        try {
+            backgroundScope.launch { state.collect { } }
 
-        // The query runs on the IO dispatcher, which virtual time does not reach.
-        withContext(Dispatchers.Default) { withTimeout(5_000) { while (asked.isEmpty()) delay(10) } }
+            // The query runs on the IO dispatcher, which virtual time does not reach.
+            withContext(Dispatchers.Default) { withTimeout(5_000) { while (asked.isEmpty()) delay(10) } }
+        } finally {
+            model.viewModelScope.coroutineContext.job.cancelAndJoin()
+        }
 
         asked.first() shouldBe listOf(excluded)
     }
@@ -122,7 +133,7 @@ class RecentsFeedSurfaceTest {
                 libraryPreferences = LibraryPreferences(store),
                 updatesPreferences = UpdatesPreferences(store),
                 reikaiSourcePreferences = preferences,
-            ).state
+            ).let { it to it.state }
         }
 
         private val novelUpdates = FeedProbe("novel updates") { surface, preferences, asked ->
@@ -140,7 +151,7 @@ class RecentsFeedSurfaceTest {
                 sourcePreferences = preferences,
                 updatesPreferences = UpdatesPreferences(EmittingPreferenceStore()),
                 getCustomNovelInfo = mockk<GetCustomNovelInfo> { every { subscribeAll() } returns flowOf(emptyList()) },
-            ).state
+            ).let { it to it.state }
         }
 
         private val mangaHistory = FeedProbe("manga history") { surface, preferences, asked ->
@@ -156,7 +167,7 @@ class RecentsFeedSurfaceTest {
                 getHistory = getHistory,
                 removeHistory = mockk<RemoveHistory>(),
                 reikaiSourcePreferences = preferences,
-            ).state
+            ).let { it to it.state }
         }
 
         private val novelHistory = FeedProbe("novel history") { surface, preferences, asked ->
@@ -172,7 +183,7 @@ class RecentsFeedSurfaceTest {
                 getCustomNovelInfo = mockk<GetCustomNovelInfo> { every { subscribeAll() } returns flowOf(emptyList()) },
                 removeNovelHistory = mockk<RemoveNovelHistory>(),
                 sourcePreferences = preferences,
-            ).state
+            ).let { it to it.state }
         }
     }
 }
@@ -183,7 +194,12 @@ class RecentsFeedSurfaceTest {
  */
 class FeedProbe(
     private val label: String,
-    val build: (RecentsSurface, ReikaiSourcePreferences, (List<Long>) -> Unit) -> Flow<*>,
+    // Returns the model too, so the test can end its work
+    val build: (
+        RecentsSurface,
+        ReikaiSourcePreferences,
+        (List<Long>) -> Unit,
+    ) -> Pair<ViewModel, Flow<*>>,
 ) {
     override fun toString() = label
 }

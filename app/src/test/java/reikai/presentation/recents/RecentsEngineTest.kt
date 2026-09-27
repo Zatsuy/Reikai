@@ -1220,6 +1220,8 @@ class RecentsEngineTest {
         backgroundScope.launch { engine.rendered.collect { } }
         // Drawn first, so the empty list below is the delete's doing and not a row that never showed.
         engine.rendered.filterNotNull().first { it.rows.isNotEmpty() }
+        // The signal does not replay, so the delete must wait until the render subscribes to it
+        provider.awaitDownloadWatcher()
 
         provider.deleteDownload(manga1)
 
