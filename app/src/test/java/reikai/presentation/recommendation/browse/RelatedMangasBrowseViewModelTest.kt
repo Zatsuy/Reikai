@@ -137,6 +137,8 @@ class RelatedMangasBrowseViewModelTest {
         viewModel.toggleSelection("a")
         viewModel.addSelectedToLibrary()
         settle { viewModel.state.first { it.selectedUrls.isEmpty() } }
+        // FORK: the pool and the library reach the grid on separate collectors, so the pool update must wait
+        settle { viewModel.state.first { state -> state.items.single().inLibrary } }
 
         cache.put(MANGA_ID, RelatedPool(listOf(candidate("a", SOURCE_ID), candidate("b", SOURCE_ID)), emptyMap()))
 
