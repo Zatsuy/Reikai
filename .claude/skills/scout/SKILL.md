@@ -17,7 +17,7 @@ Task: `$ARGUMENTS`. Never edit files here. Ground every claim in code you just r
 4. **Reuse before writing**: search for an existing helper first.
 5. **Risks**: seams in upstream files (how many, how hot: `git log --since=30.days -- <file>`),
    performance against the budgets in `docs/fork/architecture.md`, licence, things that need the
-   owner's phone.
+   owner's tablet or phone.
 6. **Refute yourself**: for each surprising or load-bearing claim, have a fresh subagent try to
    disprove it against the code. Drop what does not survive.
 7. **Plan** as vertical slices, each one context in size, each with its verify step and whether it

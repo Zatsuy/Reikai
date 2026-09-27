@@ -17,12 +17,14 @@ out of your context.
 | Schema intact (after a merge) | `scripts/fork/gw :data:verifySqlDelightMigration` |
 | Seams clean | `scripts/fork/seams.py --check` |
 | Harness intact | `python3 .claude/hooks/test_hooks.py` |
-| Works on the phone | install, open, look (below); a screenshot or UI dump you actually read |
+| Works on the device | install, open, look (below); a screenshot or UI dump you actually read |
 | Faster | before and after numbers from the same measurement on the device |
 | A subagent did it | `git diff` shows it |
 
-**On the phone** (only when `adb devices` lists it; the debug package is `app.reikai.dev` until the
-identity item lands, then `app.reikai.jp.dev`):
+**On a device** (only when `adb devices -l` lists it; the debug package is `app.reikai.dev` until
+the identity item lands, then `app.reikai.jp.dev`). The owner reads on the tablet (`SM_X520`),
+so check there first, then the phone (`SM_A546E`). With both connected every `adb` command needs
+`-s <serial>` (serials from `adb devices -l`); `installDebug` installs on all of them.
 - install: `scripts/fork/gw :app:installDebug`
 - open: `adb shell monkey -p <package> -c android.intent.category.LAUNCHER 1`
 - look: `adb exec-out screencap -p > build/fork-logs/screen.png`, then Read the image; or

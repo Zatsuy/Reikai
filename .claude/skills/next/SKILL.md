@@ -7,7 +7,8 @@ effort: high
 The owner wants agents to run development on their own and to hear only what they must decide or
 do. This skill is that loop.
 
-1. **Start cold, cheaply.** Read the session-start lines, `git status`, the *Now* section of
+1. **Start cold, cheaply.** `git pull --ff-only` (GitHub automation pushes to `main`), then read
+   the session-start lines, `git status`, the *Now* section of
    `docs/fork/ROADMAP.md`, and *Standing decisions* plus *Open* in `docs/fork/decisions.md`.
    If `$ARGUMENTS` names an item, take that one.
 2. **Pick.** The first unchecked *Now* item whose blockers are done. If it waits on an owner step
@@ -25,8 +26,9 @@ do. This skill is that loop.
    commit. New code in fork files (`jp.reikai`, fork modules); an upstream file only as a fenced
    seam. Keep one Gradle build running at a time.
 7. **Review** the item's diff with `/review` and fix what the reviewers confirm.
-8. **Device check** for anything user-visible: phone connected, install and look (`/verify`);
-   not connected, write the owner's test steps with `/owner-steps`.
+8. **Device check** for anything user-visible: tablet first (the owner's main reader), then the
+   phone, install and look (`/verify`); none connected, write the owner's test steps with
+   `/owner-steps`.
 9. **Land.** Tick the item in the roadmap with its commit SHAs and any "You:" steps, add a line to
    `docs/fork/CHANGELOG.md` if the owner will notice the change, commit, and push `origin main`
    once verification passed.
@@ -38,3 +40,6 @@ do. This skill is that loop.
 **Stop** when something unexpected breaks an assumption: explain it, give options, ask if it is the
 owner's call. Past about 400k tokens of context, commit what is coherent, write where you stopped
 under the roadmap item, and tell the owner to run `/next` in a new session.
+
+**One item per session.** When the item is done, end the report by telling the owner to start the
+next one in a new conversation: the repo carries everything the next agent needs.

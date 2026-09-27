@@ -19,6 +19,9 @@ decided:** [docs/fork/decisions.md](docs/fork/decisions.md) (never ask what is a
 
 Not a professional developer. Wants agents to run development themselves and to be asked only
 what only they can answer or do (AskUserQuestion, grouped, options with a recommendation).
+Automation must never need their routine attention (D-015): updates apply themselves when checks
+pass, failures wait quietly for the next agent session; never create a chore, review or pull
+request for them. They read mostly on a tablet (D-016).
 Explain in plain English without dumbing down. When a request does not fit the evidence, say so
 and suggest the better option. Performance and smoothness of the app are a pillar.
 
@@ -59,6 +62,7 @@ and suggest the better option. Performance and smoothness of the app are a pilla
 
 - **Cost is turns times context.** Start cold (session-start lines, `git status`, the roadmap's
   *Now*), read only what the task needs, hand broad reading to Explore subagents, batch commands.
+  One roadmap item per session. GitHub automation pushes to `main`: `git pull --ff-only` first.
 - **Builds:** `scripts/fork/gw <tasks>` (short summary, full log in `build/fork-logs/`), one Gradle
   build at a time. Cheapest check first: `:app:compileDebugKotlin`, then touched test classes.
 - **Never poll:** long work runs in the background and you wait for its notification.

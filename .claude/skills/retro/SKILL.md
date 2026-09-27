@@ -1,6 +1,6 @@
 ---
 name: retro
-description: The self-improving half of the harness - measure recent agent sessions against thresholds, trace each crossing to its cause in the transcripts, then fix mechanics at once, trial instruction changes as canaries, and take owner-facing changes to the owner. Also prunes harness text that no longer earns its cost. Use weekly, after a large item, or when the owner asks why something was slow or costly.
+description: The self-improving half of the harness - measure recent agent sessions against thresholds, trace each crossing to its cause in the transcripts, then fix mechanics at once, trial instruction changes as canaries, and take owner-facing changes to the owner. Also prunes harness text that no longer earns its cost. Use after a large item, or when the owner asks why something was slow or costly.
 argument-hint: "[--since 7d | --session <id>] [label]"
 effort: high
 ---

@@ -1,6 +1,6 @@
 ---
 name: owner-steps
-description: Write step-by-step instructions for things only the owner can do - test on their phone, change a GitHub setting, add a secret, install AnkiDroid, import dictionaries, file an upstream issue - so each step is one clear action with its expected result. Use whenever work needs the owner's hands, and for manual test scripts.
+description: Write step-by-step instructions for things only the owner can do - test on their tablet or phone, change a GitHub setting, add a secret, install AnkiDroid, import dictionaries, file an upstream issue - so each step is one clear action with its expected result. Use whenever work needs the owner's hands, and for manual test scripts.
 argument-hint: "<what the owner needs to do>"
 effort: medium
 ---

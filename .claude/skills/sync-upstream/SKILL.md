@@ -1,6 +1,6 @@
 ---
 name: sync-upstream
-description: Merge upstream Reikai's newest development branch into the fork - check what is new, merge with fork-owned paths kept, resolve real conflicts hunk by hunk, carry over useful upstream knowledge, verify, push. Use weekly, when the session start says upstream has new commits, or when the owner asks.
+description: Merge upstream Reikai's newest development branch into the fork - check what is new, merge with fork-owned paths kept, resolve real conflicts hunk by hunk, carry over useful upstream knowledge, verify, push. Use when the session start reports a failed Upstream sync run, when upstream has commits the Monday sync has not merged, or when the owner asks.
 effort: high
 ---
 Reikai is the fork's upstream (decision D-001); Mihon arrives through it. Background:
