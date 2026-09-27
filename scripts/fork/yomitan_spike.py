@@ -11,6 +11,8 @@ Usage:
   scripts/fork/yomitan_spike.py fetch                download Yomitan and the dictionaries once
   scripts/fork/yomitan_spike.py push DEVICE [--js]   copy them to the device (--js: spike pages only)
   scripts/fork/yomitan_spike.py start DEVICE         (re)start the spike screen, wait for the engine
+                                                     (run it before `cmd`: a command sent while the
+                                                     screen is still starting is lost)
   scripts/fork/yomitan_spike.py cmd DEVICE JSON [--timeout S]
                                                      e.g. '{"do":"import","files":["jitendex-yomitan.zip"]}',
                                                      '{"do":"bench","count":200}', '{"do":"info"}'
@@ -19,6 +21,22 @@ Usage:
                                                      after '{"do":"reader"}': tap each word in the
                                                      vertical text, time tap to Yomitan's popup drawn
   scripts/fork/yomitan_spike.py shot DEVICE FILE     screenshot to FILE (PNG)
+  scripts/fork/yomitan_spike.py clean DEVICE         remove what the spike put on the device: pushed
+                                                     files, imported dictionaries, the Anki permission
+
+Other commands (through `cmd`): '{"do":"lookup","text":"食べられなかった"}'; '{"do":"probe"}' (does
+a worker started by a worker load? finding 5 of the research note).
+
+Adding a card (AnkiDroid installed; creates the note type "Lapis" in the collection if missing):
+  adb -s SERIAL shell pm grant app.reikai.jp.dev com.ichi2.anki.permission.READ_WRITE_DATABASE
+  cmd DEVICE '{"do":"anki-setup","deck":"Reikai JP test"}'    the deck and Lapis
+  cmd DEVICE '{"do":"anki-options","deck":"Reikai JP test"}'  Yomitan's card format for Lapis
+  cmd DEVICE '{"do":"reader"}'; tap DEVICE 喫茶店 --keep-open  prints RESULT popup_buttons {"addNote":[x,y]}
+  adb -s SERIAL shell input tap X Y                           Yomitan's own add button
+  cmd DEVICE '{"do":"anki-find","query":"deck:\\"Reikai JP test\\""}'  the note as AnkiDroid stored it
+  cmd DEVICE '{"do":"anki-cleanup","deck":"Reikai JP test","noteIds":[ID]}'  deletes the note; the
+                                                     provider cannot delete decks, so remove the empty
+                                                     deck in AnkiDroid (long-press it, Delete deck)
 
 DEVICE is an adb serial or `tablet` / `phone`.
 """
@@ -124,7 +142,7 @@ def push(args):
     print(adb(serial, "shell", f"du -sh {REMOTE}/*").strip())
 
 
-def follow(serial, until, timeout, quiet=False):
+def follow(serial, until, timeout, quiet=False, fatal=True):
     """Prints the spike's RESULT/MARK/tripwire/error lines until one matches `until`; returns them."""
     proc = subprocess.Popen(["adb", "-s", serial, "logcat", "-v", "brief", "-s", f"{TAG}:*"],
                             stdout=subprocess.PIPE, text=True)
@@ -149,7 +167,7 @@ def follow(serial, until, timeout, quiet=False):
                 break
     finally:
         proc.kill()
-    if not matched:
+    if not matched and fatal:
         sys.exit(f"timed out after {timeout}s waiting for /{until}/")
     return seen
 
@@ -207,8 +225,11 @@ def tap(args):
                 continue
             adb(serial, "logcat", "-c")
             adb(serial, "shell", f"input tap {x} {y}")
-            lines = follow(serial, r"^RESULT popup_shown ", 15, quiet=True)
+            lines = follow(serial, r"^RESULT popup_shown ", 15, quiet=True, fatal=False)
             shown, up = result_of(lines, "popup_shown"), result_of(lines, "tap_up")
+            if not shown or not up:
+                print(f"{word}: no popup within 15 s (missed)")
+                continue
             ms = round(shown["at"] - up["at"], 1)
             times.append(ms)
             print(f"{word}: tap to popup {ms} ms ({shown['entries']} entries)")
@@ -238,19 +259,33 @@ def pss_mb(serial, target):
     return int(m.group(1).replace(",", "")) // 1024 if m else None
 
 
+def clean(args):
+    serial = serial_of(args.device)
+    adb(serial, "shell", f"am force-stop {PKG}")
+    adb(serial, "shell", f"rm -rf {REMOTE}")
+    # Yomitan's database is the spike origin's IndexedDB in the debug app's WebView data (run-as works
+    # on debug builds). Its settings (a few KB of localStorage) share a file with other sites'
+    # storage, so they stay.
+    adb(serial, "shell", f"run-as {PKG} sh -c 'rm -rf app_webview/Default/IndexedDB/https_appassets.androidplatform.net_0.*'", check=False)
+    adb(serial, "shell", f"pm revoke {PKG} com.ichi2.anki.permission.READ_WRITE_DATABASE", check=False)
+    left = adb(serial, "shell", f"run-as {PKG} du -sh app_webview/Default/IndexedDB", check=False).strip()
+    print(f"cleaned; the debug app's IndexedDB now holds {left.split()[0] if left else 'nothing'}")
+
+
 def mem(args):
     serial = serial_of(args.device)
     app_pid = adb(serial, "shell", f"pidof {PKG}", check=False).strip()
     if not app_pid:
         sys.exit("the app is not running")
     print(f"app PSS {pss_mb(serial, app_pid)} MB")
-    # The WebView renderer is an isolated process the system starts for the app, after the app itself;
-    # other apps' renderers (a browser) were started earlier, so the newest one after the app is ours.
-    ps = adb(serial, "shell", "ps -A -o PID,NAME")
-    renderers = [int(pid) for pid, name in re.findall(r"(\d+) (\S+)", ps)
-                 if name.startswith("com.google.android.webview:sandboxed_process") and int(pid) > int(app_pid)]
-    if renderers:
-        print(f"renderer (pid {max(renderers)}) PSS {pss_mb(serial, max(renderers))} MB")
+    # The WebView renderer is an isolated process bound as a service of the app: Android lists it
+    # under the app's services, which tells it apart from other apps' renderers.
+    services = adb(serial, "shell", f"dumpsys activity services {PKG}")
+    pids = sorted(set(re.findall(r"ProcessRecord\{\w+ (\d+):com\.google\.android\.webview:sandboxed_process", services)))
+    for pid in pids:
+        print(f"renderer (pid {pid}) PSS {pss_mb(serial, pid)} MB")
+    if not pids:
+        print("no WebView renderer bound to the app")
 
 
 def main():
@@ -265,6 +300,7 @@ def main():
     s.add_argument("--keep-open", action="store_true", help="leave the last popup open (to tap its buttons)")
     s.add_argument("--blank", type=int, nargs=2, default=[150, 700], help="a screen point with no text"); s.set_defaults(fn=tap)
     s = sub.add_parser("shot"); s.add_argument("device"); s.add_argument("file"); s.set_defaults(fn=shot)
+    s = sub.add_parser("clean"); s.add_argument("device"); s.set_defaults(fn=clean)
     args = p.parse_args()
     args.fn(args)
 

@@ -185,6 +185,18 @@ async function run(command) {
             case 'info':
                 await info();
                 break;
+            case 'probe': {
+                // Finding 5: a worker started by a worker is never served in Android WebView.
+                const said = await new Promise((resolve) => {
+                    const out = [];
+                    const worker = new Worker('/__reikai/probe-worker.js');
+                    worker.onmessage = (e) => out.push(e.data);
+                    worker.onerror = (e) => out.push(`worker error ${e.message}`);
+                    setTimeout(() => { worker.terminate(); resolve(out); }, 5000);
+                });
+                result('probe', said);
+                break;
+            }
             case 'anki-options':
                 await ankiOptions(command.deck);
                 break;

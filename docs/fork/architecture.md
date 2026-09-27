@@ -57,9 +57,10 @@ while staying a thin, mergeable layer over Reikai.
   the backend a message port directly (Yomitan otherwise waits on a service worker that a WebView
   never registers, `ext/js/comm/api.js:488-505`). A **tripwire** reports any extension API Yomitan
   calls that the stand-in does not provide, so a new Yomitan version fails in tests, not silently.
-  The Phase 2 spike proved this on both devices and found what the stand-in must cover beyond the
-  extension APIs (no SharedWorker in WebView, no worker started by a worker, `tabs.query` listing
-  real tabs, AnkiConnect routed through the app): [the spike's findings](research/yomitan-spike-2026-09.md).
+  The Phase 2 spike ran Yomitan this way on both devices with an inert SharedWorker in place of
+  the message port, and found what the stand-in must still cover (no SharedWorker in WebView, no
+  worker started by a worker, `tabs.query` listing real tabs, AnkiConnect routed through the app):
+  [the spike's findings](research/yomitan-spike-2026-09.md).
 - **Updates:** a workflow checks Yomitan releases, vendors the new one, runs Yomitan's own
   golden-file tests through the stand-in in Node, and applies it by itself when they pass
   (decision D-015); a failure waits for the next agent session. Nothing in Yomitan's files is
@@ -144,25 +145,25 @@ while staying a thin, mergeable layer over Reikai.
 
 ## Performance budgets
 
-Confirmed by the Phase 2 spike on the owner's tablet and phone (measured values in brackets,
-[details](research/yomitan-spike-2026-09.md)), then enforced by measurement.
+Targets, with what the Phase 2 spike measured on the owner's tablet and phone in brackets
+([details](research/yomitan-spike-2026-09.md)); enforced by measurement.
 `scripts/fork/perf.py` measures the paths that exist today on both devices; the numbers and how to
 run it are in [perf/](perf/README.md).
 
 | Path | Target |
 |---|---|
-| Tap to popup visible (engine warm) | p95 under 150 ms (tablet 108, phone 99); the popup frame opens with the reader (first popup 340 ms otherwise) |
-| Engine warm-up when a reader opens | off the critical path (1.5 s tablet, 2.1 s phone with three dictionaries) |
-| JMdict import (one-time) | completes without crashing, under 5 min (Jitendex 2.4 min tablet, 3.5 min phone) |
+| Tap to popup visible (engine warm) | p95 under 150-200 ms (warm: tablet 108, phone 99; first popup after the reader opens: 340-780 ms) |
+| Engine warm-up when a reader opens | off the critical path, under 1 s (missed: 1.4-1.6 s tablet, 2.1-2.5 s phone with three dictionaries) |
+| JMdict import (one-time) | completes without crashing, under 5 min (Jitendex, from a page: 2.4 min tablet, 3.5 min phone) |
 | App cold start | not slower than upstream (engine starts lazily) |
 | Chapter open in Japanese mode | not slower than upstream's WebView mode |
-| Engine memory | WebView renderer share under 150 MB (spike: 111 MB with the engine and an idle page) |
+| Engine memory | set in Phase 3.1 without the spike's driver page (spike renderer: 110-119 MB idle, up to 205 MB with the reader and a popup) |
 
 ## Risks and fallbacks
 
 | Risk | Fallback |
 |---|---|
-| Yomitan cannot be hosted in a WebView after all | Ruled out by the Phase 2 spike. Were a future WebView to break it: GeckoView running Yomitan as a real extension (about +50 MB per phone architecture, unverified), or a native engine |
+| Yomitan cannot be hosted in a WebView after all | Not seen in the Phase 2 spike. If it happens: GeckoView running Yomitan as a real extension (about +50 MB per phone architecture, unverified), or a native engine |
 | IndexedDB too slow on the phone | The database escape hatch above |
 | Upstream reorganises the reader again | The Japanese mode is a separate viewport behind upstream's interface; only the one seam moves |
 | Yomitan stops being maintained | The pinned release keeps working; its stable contracts (dictionary format, markers) make a minimal fork of it feasible |

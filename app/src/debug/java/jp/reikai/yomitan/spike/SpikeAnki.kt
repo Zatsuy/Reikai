@@ -73,7 +73,10 @@ class SpikeAnki(private val context: Context, private val files: SpikeFiles) {
         ).put("modelId", modelId).put("fields", JSONArray(fieldNames(modelId))).toString()
     }
 
-    /** Deletes the notes the spike added and then its deck (AnkiDroid removes an empty deck's cards with it). */
+    /**
+     * Deletes the notes the spike added, then tries the deck. AnkiDroid's provider refuses to delete
+     * decks (UnsupportedOperationException), so the empty deck is removed in AnkiDroid's own screen.
+     */
     fun cleanUp(deckName: String, noteIds: List<Long>): String {
         val out = JSONObject()
         noteIds.forEach { id ->

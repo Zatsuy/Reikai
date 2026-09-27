@@ -15,8 +15,8 @@
         <activity
             android:name="reikai.presentation.reader.WebViewHostActivity"
             android:exported="false" />
-        <!-- FORK: the Yomitan spike screen, started over adb by scripts/fork/yomitan_spike.py -->
-        <activity android:name="jp.reikai.yomitan.spike.YomitanSpikeActivity" android:exported="true" android:launchMode="singleTop" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode" />
+        <!-- FORK: the Yomitan spike screen; only adb (which holds DUMP) may start it, not other apps -->
+        <activity android:name="jp.reikai.yomitan.spike.YomitanSpikeActivity" android:exported="true" android:permission="android.permission.DUMP" android:launchMode="singleTop" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode" />
     </application>
 
 </manifest>
