@@ -22,6 +22,15 @@ BASH = [
     ("sleep 5 && git status", None),
     ("sleep 60", "deny"),
     ("while ! adb devices | grep device; do sleep 2; done", "deny"),
+    ("until curl -sf localhost:8080; do sleep 5; done", None, "background"),
+    ("sleep 300 && git fetch", None, "background"),
+    ("scripts/fork/setup-github.sh", "deny"),
+    ("bash scripts/fork/setup-github.sh", "deny"),
+    ("/home/x/Reikai/scripts/fork/setup-github.sh", "deny"),
+    ("chmod +x scripts/fork/setup-github.sh && bash -n scripts/fork/setup-github.sh", None),
+    ("gh secret set SIGNING_KEY < key.b64", "deny"),
+    ("gh repo deploy-key add key.pub --allow-write", "deny"),
+    ("gh secret list --repo Zatsuy/Reikai", None),
     ("git reset --hard HEAD~1", "ask"),
     ("git clean -fdx", "ask"),
     ("rm -rf build/fork-logs", None),
@@ -54,8 +63,9 @@ def decision(hook, payload):
 
 def main():
     failures = 0
-    for cmd, want in BASH:
-        got = decision("guard_bash.py", {"tool_name": "Bash", "tool_input": {"command": cmd}})
+    for cmd, want, *background in BASH:
+        tool_input = {"command": cmd, "run_in_background": bool(background)}
+        got = decision("guard_bash.py", {"tool_name": "Bash", "tool_input": tool_input})
         if got != want:
             failures += 1
             print(f"FAIL bash {cmd!r}: want {want}, got {got}")

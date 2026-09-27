@@ -28,10 +28,16 @@ DENY = [
      "If a tool is truly missing, ask the owner."),
     (r"gradlew\b[^|;&]*(-Pdist=(ci|github)\b|-Pinclude-telemetry\b)",
      "The fork builds without Firebase telemetry (GPL, decisions D-004). Use the default local profile."),
-    (r"\bsleep\s+([3-9]\d|\d{3,})\b|\b(while|until)\b[^\n]*;\s*do\b[^\n]*\bsleep\b",
-     "Polling wastes the context cache. Run long work with run_in_background and wait for the "
-     "notification, or use the Monitor tool with an until-condition."),
+    (r"(^|[;&|]\s*|\b(bash|sh|zsh)\s+)(\./|\S*/)?scripts/fork/setup-github\.sh|\bgh\s+secret\s+(set|delete|remove)\b|\bgh\s+repo\s+deploy-key\s+(add|delete)\b",
+     "The owner runs this themselves: it creates the app's signing key and GitHub secrets, which "
+     "agents never handle (AGENTS.md rule 5). Point the owner to the ROADMAP checklist instead."),
 ]
+
+# A wait in the foreground blocks the session and wastes the context cache. The same wait in a
+# background command is Claude Code's recommended pattern, so it is allowed there.
+POLL = (r"\bsleep\s+([3-9]\d|\d{3,})\b|\b(while|until)\b[^\n]*;\s*do\b[^\n]*\bsleep\b",
+        "Foreground polling blocks the session. Run the wait with run_in_background and act on the "
+        "notification, or use the Monitor tool with an until-condition.")
 
 ASK = [
     (r"\bgit\s+reset\s+--hard\b", "git reset --hard discards work."),
@@ -60,10 +66,12 @@ def rm_outside_safe(cmd):
     return False
 
 
-def decide(cmd):
+def decide(cmd, background=False):
     for pattern, reason in DENY:
         if re.search(pattern, cmd):
             return "deny", reason
+    if not background and re.search(POLL[0], cmd):
+        return "deny", POLL[1]
     for pattern, reason in ASK:
         if re.search(pattern, cmd):
             return "ask", reason
@@ -74,8 +82,8 @@ def decide(cmd):
 
 def main():
     data = json.load(sys.stdin)
-    cmd = (data.get("tool_input") or {}).get("command", "")
-    decision, reason = decide(cmd)
+    tool_input = data.get("tool_input") or {}
+    decision, reason = decide(tool_input.get("command", ""), bool(tool_input.get("run_in_background")))
     if decision:
         print(json.dumps({"hookSpecificOutput": {
             "hookEventName": "PreToolUse",
