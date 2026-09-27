@@ -1,0 +1,77 @@
+name: Upstream watch
+
+# Once a week, check upstream Reikai's newest development branch. When it has new commits and they
+# merge without real conflicts, merge them on a branch, compile and test it, and open a pull request
+# on the fork for an agent or the owner to land. When real conflicts exist the job fails with the
+# list, and a local agent runs /sync-upstream. Needs the repository setting "Allow GitHub Actions
+# to create and approve pull requests" (docs/fork/ROADMAP.md, Phase 0).
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: upstream-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Look for new upstream commits
+        id: look
+        run: |
+          git remote add upstream https://github.com/unseensnick/Reikai.git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python3 scripts/fork/sync_upstream.py --check | tee check.txt
+          if grep -q "Nothing new upstream" check.txt; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+          cat check.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Merge on a branch
+        if: steps.look.outputs.new == 'true'
+        id: merge
+        run: |
+          set -o pipefail
+          branch="sync/upstream-$(date -u +%Y-%m-%d)"
+          git switch -c "$branch"
+          if ! python3 scripts/fork/sync_upstream.py | tee merge.txt; then
+            echo "Real conflicts: an agent runs /sync-upstream locally." >> "$GITHUB_STEP_SUMMARY"
+            cat merge.txt >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Set up the build
+        if: steps.look.outputs.new == 'true'
+        uses: ./.github/actions/setup-build
+
+      - name: Compile and unit tests
+        if: steps.look.outputs.new == 'true'
+        run: ./gradlew :app:compileDebugKotlin test verifySqlDelightMigration --console=plain
+
+      - name: Open the pull request on the fork
+        if: steps.look.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git push origin "${{ steps.merge.outputs.branch }}"
+          gh pr create --repo "${{ github.repository }}" --base main \
+            --head "${{ steps.merge.outputs.branch }}" \
+            --title "chore(sync): merge upstream Reikai ($(date -u +%Y-%m-%d))" \
+            --body "$(cat check.txt)"

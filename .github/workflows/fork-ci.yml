@@ -1,0 +1,49 @@
+name: Fork CI
+
+# The fork's own build check. It runs on pull requests and on pushes to main that change code,
+# needs no secrets, and publishes nothing. Upstream Reikai's workflows are not part of the fork.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: fork-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Harness, format, compile, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Harness checks
+        run: |
+          python3 .claude/hooks/test_hooks.py
+          python3 scripts/fork/seams.py --check
+
+      - name: Set up the build
+        uses: ./.github/actions/setup-build
+
+      - name: Format
+        run: ./gradlew spotlessCheck --console=plain
+
+      - name: Dependency-injection ownership
+        run: pwsh -NoProfile -File scripts/di-interop-check.ps1
+
+      - name: Database migrations
+        run: ./gradlew verifySqlDelightMigration --console=plain
+
+      - name: Compile and unit tests
+        run: ./gradlew :app:compileDebugKotlin test --console=plain
