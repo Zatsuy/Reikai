@@ -78,11 +78,14 @@ class RecentsFeedSurfaceTest {
         excluded: Long,
     ) = runTest {
         val asked = mutableListOf<List<Long>>()
-        val state = feed.build(surface, preferences) { asked += it }
+        // FORK: the model too, to end its work below
+        val (model, state) = feed.build(surface, preferences) { asked += it }
         backgroundScope.launch { state.collect { } }
 
         // The query runs on the IO dispatcher, which virtual time does not reach.
         withContext(Dispatchers.Default) { withTimeout(5_000) { while (asked.isEmpty()) delay(10) } }
+        // FORK: end the model's IO work while Main is still the test's, or it resumes after resetMain
+        jp.reikai.testing.cancelAndJoinScope(model)
 
         asked.first() shouldBe listOf(excluded)
     }
@@ -122,7 +125,8 @@ class RecentsFeedSurfaceTest {
                 libraryPreferences = LibraryPreferences(store),
                 updatesPreferences = UpdatesPreferences(store),
                 reikaiSourcePreferences = preferences,
-            ).state
+                // FORK: the model too, so the test can end its work
+            ).let { it to it.state }
         }
 
         private val novelUpdates = FeedProbe("novel updates") { surface, preferences, asked ->
@@ -140,7 +144,8 @@ class RecentsFeedSurfaceTest {
                 sourcePreferences = preferences,
                 updatesPreferences = UpdatesPreferences(EmittingPreferenceStore()),
                 getCustomNovelInfo = mockk<GetCustomNovelInfo> { every { subscribeAll() } returns flowOf(emptyList()) },
-            ).state
+                // FORK: the model too, so the test can end its work
+            ).let { it to it.state }
         }
 
         private val mangaHistory = FeedProbe("manga history") { surface, preferences, asked ->
@@ -156,7 +161,8 @@ class RecentsFeedSurfaceTest {
                 getHistory = getHistory,
                 removeHistory = mockk<RemoveHistory>(),
                 reikaiSourcePreferences = preferences,
-            ).state
+                // FORK: the model too, so the test can end its work
+            ).let { it to it.state }
         }
 
         private val novelHistory = FeedProbe("novel history") { surface, preferences, asked ->
@@ -172,7 +178,8 @@ class RecentsFeedSurfaceTest {
                 getCustomNovelInfo = mockk<GetCustomNovelInfo> { every { subscribeAll() } returns flowOf(emptyList()) },
                 removeNovelHistory = mockk<RemoveNovelHistory>(),
                 sourcePreferences = preferences,
-            ).state
+                // FORK: the model too, so the test can end its work
+            ).let { it to it.state }
         }
     }
 }
@@ -183,7 +190,13 @@ class RecentsFeedSurfaceTest {
  */
 class FeedProbe(
     private val label: String,
-    val build: (RecentsSurface, ReikaiSourcePreferences, (List<Long>) -> Unit) -> Flow<*>,
+    // FORK --> returns the model too, so the test can end its work
+    val build: (
+        RecentsSurface,
+        ReikaiSourcePreferences,
+        (List<Long>) -> Unit,
+    ) -> Pair<androidx.lifecycle.ViewModel, Flow<*>>,
+    // FORK <--
 ) {
     override fun toString() = label
 }

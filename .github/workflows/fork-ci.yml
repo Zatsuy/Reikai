@@ -54,5 +54,4 @@ jobs:
         run: ./gradlew verifySqlDelightMigration --console=plain
 
       - name: Compile and unit tests
-        # A few upstream unit tests are flaky (ROADMAP 1.6); a second run retries what failed, so a real break still fails.
-        run: ./gradlew :app:compileDebugKotlin test --console=plain || ./gradlew test --console=plain
+        run: ./gradlew :app:compileDebugKotlin test --console=plain
