@@ -869,11 +869,15 @@ data object LibraryTab : Tab {
 
         LaunchedEffect(state.isLoading) {
             if (!state.isLoading) {
-                // FORK: timing mark for the performance baseline (scripts/fork/perf.py)
-                jp.reikai.perf.PerfMarks.libraryReady()
                 (context as? MainActivity)?.ready = true
             }
         }
+
+        // FORK --> timing mark for the performance baseline (scripts/fork/perf.py): the list is on screen
+        LaunchedEffect(activeIsLoading) {
+            if (!activeIsLoading) jp.reikai.perf.PerfMarks.libraryReady()
+        }
+        // FORK <--
 
         LaunchedEffect(Unit) {
             // RK: through the seam, so a search sent from another screen lands on the library of its type.

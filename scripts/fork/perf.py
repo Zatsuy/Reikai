@@ -8,21 +8,26 @@ touches the network or the owner's own Reikai JP.
 
 Usage:
   scripts/fork/gw :app:assembleBenchmark        build the app first (one Gradle build at a time)
-  scripts/fork/perf.py setup [device...]        once per device: install, storage folder, library
+  scripts/fork/perf.py setup [device...] [--fresh]
+                                                once per device: install, storage folder, library;
+                                                --fresh starts the benchmark app over
   scripts/fork/perf.py run [device...] [--runs N] [--save]
-                                                measure, compare with the last saved run; --save
-                                                appends to docs/fork/perf/results.jsonl
+                                                measure, compare with the first (baseline) and last
+                                                saved runs; --save appends to docs/fork/perf/results.jsonl
+                                                (refused for uncommitted code, a stale APK or lost samples)
 
 Devices are adb serials or the aliases `tablet` and `phone`; the default is every connected one.
 Metrics (ms unless noted; lower is better):
   cold_start           launcher tap to first frame (am start -W), what the owner waits through;
                        it includes Reikai's 500 ms minimum splash
-  library_ready        process start to the library having its data (PerfMarks.libraryReady)
+  library_ready        process start to the library list on screen (PerfMarks.libraryReady)
   library_pss_mb       memory (PSS) with the library shown
   library_jank_pct     janky frames while flinging through the library
-  chapter_open         tap on a downloaded novel chapter to its text drawn ("Fully drawn")
+  chapter_open_first   the first chapter open after a start: the reader's code loads then
+  chapter_open         later opens: reader launch to the chapter's text drawn ("Fully drawn");
+                       exact for the default native renderer only
   reader_pss_mb        memory with the novel reader open
-  reader_jank_pct      janky frames while flinging through the chapter
+  reader_jank_pct      janky frames while flinging through another chapter
 """
 import argparse
 import gzip
@@ -54,7 +59,12 @@ NOVEL_SOURCE = "reikai.perf.fixture"  # a plugin id no one has: downloads are re
 NOVEL_CHAPTERS = 5
 TARGET_NOVEL = "性能テスト小説 001"
 TARGET_CHAPTER = "第1話 始まりの朝"
+JANK_CHAPTER = "第2話"
 UI_DUMP = "/data/local/tmp/reikai-perf-ui.xml"
+# Runs compare only against runs on the same fixture: bump the version whenever build_fixture changes.
+FIXTURE_INFO = {"manga": MANGA_COUNT, "novels": NOVEL_COUNT, "version": 1}
+# Everything that can change the APK: a commit touching only these exclusions leaves the numbers alone.
+CODE_PATHS = [".", ":!docs", ":!scripts", ":!.claude", ":!.github", ":!*.md"]
 
 
 # ---------------------------------------------------------------- adb
@@ -261,12 +271,12 @@ def install(d):
     d.adb("install", "-r", str(path))
 
 
-def setup(d):
+def setup(d, fresh=False):
     """Install, point the app at the ReikaiJPBench folder, then restore the fixture into it."""
     if not FIXTURE.exists():
         build_fixture()
     marker = f"/sdcard/{BENCH_DIR}/.perf-setup"
-    if installed(d) and d.sh(f"cat {marker} 2>/dev/null").strip() == "done":
+    if not fresh and installed(d) and d.sh(f"cat {marker} 2>/dev/null").strip() == "done":
         print(f"{d.name}: already set up")
         return
     d.awake()
@@ -359,7 +369,23 @@ def summary(values):
     if not v:
         return None
     p90 = v[min(len(v) - 1, round(0.9 * (len(v) - 1)))]
-    return {"median": round(statistics.median(v), 1), "p90": round(p90, 1), "min": v[0], "max": v[-1], "n": len(v)}
+    out = {"median": round(statistics.median(v), 1), "p90": round(p90, 1), "min": v[0], "max": v[-1], "n": len(v)}
+    if len(v) < len(values):
+        out["missing"] = len(values) - len(v)  # a mark or a dumpsys line did not come: see report()
+    return out
+
+
+def to_chapters(d):
+    d.tap("Novels")
+    d.tap(TARGET_NOVEL)
+    d.find(TARGET_CHAPTER, timeout=10)
+
+
+def back_to_chapters(d):
+    d.sh("input keyevent KEYCODE_BACK")
+    if not d.find(TARGET_CHAPTER, timeout=5):  # the first Back only closed the reader menu
+        d.sh("input keyevent KEYCODE_BACK")
+        d.find(TARGET_CHAPTER, timeout=5)
 
 
 def measure(d, runs):
@@ -376,11 +402,18 @@ def measure(d, runs):
 
 def measure_portrait(d, runs):
     install(d)
-    # A steady compiled state, as on a phone a day after an update: run once so the profile is
-    # recorded, then compile against it. The Manga chip is the one every cold start opens on.
+    # A steady compiled state, as on a device a day after an update: walk the measured paths once,
+    # have the app write its profile now rather than when ART gets round to it, compile against it.
     cold_start(d)
-    d.tap("Manga")
-    time.sleep(5)
+    to_chapters(d)
+    open_chapter(d)
+    back_to_chapters(d)
+    d.sh(f"am broadcast -a androidx.profileinstaller.action.SAVE_PROFILE "
+         f"-n {PKG}/androidx.profileinstaller.ProfileInstallReceiver")
+    time.sleep(3)
+    d.sh("input keyevent KEYCODE_BACK")
+    d.tap("Manga")  # the chip every cold start opens on
+    time.sleep(1)
     d.sh(f"am force-stop {PKG}")
     d.sh(f"cmd package compile -f -m speed-profile {PKG}", check=True)
     starts, readies, pss = [], [], []
@@ -393,65 +426,94 @@ def measure_portrait(d, runs):
         print(f"{d.name}: cold start {i + 1}/{runs}: {total} ms, library ready {ready} ms, {pss[-1]} MB")
     metrics = {"cold_start": summary(starts), "library_ready": summary(readies), "library_pss_mb": summary(pss),
                "library_jank_pct": summary([jank(d, 6) for _ in range(3)])}
-    d.tap("Novels")
-    d.tap(TARGET_NOVEL)
-    d.find(TARGET_CHAPTER, timeout=10)
+    to_chapters(d)
+    # The first open after a start loads the reader's code; the owner meets it once per session.
     opens, reader_pss = [], []
-    for i in range(max(3, runs // 2)):
-        ms = open_chapter(d)
-        opens.append(ms)
+    for i in range(max(4, runs // 2) + 1):
+        opens.append(open_chapter(d))
         time.sleep(3)
         reader_pss.append(meminfo_mb(d))
-        print(f"{d.name}: chapter open {i + 1}: {ms} ms, {reader_pss[-1]} MB")
-        if i == 0:
-            metrics["reader_jank_pct"] = summary([jank(d, 6) for _ in range(3)])
-        d.sh("input keyevent KEYCODE_BACK")
-        if not d.find(TARGET_CHAPTER, timeout=5):  # the first Back only closed the reader menu
-            d.sh("input keyevent KEYCODE_BACK")
-            d.find(TARGET_CHAPTER, timeout=5)
-    metrics["chapter_open"] = summary(opens)
+        print(f"{d.name}: chapter open {i + 1}: {opens[-1]} ms, {reader_pss[-1]} MB")
+        back_to_chapters(d)
+    metrics["chapter_open_first"] = summary(opens[:1])
+    metrics["chapter_open"] = summary(opens[1:])
     metrics["reader_pss_mb"] = summary(reader_pss)
+    # Flinging saves a reading position, so it happens in another chapter: the timed one must open
+    # at its start on every run.
+    d.tap(JANK_CHAPTER)
+    time.sleep(3)
+    metrics["reader_jank_pct"] = summary([jank(d, 6) for _ in range(3)])
+    back_to_chapters(d)
     d.sh("input keyevent KEYCODE_BACK")
     d.tap("Manga")
     d.sh(f"am force-stop {PKG}")
     version = re.search(r"versionName=(\S+)", d.sh(f"dumpsys package {PKG}"))
     return {
         "date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "commit": subprocess.run(["git", "rev-parse", "--short=9", "HEAD"], capture_output=True, text=True,
-                                 cwd=ROOT).stdout.strip(),
-        "dirty": bool(subprocess.run(["git", "status", "--porcelain", "--", "app", "core", "data", "domain"],
-                                     capture_output=True, text=True, cwd=ROOT).stdout.strip()),
+        "commit": git("rev-parse", "--short=9", "HEAD"),
+        "dirty": bool(git("status", "--porcelain", "--", *CODE_PATHS)),
+        "stale_apk": stale_apk(),
         "device": d.name, "model": d.model,
         "android": d.sh("getprop ro.build.version.release").strip(),
         "build": version.group(1) if version else None,
-        "fixture": {"manga": MANGA_COUNT, "novels": NOVEL_COUNT},
+        "fixture": FIXTURE_INFO,
         "metrics": metrics,
     }
 
 
-def last_saved(device):
+def git(*args):
+    return subprocess.run(["git", *args], capture_output=True, text=True, cwd=ROOT).stdout.strip()
+
+
+def stale_apk():
+    """The APK is older than the files of the last commit that could change it (edited or pulled)."""
+    files = [ROOT / f for f in git("log", "-1", "--name-only", "--format=", "--", *CODE_PATHS).splitlines()]
+    newest = max((f.stat().st_mtime for f in files if f.exists()), default=0)
+    return apk().stat().st_mtime < newest
+
+
+def unsaveable(result):
+    """Why a run must not become a reference point, or an empty list."""
+    why = []
+    if result["dirty"]:
+        why.append("the app's code has uncommitted changes")
+    if result["stale_apk"]:
+        why.append("the APK is older than the last code commit (run scripts/fork/gw :app:assembleBenchmark)")
+    for name, s in result["metrics"].items():
+        if not s or s.get("missing"):
+            why.append(f"{name} lost samples")
+    return why
+
+
+def saved(device):
+    """This device's saved runs, oldest first: the first is the baseline, the last the newest reference."""
     if not RESULTS.exists():
-        return None
-    rows = [json.loads(l) for l in RESULTS.read_text().splitlines() if l.strip()]
-    rows = [r for r in rows if r["device"] == device]
-    return rows[-1] if rows else None
+        return []
+    rows = [json.loads(line) for line in RESULTS.read_text().splitlines() if line.strip()]
+    return [r for r in rows if r["device"] == device and r.get("fixture") == FIXTURE_INFO]
 
 
-def report(result, before):
+def report(result, history):
     print(f"\n{result['device']} ({result['model']}, Android {result['android']}, {result['build']}, "
           f"commit {result['commit']}{' + local changes' if result['dirty'] else ''})")
-    head = f"vs {before['commit']} ({before['date'][:10]})" if before else "no saved run to compare"
-    print(f"  {'metric':<18}{'median':>9}{'p90':>9}   {head}")
+    # Against the first save too, so regressions each too small to see cannot add up unnoticed.
+    refs = [("baseline", history[0])] if history else []
+    if len(history) > 1:
+        refs.append(("last save", history[-1]))
+    head = "".join(f"   vs {label} {r['commit']} ({r['date'][:10]})" for label, r in refs) or "   nothing saved yet"
+    print(f"  {'metric':<18}{'median':>9}{'p90':>9}{head}")
     for name, s in result["metrics"].items():
         if not s:
             print(f"  {name:<18}{'-':>9}")
             continue
-        was = (before or {}).get("metrics", {}).get(name)
-        delta = ""
-        if was:
-            change = (s["median"] - was["median"]) / was["median"] * 100 if was["median"] else 0
-            delta = f"{was['median']:>9} -> {change:+.0f}%"
-        print(f"  {name:<18}{s['median']:>9}{s['p90']:>9}   {delta}")
+        deltas = ""
+        for _, ref in refs:
+            was = ref.get("metrics", {}).get(name)
+            if was and was["median"]:
+                change = (s["median"] - was["median"]) / was["median"] * 100
+                deltas += f"   {was['median']:>9} -> {change:+4.0f}%"
+        lost = f"   ({s['missing']} samples lost)" if s.get("missing") else ""
+        print(f"  {name:<18}{s['median']:>9}{s['p90']:>9}{deltas}{lost}")
 
 
 def main():
@@ -459,6 +521,7 @@ def main():
     p.add_argument("command", choices=["fixture", "setup", "run"])
     p.add_argument("devices", nargs="*")
     p.add_argument("--runs", type=int, default=10, help="cold starts per device (chapter opens: half)")
+    p.add_argument("--fresh", action="store_true", help="setup: start the benchmark app over with a new library")
     p.add_argument("--save", action="store_true", help="append the results to docs/fork/perf/results.jsonl")
     a = p.parse_args()
     if a.command == "fixture":
@@ -466,13 +529,15 @@ def main():
         return
     for d in devices(a.devices):
         if a.command == "setup":
-            setup(d)
+            setup(d, a.fresh)
             continue
         if not installed(d):
             sys.exit(f"{d.name}: not set up; run scripts/fork/perf.py setup {d.name}")
         result = measure(d, a.runs)
-        report(result, last_saved(d.name))
-        if a.save:
+        report(result, saved(d.name))
+        if a.save and (why := unsaveable(result)):
+            print(f"  not saved: {'; '.join(why)}")
+        elif a.save:
             RESULTS.parent.mkdir(parents=True, exist_ok=True)
             with RESULTS.open("a") as f:
                 f.write(json.dumps(result, ensure_ascii=False) + "\n")

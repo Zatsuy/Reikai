@@ -16,7 +16,7 @@ object PerfMarks {
 
     @Volatile private var libraryReadyLogged = false
 
-    /** The library has its data, in milliseconds since the process started. Once per process. */
+    /** The library list is assembled and shown, in milliseconds since the process started. Once per process. */
     fun libraryReady() {
         if (libraryReadyLogged) return
         libraryReadyLogged = true
@@ -26,8 +26,9 @@ object PerfMarks {
 
     /**
      * A chapter was handed to the reader: once the frame showing it is drawn, the reader counts as fully
-     * drawn, which the system logs as "Fully drawn ... +<ms>" from the tap that opened it. Later
-     * calls in the same launch are ignored by the system.
+     * drawn, which the system logs as "Fully drawn ... +<ms>" from the start of the reader's launch.
+     * Later calls in the same launch are ignored by the system. Exact for the native renderer, whose
+     * load returns with the text laid out; the WebView renderer paints later than this frame.
      */
     fun chapterShown(activity: Activity) {
         val view = activity.window.decorView
