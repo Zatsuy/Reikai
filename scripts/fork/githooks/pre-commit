@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+"""Cheap checks before a commit: balanced FORK fences, no staged secrets."""
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True,
+                           text=True).stdout.strip())
+staged = subprocess.run(["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"], cwd=ROOT,
+                        capture_output=True, text=True).stdout.split()
+problems = []
+
+secret = re.compile(r"(^|/)(google-services\.json|keystore\.properties|\.env(\.[\w-]+)?|[^/]+\.(jks|keystore|pem))$")
+problems += [f"secret file staged: {f}" for f in staged if secret.search(f)]
+
+seams = subprocess.run([sys.executable, str(ROOT / "scripts/fork/seams.py"), "--check"], cwd=ROOT,
+                       capture_output=True, text=True)
+if seams.returncode != 0:
+    problems += [l for l in seams.stdout.splitlines() if l.startswith("PROBLEM")]
+
+if problems:
+    print("pre-commit: rejected\n  - " + "\n  - ".join(problems), file=sys.stderr)
+    sys.exit(1)

@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""Reject a commit message that breaks the fork's commit standard (AGENTS.md, "Commits")."""
+import re
+import sys
+
+TYPES = "feat|fix|docs|chore|refactor|test|perf|ci|build|style|revert"
+text = open(sys.argv[1], encoding="utf-8").read()
+lines = [l for l in text.splitlines() if not l.startswith("#")]
+subject = lines[0] if lines else ""
+problems = []
+
+if not re.match(r"(Merge |Revert |fixup! |squash! )", subject):
+    if not re.match(rf"({TYPES})(\([a-z0-9._/,-]+\))?!?: \S", subject):
+        problems.append(f"subject must be `type(scope): summary` with type in {TYPES.replace('|', ', ')}")
+    if len(subject) > 72:
+        problems.append(f"subject is {len(subject)} characters (limit 72)")
+    if subject.endswith("."):
+        problems.append("subject ends with a period")
+    if len(lines) > 1 and lines[1].strip():
+        problems.append("leave a blank line after the subject")
+
+body = "\n".join(lines)
+if "—" in body:
+    problems.append("em dash found: use a comma, colon, parentheses or a period")
+if re.search(r"(?im)^co-authored-by:.*(claude|anthropic|codex|openai|gpt)|generated with \[?claude|\U0001F916", body):
+    problems.append("no AI credit lines (owner decision D-007)")
+if re.search(r"(?<![\w./-])#\d+\b", body):
+    problems.append("bare #N is ambiguous: write Zatsuy/Reikai#N, unseensnick/Reikai#N or mihonapp/mihon#N")
+
+if problems:
+    print("commit-msg: rejected\n  - " + "\n  - ".join(problems), file=sys.stderr)
+    sys.exit(1)

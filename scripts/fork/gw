@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Run ./gradlew and print a short summary instead of the full log.
+
+Usage: scripts/fork/gw <gradle args...>     e.g. scripts/fork/gw :app:compileDebugKotlin
+
+The full log goes to build/fork-logs/. Prints the outcome, the duration, failed tasks, compiler
+errors, failing tests and Gradle's "What went wrong" section, so a build costs an agent a few lines
+of context instead of thousands. Exit code is Gradle's.
+"""
+import re
+import subprocess
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+MAX_LINES = 40
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        return 2
+    log_dir = ROOT / "build/fork-logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"gw-{datetime.now():%Y%m%d-%H%M%S}.log"
+    cmd = ["./gradlew", "--console=plain", *sys.argv[1:]]
+    start = time.monotonic()
+    with log_path.open("w") as log:
+        code = subprocess.run(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT).returncode
+    secs = time.monotonic() - start
+    lines = log_path.read_text(errors="replace").splitlines()
+
+    errors = [l for l in lines if l.startswith("e: ")]
+    failed_tasks = [l for l in lines if re.match(r"> Task \S+ FAILED", l)]
+    failed_tests = [l.strip() for l in lines if re.search(r"\b(FAILED|failed)$", l) and "Test" in l]
+    wrong = []
+    if "* What went wrong:" in lines:
+        i = lines.index("* What went wrong:")
+        for l in lines[i + 1:]:
+            if l.startswith("* Try:") or l.startswith("* Exception is:"):
+                break
+            if l.strip():
+                wrong.append(l.rstrip())
+    warnings = sum(1 for l in lines if l.startswith("w: "))
+    outcome = next((l for l in reversed(lines) if l.startswith("BUILD ")), f"exit {code}")
+
+    print(f"{outcome} ({secs:.0f}s) {' '.join(sys.argv[1:])}")
+    shown = 1
+    for title, items in (("Failed tasks", failed_tasks), ("Compiler errors", errors),
+                         ("Failing tests", failed_tests), ("What went wrong", wrong)):
+        if items and shown < MAX_LINES:
+            print(f"{title} ({len(items)}):")
+            for l in items[: MAX_LINES - shown]:
+                print(f"  {l[:240]}")
+            shown += len(items) + 1
+    if warnings:
+        print(f"Kotlin warnings: {warnings} (not shown)")
+    print(f"Full log: {log_path.relative_to(ROOT)}")
+    return code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

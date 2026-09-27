@@ -1,0 +1,15 @@
+# Paths the fork owns outright. On every upstream merge, sync_upstream.py keeps the fork's version
+# of these, drops upstream's changes and additions under them, and reports what upstream changed
+# so an agent can carry over anything useful (for example a new technical rule in upstream's
+# .claude/rules). One entry per line: a file, or a directory ending in "/". Everything else is
+# upstream-owned: edit it only as a fenced seam (see AGENTS.md).
+AGENTS.md
+CLAUDE.md
+LICENSE
+LICENSES/
+.claude/
+.github/README.md
+.github/workflows/
+docs/fork/
+scripts/fork/
+app/src/main/java/jp/reikai/
