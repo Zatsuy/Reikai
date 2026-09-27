@@ -70,7 +70,8 @@ def branch_warnings(tracked):
     for line in git("for-each-ref", "--format=%(refname:short) %(committerdate:unix)",
                     f"refs/remotes/{REMOTE}/").stdout.splitlines():
         name, _, stamp = line.partition(" ")
-        if name.startswith(f"{REMOTE}/") and not name.startswith(f"{REMOTE}/backup/") and stamp:
+        bots = (f"{REMOTE}/backup/", f"{REMOTE}/renovate/", f"{REMOTE}/dependabot/")
+        if name.startswith(f"{REMOTE}/") and not name.startswith(bots) and stamp:
             dates[name] = int(stamp)
     if tracked not in dates:
         return [f"Upstream branch {tracked} not found after fetching {REMOTE}."]
@@ -88,7 +89,7 @@ def branch_warnings(tracked):
         warnings.append(f"Upstream branch check: {other} has newer work ({day}) than the tracked {tracked}"
                         f" ({why}); if upstream develops there now, teach newest_dev_branch() in"
                         " scripts/fork/sync_upstream.py and update D-001.")
-    return warnings
+    return warnings[:3]
 
 
 def commits_between(base, tip):

@@ -22,6 +22,8 @@ permissions:
 jobs:
   release:
     name: Check, build, publish
+    # Only main is released; a dispatch from another branch would publish its number as the latest.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 150
     permissions:
@@ -37,7 +39,9 @@ jobs:
 
       - name: Decide whether there is anything new to publish
         id: check
-        run: python3 scripts/fork/release.py check | tee -a "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+        run: |
+          set -o pipefail
+          python3 scripts/fork/release.py check | tee -a "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
 
       - name: Set up the build
         if: steps.check.outputs.skip != 'true'

@@ -101,6 +101,10 @@ The fork runs only its own workflows (decision D-013):
 - `fork-upstream-sync.yml`: every Monday, merges upstream, runs the same checks and pushes to
   `main` with the `SYNC_DEPLOY_KEY` deploy key. A failure pushes nothing. A keepalive job stops
   GitHub switching the schedule off after 60 quiet days.
+- `fork-release.yml`: daily, when app files changed since the last release, runs the same checks,
+  builds the signed `nightly` build type (`app.reikai.jp`, updater on) and publishes it as
+  `r<commit count>` on this repository's Releases, keeping ten (`scripts/fork/release.py`). The
+  in-app updater installs any higher number. Same keepalive job.
 - Automation needs none of the owner's attention (decision D-015). A failed run reaches the next
   agent through the session-start hook, which asks GitHub's API for the latest run of each fork
   workflow on `main`.

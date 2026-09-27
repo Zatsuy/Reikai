@@ -9,9 +9,10 @@ Usage:
   scripts/fork/release.py notes <prev>   the release body (Markdown); <prev> may be empty
   scripts/fork/release.py prune <keep>   delete all but the newest <keep> releases and their tags
 
-check and prune call `gh`, so they need GH_TOKEN (and GITHUB_REPOSITORY, or the origin remote).
+check and prune call `gh` on GITHUB_REPOSITORY (default Zatsuy/Reikai), so they need GH_TOKEN.
 """
 import json
+import os
 import re
 import subprocess
 import sys
@@ -19,9 +20,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 # Only a change under one of these can alter the built APK (upstream's nightly.yml allow-list).
+# The release workflow counts too: its Gradle flags shape the APK.
 APP_PATHS = [":(glob)**/src/**", ":(glob)**/*.kts", ":(glob)**/*.pro", "gradle/", "gradle.properties",
-             "gradlew"]
-GUIDE = "https://github.com/Zatsuy/Reikai/blob/main/docs/fork/install.md"
+             "gradlew", ".github/workflows/fork-release.yml"]
+REPO = os.environ.get("GITHUB_REPOSITORY", "Zatsuy/Reikai")
+DOCS = f"https://github.com/{REPO}/blob/main/docs/fork"
+GUIDE = f"{DOCS}/install.md"
 MAX_UPSTREAM = 15
 
 
@@ -34,7 +38,7 @@ def sh(*cmd, check=True):
 
 def release_tags():
     """Published (not draft) release tags, highest number first."""
-    out = sh("gh", "release", "list", "--exclude-drafts", "--limit", "200", "--json", "tagName").stdout
+    out = sh("gh", "release", "list", "--repo", REPO, "--exclude-drafts", "--limit", "200", "--json", "tagName").stdout
     tags = [r["tagName"] for r in json.loads(out or "[]") if re.fullmatch(r"r\d+", r["tagName"])]
     return sorted(tags, key=lambda t: int(t[1:]), reverse=True)
 
@@ -48,7 +52,7 @@ def check():
         if int(previous[1:]) >= count:
             skip, reason = True, f"{previous} is not older than r{count}"
         elif sh("git", "rev-parse", "--verify", "--quiet", f"{previous}^{{commit}}", check=False).returncode:
-            reason = f"{previous} not found in history, publishing anyway"
+            previous, reason = "", f"{previous} not found in history, publishing anyway"
         elif sh("git", "diff", "--quiet", previous, "HEAD", "--", *APP_PATHS, check=False).returncode == 0:
             skip, reason = True, f"no app files changed since {previous}"
     print(f"tag=r{count}\nprevious={previous}\nskip={str(skip).lower()}\nreason={reason}")
@@ -79,7 +83,9 @@ def notes(previous):
             fork[-1] += " " + line.strip()
         else:
             fork.append(None)  # anything else ends the entry
-    fork = [entry for entry in fork if entry]
+    # The changelog links its sibling docs relatively; on a release page or in the app's update
+    # screen that resolves nowhere, so point them at the repository.
+    fork = [re.sub(r"\]\((?!https?://|#)([^)]+)\)", rf"]({DOCS}/\1)", entry) for entry in fork if entry]
     # Upstream's changes arrive through the sync's merge commits: each brings M^1..M^2.
     merges = sh("git", "log", "--first-parent", "--merges", "--format=%H", "--grep=^chore(sync): merge upstream",
                 since).stdout.split()
@@ -106,7 +112,7 @@ def notes(previous):
 
 def prune(keep):
     for tag in release_tags()[keep:]:
-        sh("gh", "release", "delete", tag, "--cleanup-tag", "--yes")
+        sh("gh", "release", "delete", tag, "--repo", REPO, "--cleanup-tag", "--yes")
         print(f"Deleted {tag}")
 
 

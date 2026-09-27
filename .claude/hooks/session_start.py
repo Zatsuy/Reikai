@@ -33,14 +33,14 @@ def run(*cmd, timeout=3):
         return ""
 
 
-def fetch_origin():
-    run("git", "fetch", "--quiet", "origin", "main", timeout=5)
+def fetch():
+    # One fetch for both remotes: two in parallel would race on FETCH_HEAD and ref locks.
+    run("git", "fetch", "--quiet", "--prune", "--multiple", "origin", "upstream", timeout=6)
 
 
 def upstream_branch():
     """(tracked branch, warnings), refreshing the cache guard_edit.py reads."""
     cache = ROOT / ".git/fork-upstream-branch"
-    run("git", "fetch", "--quiet", "--prune", "upstream", timeout=6)
     try:
         sys.dont_write_bytecode = True
         sys.path.insert(0, str(ROOT / "scripts/fork"))
@@ -91,9 +91,8 @@ def devices():
 
 
 def main():
-    with ThreadPoolExecutor(4) as pool:
-        fetched = pool.submit(fetch_origin)
-        upstream = pool.submit(upstream_branch)
+    with ThreadPoolExecutor(3) as pool:
+        fetched = pool.submit(fetch)
         automation = pool.submit(failed_automation)
         adb = pool.submit(devices)
         fetched.result()
@@ -102,7 +101,7 @@ def main():
         dirty = len([l for l in run("git", "status", "--porcelain").splitlines() if l.strip()])
         ahead = run("git", "rev-list", "--count", "origin/main..HEAD") or "?"
         behind = run("git", "rev-list", "--count", "HEAD..origin/main") or "0"
-        up, up_warnings = upstream.result()
+        up, up_warnings = upstream_branch()
         new_up = run("git", "rev-list", "--count", f"HEAD..{up}") or "?"
         lines = [f"Reikai JP. {branch} @ {head}. Uncommitted files: {dirty}. Unpushed commits: {ahead}."]
         if behind != "0":
