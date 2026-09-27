@@ -86,19 +86,45 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   open 215 ms, 181/370 MB (library/reader); phone 954, 753, 236 ms, 146/286 MB. Findings: cold
   start rests on the 500 ms splash floor, the novel reader doubles memory. Your phone now has
   Reikai JP r2668 set up on `/sdcard/Reikai` (empty library, same permissions as the tablet).
-- [ ] **1.4 Japanese sites in the plugin host.** Shift-JIS and EUC-JP pages decode correctly, and
-  plugin calls stop waiting behind one lock (faster global search). These are general fixes, so
-  they are also prepared as a pull request for upstream Reikai. **You (optional):** open that pull
-  request on GitHub; the agent prepares the branch and text.
-- [ ] **1.5 Kakuyomu Popular/Latest.** A plugin bug, not an app bug (the site changed its page);
-  the issue text is ready in [research](research/landscape-2026-09.md). **You (optional):** file it
-  at `LNReader/lnreader-plugins`, or tell an agent to prepare a fix pull request for that repo.
-- [ ] **1.6 Steady automated checks** (agents only). Upstream's Recents unit tests fail at
-  random on GitHub (`RecentsEngineTest` "a read row leaves the downloaded filter once its download
-  is deleted", `RecentsFeedSurfaceTest` with `UncaughtExceptionsBeforeTest`, a coroutine leaking
-  from an earlier test): Fork CI failed 3 of 9 runs on 2026-09-27. The workflows retry the tests
-  once meanwhile. Find the leak with `/debug`, fix it as a seam, offer the fix upstream. *Done
-  when:* 20 CI runs in a row pass without the retry.
+- [x] **1.4 Japanese sites in the plugin host.** Novel plugins now read pages in Shift_JIS,
+  EUC-JP and other non-UTF-8 charsets, including sites that name the charset only inside the page
+  (Aozora Bunko used to arrive garbled). The "one lock" half was already fixed upstream before the
+  fork began (`93d8a0425` gives each plugin its own engine, and global search runs 5 sources at a
+  time), so global search does not get faster from this item. **You (optional):** offer the fix to
+  upstream Reikai ([upstream-prs](upstream-prs/README.md)).
+  Ruling: no lock change - already fixed upstream; only two calls to the same plugin still queue,
+  and removing that needs a second engine per plugin (memory, D-008) - cost if wrong: that engine
+  later.
+  Ruling: pick the charset as a browser does (label, header, `<meta>`, UTF-8) with WHATWG labels
+  (Shift_JIS means windows-31j) - what lnreader's WebView does - cost if wrong: one table in
+  `jp.reikai.novel.host.LnBodyDecoder`.
+  Ruling: `TextDecoder` with a non-UTF-8 label keeps a base64 hop through JS - no LNReader plugin
+  uses one today - cost if wrong: pass the bytes natively (a device check of dokar's mapping).
+  **Done 2026-09-27** in `aec4595c8`, `63f538ed2`, `1289fa879` (review fixes: the whole head is
+  scanned, XML declarations read, EUC-JP's ①, no raw copy for `fetchText`). JVM tests
+  `LnBodyDecoderTest`, `LnHostBridgeCharsetTest` (a mutation check fails 4 of them); on the tablet
+  `LnCharsetDeviceTest` 6/6 in the real QuickJS host (Shift_JIS and EUC-JP `TextDecoder` with ①,
+  the live Aozora page, the encoding argument, raw bytes for `arrayBuffer`), and upstream's
+  plugin sweep `HeadlessJsIntegrationTest` 7/7 (35 live plugins loaded, 6 full chains).
+  Upstream-style branch `pr/plugin-charsets` on the fork, not opened.
+- [x] **1.5 Kakuyomu Popular/Latest.** A plugin bug, not an app bug (D-010): the site's ranking
+  pages moved to Next.js. The agent wrote a fix for the plugin's own project (Popular read from the
+  page's data, Latest added, version 1.1.0; its checker passes) and tried it in the debug app on
+  the tablet through a local test repository: Popular, filters, paging, Latest, search and a
+  chapter all worked. Nothing changes in Reikai JP itself: Kakuyomu's lists start working once
+  LNReader accepts the fix and the plugin updates. **You (optional):** offer it to
+  `LNReader/lnreader-plugins` ([upstream-prs](upstream-prs/README.md)); that project requires the
+  text to say an AI agent helped.
+  **Done 2026-09-27** in `63f538ed2` (the patch and its pull request text).
+- [x] **1.6 Steady automated checks** (agents only). Two upstream Recents tests failed at random
+  on GitHub. The tests were at fault, not the app: one deleted a download before the screen was
+  listening for it, the other left background work running into the next test. Both are fixed as
+  test seams, and GitHub no longer retries failed tests. Owner (2026-09-27): no 20 repeated CI runs
+  on the free plan, so the proof is local (D-021): a harness that forces the bad timing made the
+  tests fail 20/20 and 10/10 before the fix and 0 after, 30 plain runs passed, and removing the fix
+  makes them fail again 5/5. The full unit suite passes locally without the retry.
+  **Done 2026-09-27** in `f9313a161`. Offered upstream as branch `pr/recents-test-flakes`
+  (optional, [upstream-prs](upstream-prs/README.md)).
 
 ## Next: Phase 2, Yomitan spike (go or no-go)
 

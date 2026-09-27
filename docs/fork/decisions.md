@@ -17,7 +17,7 @@ the log; *Standing decisions* is the current state.
 | D-007 | **No AI credit line** (`Co-Authored-By`) in commits or PRs. | 2026-09-27 |
 | D-008 | **Performance and smoothness are a pillar.** Agents optimise what they find, when the fix is safe and verified. | 2026-09-27 |
 | D-009 | **Agents run the development workflows themselves** and ask the owner only what only the owner can answer or do (AskUserQuestion). When a request does not fit the evidence, agents explain and suggest a better option. | 2026-09-27 |
-| D-010 | **Kakuyomu Popular/Latest is a plugin bug** (the site moved to Next.js), not an app bug: not fixed in the app. A ready upstream issue text is in `docs/fork/research/landscape-2026-09.md`. | 2026-09-27 |
+| D-010 | **Kakuyomu Popular/Latest is a plugin bug** (the site moved to Next.js), not an app bug: not fixed in the app. A tested plugin fix and its pull request text are in `docs/fork/upstream-prs/README.md`. | 2026-09-27 |
 | D-011 | **The upstream harness is replaced** by a lean, self-improving one (`docs/fork/harness.md`). | 2026-09-27 |
 | D-012 | **Model floor: Opus 5.5** for every agent, no Haiku or Sonnet (inferred from the owner's global settings and their other project; confirm or change here). | 2026-09-27 |
 | D-013 | **The fork runs none of upstream's CI pipelines**; it has its own workflows only. | 2026-09-27 |
@@ -28,6 +28,7 @@ the log; *Standing decisions* is the current state.
 | D-018 | **No Claude in CI** (was O-002). Automation that cannot finish on its own waits for an agent session the owner starts ("if the automatic updates break something I'll have an agent fix it"). | 2026-09-27 |
 | D-019 | **Devices are connected only when needed.** The tablet and phone are not always on or plugged in. When a check needs one and `adb devices` does not list it, the agent asks the owner with AskUserQuestion, naming the device, and continues once they connect it; it does not skip the check or swap it for written test steps unless the owner says so. | 2026-09-27 |
 | D-020 | **One language filter for manga and novel extensions; installed novel sources keep their own** (was O-001). Browse → Extensions filters manga extensions, novel extension apps and LNReader plugins by Mihon's enabled languages. Browse → Sources → Filter → Novels keeps Reikai's separate per-language switches for installed novels, so nothing installed vanishes and no migration runs (owner, 2026-09-27). | 2026-09-27 |
+| D-021 | **GitHub Actions minutes are scarce (free plan).** Agents never spend CI runs to prove something they can prove locally: a flaky test is fixed when a local harness that forces the bad timing fails before the fix and passes after, not after repeated CI runs (owner, 2026-09-27). | 2026-09-27 |
 
 ## Open
 
@@ -38,6 +39,10 @@ item asks with AskUserQuestion and moves the answer to *Standing decisions*.
 
 ## Log
 
+- **2026-09-27** Owner, on roadmap item 1.6: "there's no need to run 20 CI runs, that sounds like
+  a waste and I'm on the free plan on github. Make sure you can guarantee it without wasting runs"
+  (now D-021). Also asked the agent to finish the rest of Phase 1 in one session and to keep the
+  tablet screen on meanwhile.
 - **2026-09-27** Owner chose to keep the Sources screen's novel language switches separate from
   the shared extension language filter (O-001, now D-020).
 - **2026-09-27** Owner: "my devices will not always be on or connected, if you need them just send

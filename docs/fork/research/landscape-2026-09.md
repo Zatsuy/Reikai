@@ -46,8 +46,6 @@ gives each plugin its own engine and lock, and global search runs 5 sources at a
 **Kakuyomu Popular/Latest is a plugin bug.** The rankings page moved to Next.js; the selector
 `.widget-media-genresWorkList-right > .widget-work` (`kakuyomu.ts:68`) matches nothing, so every host
 gets HTTP 200 and an empty list. Draft upstream issue, not filed:
-*Superseded 2026-09-27 (roadmap 1.5):* listing pages carry no cover URL, and rankings redirect to add
-`work_variation=long`; the corrected text and a tested fix are in [upstream-prs](../upstream-prs/README.md).
 
 > **kakuyomu: Popular (and Latest) return no novels; ranking page migrated to Next.js.**
 > `popularNovels` fetches `https://kakuyomu.jp/rankings/{genre}/{period}` (HTTP 200) but parses it
@@ -58,6 +56,9 @@ gets HTTP 200 and an empty list. Draft upstream issue, not filed:
 > Mapping each node to `{ name: work.title, path: '/works/' + work.id, cover: work.adminCoverImageUrl ?? defaultCover }`
 > fixes it; `?page=N` still paginates and the genre/period values still resolve. The plugin also
 > ignores `showLatestNovels`, so Latest shows the same ranking. Search is unaffected.
+
+*Superseded 2026-09-27 (roadmap 1.5):* listing pages carry no cover URL, and rankings redirect to add
+`work_variation=long`; the corrected text and a tested fix are in [upstream-prs](../upstream-prs/README.md).
 
 ## Extension language filter (owner's report)
 

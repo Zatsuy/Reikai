@@ -13,6 +13,10 @@ Changes you will notice in the app, newest first. Upstream Reikai's own changes 
   plugins you already installed are switched on once, so none of their repos' plugins vanish.
   Browse → Sources → Filter → Novels still has its own switches for installed novels.
 
+### Novels
+- Novel plugins now read sites whose pages are not in UTF-8 (Shift_JIS, EUC-JP, GBK), such as
+  Aozora Bunko, as proper Japanese text instead of garbled characters.
+
 ### Other
 - Speed and memory are now measured on your tablet and phone ([baseline](perf/README.md)). For
   that, both carry a second "Reikai JP" icon (a test copy with a made-up library in a

@@ -6,6 +6,7 @@ the pull request. Opening one is optional and public, under the owner's GitHub a
 | Fix | For | Where it is | State |
 |---|---|---|---|
 | Plugin pages in Shift_JIS and other non-UTF-8 charsets | `unseensnick/Reikai` (`feat/0.4.0`) | branch `pr/plugin-charsets` on `Zatsuy/Reikai`; text below | ready, not opened |
+| Two Recents tests that fail at random | `unseensnick/Reikai` (`feat/0.4.0`) | branch `pr/recents-test-flakes` on `Zatsuy/Reikai`; text below | ready, not opened |
 | Kakuyomu Popular and Latest | `LNReader/lnreader-plugins` (`master`) | [lnreader-plugins-kakuyomu.patch](lnreader-plugins-kakuyomu.patch); text below | ready, not opened |
 
 ## Reikai: decode plugin pages that are not UTF-8
@@ -38,8 +39,37 @@ Title: `fix(novel): decode shift_jis and other non-utf-8 plugin pages`
 > - [x] Edits to Mihon's own files are fenced (none: only `reikai.novel.host` files)
 > - [x] Commits follow `type(scope): summary`
 
-To open it: on GitHub, `Zatsuy/Reikai` → branch `pr/plugin-charsets` → Contribute → Open
-pull request, base `unseensnick/Reikai` `feat/0.4.0` (retarget to upstream's newest `feat/<version>`
+## Reikai: two Recents test races
+
+Title: `fix(test): end the two recents test races`
+
+> ## Summary
+>
+> Two Recents unit tests fail at random on CI, and both are test races rather than app bugs.
+>
+> - `RecentsEngineTest` "a read row leaves the downloaded filter once its download is deleted"
+>   deletes the download right after the first render. The fake's download signal is a
+>   `MutableSharedFlow` without replay, and `rendered` subscribes to it on `Dispatchers.Default`
+>   after `onStart`, so when the delete wins the race the signal is dropped and the test waits out
+>   runTest's 60 s timeout (`UncompletedCoroutinesError`). It now calls
+>   `provider.awaitDownloadWatcher()` first, as its neighbours do.
+> - `RecentsFeedSurfaceTest` never ends the view models it builds. The History models run
+>   `flowOn(Dispatchers.IO)` inside `flatMapLatest`; when that work finishes after
+>   `Dispatchers.resetMain()`, its parent resumes on Main and throws, and kotlinx-coroutines-test
+>   reports it on the next test as `UncaughtExceptionsBeforeTest`. The test now cancels and joins
+>   the model's scope while Main is still the test dispatcher (cancelling without the join is not
+>   enough).
+>
+> Neither failure reproduces by rerunning alone. With the bad timing forced by a small delay
+> agent, the old tests failed 20 of 20 and 10 of 10 runs and the fixed ones 0; removing the
+> join makes the feed test fail again 5 of 5; 30 unforced runs of both classes pass.
+>
+> ## Checklist
+>
+> - [x] Commits follow `type(scope): summary`
+> - Test-only change, so no device test, changelog entry or screenshots.
+
+To open either Reikai one: on GitHub, `Zatsuy/Reikai` → its branch → Contribute → Open pull request, base `unseensnick/Reikai` `feat/0.4.0` (retarget to upstream's newest `feat/<version>`
 if it moved), paste the text above.
 
 ## lnreader-plugins: Kakuyomu Popular and Latest
