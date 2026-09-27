@@ -116,14 +116,18 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   `LNReader/lnreader-plugins` ([upstream-prs](upstream-prs/README.md)); that project requires the
   text to say an AI agent helped.
   **Done 2026-09-27** in `63f538ed2` (the patch and its pull request text).
-- [x] **1.6 Steady automated checks** (agents only). Two upstream Recents tests failed at random
-  on GitHub. The tests were at fault, not the app: one deleted a download before the screen was
-  listening for it, the other left background work running into the next test. Both are fixed as
-  test seams, and GitHub no longer retries failed tests. Owner (2026-09-27): no 20 repeated CI runs
+- [x] **1.6 Steady automated checks** (agents only). Three upstream tests failed at random on
+  GitHub. The tests were at fault, not the app: one deleted a download before the screen was
+  listening for it, one left background work running into the next test, and one (found by the
+  first CI run without the retry, `RelatedMangasBrowseViewModelTest`) changed the recommendation
+  list before the screen had shown a title as added. All three are fixed as test seams, and GitHub
+  no longer retries failed tests. Owner (2026-09-27): no 20 repeated CI runs
   on the free plan, so the proof is local (D-021): a harness that forces the bad timing made the
-  tests fail 20/20 and 10/10 before the fix and 0 after, 30 plain runs passed, and removing the fix
-  makes them fail again 5/5. The full unit suite passes locally without the retry.
-  **Done 2026-09-27** in `f9313a161`. Offered upstream as branch `pr/recents-test-flakes`
+  tests fail 20/20, 10/10 and 20/20 before the fixes and 0 after, 30 plain runs of each class
+  passed, and removing the feed fix makes it fail again 5/5. Sweeps of all 3,683 unit tests under
+  the forcings that caught these found no other. The full unit suite passes locally without the
+  retry. **Done 2026-09-27** in `f9313a161`, `1289fa879`, `49fbd9527`.
+  Offered upstream as branch `pr/recents-test-flakes`
   (optional, [upstream-prs](upstream-prs/README.md)).
 
 ## Next: Phase 2, Yomitan spike (go or no-go)
