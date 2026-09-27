@@ -3,12 +3,15 @@
 
 GitHub automation pushes to main on its own (decision D-015), so this also fetches origin and asks
 GitHub's public API whether an automated run failed: that is how a failure reaches the next agent
-session without anyone watching. The network calls run in parallel with short timeouts and stay
-silent when offline.
+session without anyone watching. It also fetches upstream and re-picks the upstream development
+branch with sync_upstream.py's rule, because upstream's feature branches are short-lived: the line
+names the branch the fork should follow today, and warns when upstream's work seems to have moved.
+The network calls run in parallel with short timeouts and stay silent when offline.
 """
 import json
 import re
 import subprocess
+import sys
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -32,6 +35,22 @@ def run(*cmd, timeout=3):
 
 def fetch_origin():
     run("git", "fetch", "--quiet", "origin", "main", timeout=5)
+
+
+def upstream_branch():
+    """(tracked branch, warnings), refreshing the cache guard_edit.py reads."""
+    cache = ROOT / ".git/fork-upstream-branch"
+    run("git", "fetch", "--quiet", "--prune", "upstream", timeout=6)
+    try:
+        sys.dont_write_bytecode = True
+        sys.path.insert(0, str(ROOT / "scripts/fork"))
+        import sync_upstream
+        tracked = sync_upstream.newest_dev_branch()
+        warnings = sync_upstream.branch_warnings(tracked)
+        cache.write_text(tracked + "\n")
+        return tracked, warnings
+    except (Exception, SystemExit):
+        return (cache.read_text().strip() if cache.exists() else "upstream/main"), []
 
 
 def failed_automation():
@@ -72,8 +91,9 @@ def devices():
 
 
 def main():
-    with ThreadPoolExecutor(3) as pool:
+    with ThreadPoolExecutor(4) as pool:
         fetched = pool.submit(fetch_origin)
+        upstream = pool.submit(upstream_branch)
         automation = pool.submit(failed_automation)
         adb = pool.submit(devices)
         fetched.result()
@@ -82,8 +102,7 @@ def main():
         dirty = len([l for l in run("git", "status", "--porcelain").splitlines() if l.strip()])
         ahead = run("git", "rev-list", "--count", "origin/main..HEAD") or "?"
         behind = run("git", "rev-list", "--count", "HEAD..origin/main") or "0"
-        cache = ROOT / ".git/fork-upstream-branch"
-        up = cache.read_text().strip() if cache.exists() else "upstream/main"
+        up, up_warnings = upstream.result()
         new_up = run("git", "rev-list", "--count", f"HEAD..{up}") or "?"
         lines = [f"Reikai JP. {branch} @ {head}. Uncommitted files: {dirty}. Unpushed commits: {ahead}."]
         if behind != "0":
@@ -91,6 +110,7 @@ def main():
                          "run `git pull --ff-only` before working.")
         lines.append(f"Upstream {up}: {new_up} commits not merged yet (as of the last fetch; "
                      "the Upstream sync workflow merges them every Monday).")
+        lines += up_warnings
 
         roadmap = ROOT / "docs/fork/ROADMAP.md"
         if roadmap.exists():

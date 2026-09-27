@@ -5,6 +5,8 @@ Usage:
   scripts/fork/sync_upstream.py --check     report what a merge would bring; touches nothing
   scripts/fork/sync_upstream.py             merge, keep fork-owned paths, commit when clean
   scripts/fork/sync_upstream.py --no-commit merge and resolve owned paths, leave the commit to you
+  scripts/fork/sync_upstream.py --which     fetch, print the tracked branch and any sign that
+                                            upstream's development moved off it
 
 Exit codes: 0 done or nothing to do, 1 real conflicts remain (merge left in progress),
 2 refused (dirty tree, missing remote).
@@ -13,12 +15,14 @@ import argparse
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 OWNED_FILE = ROOT / "scripts/fork/owned-paths.txt"
 BRANCH_CACHE = ROOT / ".git/fork-upstream-branch"  # local state, read by the hooks
 REMOTE = "upstream"
+QUIET_DAYS = 14  # a tracked branch this long without commits no longer proves it is where work happens
 
 
 def git(*args, check=True):
@@ -38,13 +42,13 @@ def is_owned(path, patterns):
 
 
 def newest_dev_branch():
-    """The highest feat/X.Y.Z branch unless main has already absorbed it."""
+    """The highest feat/X.Y[.Z] branch unless main has already absorbed it."""
     refs = git("for-each-ref", "--format=%(refname:short)", f"refs/remotes/{REMOTE}/feat/").stdout.split()
     versions = []
     for ref in refs:
-        m = re.fullmatch(rf"{REMOTE}/feat/(\d+)\.(\d+)\.(\d+)", ref)
+        m = re.fullmatch(rf"{REMOTE}/feat/(\d+)\.(\d+)(?:\.(\d+))?", ref)
         if m:
-            versions.append((tuple(int(x) for x in m.groups()), ref))
+            versions.append((tuple(int(x or 0) for x in m.groups()), ref))
     main = f"{REMOTE}/main"
     if not versions:
         return main
@@ -52,6 +56,39 @@ def newest_dev_branch():
     if git("merge-base", "--is-ancestor", feat, main, check=False).returncode == 0:
         return main
     return feat
+
+
+def branch_warnings(tracked):
+    """Signs that upstream's development left the branch the naming rule picks.
+
+    Feature branches are short-lived: upstream may cut feat/0.5.0, rename its scheme, or work on main.
+    The rule above follows a new feat/X.Y.Z by itself; this catches the rest. It speaks only when the
+    tracked branch is main or has been quiet for QUIET_DAYS, and another branch holds newer commits
+    the tracked one lacks, so an active feat branch next to an old topic branch stays silent.
+    """
+    dates = {}
+    for line in git("for-each-ref", "--format=%(refname:short) %(committerdate:unix)",
+                    f"refs/remotes/{REMOTE}/").stdout.splitlines():
+        name, _, stamp = line.partition(" ")
+        if name.startswith(f"{REMOTE}/") and not name.startswith(f"{REMOTE}/backup/") and stamp:
+            dates[name] = int(stamp)
+    if tracked not in dates:
+        return [f"Upstream branch {tracked} not found after fetching {REMOTE}."]
+    quiet_days = int((time.time() - dates[tracked]) / 86400)
+    if tracked != f"{REMOTE}/main" and quiet_days < QUIET_DAYS:
+        return []
+    why = "upstream's main" if tracked == f"{REMOTE}/main" else f"quiet for {quiet_days} days"
+    warnings = []
+    for other, stamp in sorted(dates.items(), key=lambda kv: -kv[1]):
+        if other == tracked or stamp <= dates[tracked]:
+            continue
+        if git("merge-base", "--is-ancestor", other, tracked, check=False).returncode == 0:
+            continue
+        day = time.strftime("%Y-%m-%d", time.gmtime(stamp))
+        warnings.append(f"Upstream branch check: {other} has newer work ({day}) than the tracked {tracked}"
+                        f" ({why}); if upstream develops there now, teach newest_dev_branch() in"
+                        " scripts/fork/sync_upstream.py and update D-001.")
+    return warnings
 
 
 def commits_between(base, tip):
@@ -92,6 +129,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--no-commit", action="store_true")
+    ap.add_argument("--which", action="store_true")
     args = ap.parse_args()
 
     if git("remote", "get-url", REMOTE, check=False).returncode != 0:
@@ -104,9 +142,15 @@ def main():
     if targets[0] != main_ref:
         targets.append(main_ref)  # a hotfix on main that the dev branch has not taken yet
     BRANCH_CACHE.write_text(targets[0] + "\n")
+    warnings = branch_warnings(targets[0])
+    if args.which:
+        print("\n".join([f"Upstream development branch: {targets[0]}"] + warnings))
+        return 0
 
     pending = [t for t in targets if int(commits_between("HEAD", t)) > 0]
     print(f"Upstream development branch: {targets[0]}")
+    for w in warnings:
+        print(w)
     if not pending:
         print("Nothing new upstream. The fork is up to date.")
         return 0

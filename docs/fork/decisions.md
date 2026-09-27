@@ -8,7 +8,7 @@ the log; *Standing decisions* is the current state.
 
 | ID | Decision | Since |
 |---|---|---|
-| D-001 | **Upstream is Reikai** (unseensnick/Reikai), tracked at its newest development branch (`feat/<version>`, today `feat/0.4.0`) with `git merge`. Mihon arrives through Reikai. | 2026-09-27 |
+| D-001 | **Upstream is Reikai** (unseensnick/Reikai), tracked at its newest development branch (`feat/<version>`, today `feat/0.4.0`) with `git merge`. Feature branches are short-lived, so every session start re-picks the branch (`scripts/fork/sync_upstream.py`) and warns when upstream's work seems to have moved elsewhere (owner, 2026-09-27). Mihon arrives through Reikai. | 2026-09-27 |
 | D-002 | **Run Yomitan's own code, unmodified**, pinned to a release, with an automated workflow that follows new Yomitan releases. | 2026-09-27 |
 | D-003 | **A Japanese reading mode** with the reader's choice of **vertical or horizontal** text. It is the default for Japanese text but never forced: clearly labelled, with a one-tap way back to the standard reader. | 2026-09-27 |
 | D-004 | **Licence: GPL-3.0-or-later** for the fork (needed to run Yomitan's code). Public repository, not for sale. Builds stay free of proprietary SDKs (no Firebase). | 2026-09-27 |
