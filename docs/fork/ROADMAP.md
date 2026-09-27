@@ -49,10 +49,22 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   tablet over adb, the app offered r2668 on its update screen and installed it through Download,
   the one-time install permission and Update (`versionName 0.3.2-2665` to `0.3.2-2668`). The
   owner's first-install step was done by the agent; the Welcome setup is left to the owner.
-- [ ] **1.2 Language filter for novel extensions** (your report). The extension list gets a
+- [x] **1.2 Language filter for novel extensions** (your report). The extension list gets a
   language filter for novels, sharing one setting with manga extensions; installing a plugin turns
   its language on so it never disappears. *Done when:* choosing only 日本語 shows only Japanese
   extensions. **You:** answer one question when asked (decision O-001).
+  Ruling: installed, updating and failed extensions stay listed whatever the filter says, as in
+  Mihon - they are what "never disappears" protects - cost if wrong: one condition in
+  `jp.reikai.browse.ExtensionLanguages.offered`.
+  Ruling: turn on the languages of already-installed novel extensions once, instead of on every
+  install - an install can only start from a row whose language already shows - cost if wrong: a
+  hook in `LnPluginManagerViewModel.install`.
+  **Done 2026-09-27** in `58e8fcf29`, `849ac0e16`. Owner chose to keep the Sources screen's novel
+  switches separate (D-020). On the tablet (debug build): the Filter action shows on the Novels
+  chip and lists the plugin languages; only 日本語 on left exactly kakuyomu and Syosetu; with only
+  English on, the installed Syosetu stayed under Installed; with the seed flag reset, a relaunch
+  switched 日本語 back on and kakuyomu was offered again. IReader's own codes (`jp`, `tu`, `in`,
+  `cn`, `multi`) are covered by a unit test only (no IReader repo on the tablet).
 - [ ] **1.3 Performance baseline.** Repeatable measurements on your tablet and phone (cold start,
   library open, novel chapter open, memory), saved so every later change is compared against real
   numbers. **You:** devices connected.

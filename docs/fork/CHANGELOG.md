@@ -5,6 +5,14 @@ Changes you will notice in the app, newest first. Upstream Reikai's own changes 
 
 ## Unreleased
 
+### Browse
+- Browse → Extensions → Filter now works for novels too: novel plugins and novel extension apps on
+  offer only show in the languages you switch on there. It is one setting for manga and novels,
+  so switching 日本語 on shows Japanese manga extensions and sources as well. Extensions you already
+  installed always stay listed, whatever the filter says. After this update the languages of the
+  plugins you already installed are switched on once, so none of their repos' plugins vanish.
+  Browse → Sources → Filter → Novels still has its own switches for installed novels.
+
 ### Other
 - The app is called Reikai JP and installs beside upstream Reikai. New versions are published on
   this fork's GitHub Releases and the app offers them itself ([install guide](install.md)).
