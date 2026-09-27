@@ -65,9 +65,27 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   English on, the installed Syosetu stayed under Installed; with the seed flag reset, a relaunch
   switched 日本語 back on and kakuyomu was offered again. IReader's own codes (`jp`, `tu`, `in`,
   `cn`, `multi`) are covered by a unit test only (no IReader repo on the tablet).
-- [ ] **1.3 Performance baseline.** Repeatable measurements on your tablet and phone (cold start,
+- [x] **1.3 Performance baseline.** Repeatable measurements on your tablet and phone (cold start,
   library open, novel chapter open, memory), saved so every later change is compared against real
-  numbers. **You:** devices connected.
+  numbers. **You:** devices connected (done).
+  Ruling: measure upstream's `benchmark` build type (R8, profileable, `app.reikai.jp.benchmark`) -
+  release-like and its own data, so the owner's library is never touched - cost if wrong: numbers
+  differ from the signed nightly only by signing.
+  Ruling: a generated offline library (300 local manga, 30 novels with downloaded chapters) instead
+  of the owner's - identical on both devices, no network - cost if wrong: sizes are a guess;
+  `FIXTURE_INFO` in `scripts/fork/perf.py` versions it.
+  Ruling: an adb script over Macrobenchmark - fork-owned, no seams in upstream's
+  `baseline-profile` module, runs from the agent's shell - cost if wrong: less precise than
+  Perfetto traces for sub-frame work.
+  Ruling: library open is the manga chip at a cold start; chapter open is the native renderer -
+  the larger list and the default renderer - cost if wrong: the novel chip and WebView mode need
+  their own marks (noted in the README).
+  **Done 2026-09-27** in `e5cf25747`, `3da7f326f`, `6888aea28`. Baseline saved for both devices
+  at `3da7f326f` ([perf/README.md](perf/README.md)), repeated twice (once each device alone, once
+  side by side) to set the noise band: tablet cold start 739 ms, library on screen 531 ms, chapter
+  open 215 ms, 181/370 MB (library/reader); phone 954, 753, 236 ms, 146/286 MB. Findings: cold
+  start rests on the 500 ms splash floor, the novel reader doubles memory. Your phone now has
+  Reikai JP r2668 set up on `/sdcard/Reikai` (empty library, same permissions as the tablet).
 - [ ] **1.4 Japanese sites in the plugin host.** Shift-JIS and EUC-JP pages decode correctly, and
   plugin calls stop waiting behind one lock (faster global search). These are general fixes, so
   they are also prepared as a pull request for upstream Reikai. **You (optional):** open that pull

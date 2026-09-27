@@ -10,7 +10,7 @@ Symptom: `$ARGUMENTS`. Adapted from mattpocock/skills `diagnosing-bugs` (MIT).
    1. a unit test in the module (`scripts/fork/gw :app:testDebugUnitTest --tests <FQCN>`);
    2. a small JVM or Node reproduction (Node for WebView JS such as the Yomitan stand-in);
    3. device logs: `adb logcat -d -v brief | grep -E '<tag>|AndroidRuntime'` after reproducing;
-   4. UI state: `adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml build/fork-logs/`;
+   4. UI state: `adb shell uiautomator dump /data/local/tmp/ui.xml && adb pull /data/local/tmp/ui.xml build/fork-logs/`;
    5. WebView JS through Chrome DevTools (`adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`);
    6. last resort, the owner reproduces with exact steps and reports what they see (`/owner-steps`).
 2. **Minimise** the reproduction until every remaining step matters.

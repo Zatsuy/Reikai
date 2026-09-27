@@ -141,7 +141,9 @@ while staying a thin, mergeable layer over Reikai.
 
 ## Performance budgets
 
-Targets to confirm in the Phase 2 spike on the owner's tablet and phone, then enforced by measurement:
+Targets to confirm in the Phase 2 spike on the owner's tablet and phone, then enforced by measurement.
+`scripts/fork/perf.py` measures the paths that exist today on both devices; the numbers and how to
+run it are in [perf/](perf/README.md).
 
 | Path | Target |
 |---|---|

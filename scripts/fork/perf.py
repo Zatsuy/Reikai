@@ -450,6 +450,10 @@ def measure_portrait(d, runs):
     d.tap("Manga")
     d.sh(f"am force-stop {PKG}")
     version = re.search(r"versionName=(\S+)", d.sh(f"dumpsys package {PKG}"))
+    # A warm or nearly flat device throttles its CPU, so each run says what state it measured in.
+    battery = d.sh("dumpsys battery")
+    temp = re.search(r"^\s*temperature: (\d+)", battery, re.M)
+    level = re.search(r"^\s*level: (\d+)", battery, re.M)
     return {
         "date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "commit": git("rev-parse", "--short=9", "HEAD"),
@@ -458,6 +462,8 @@ def measure_portrait(d, runs):
         "device": d.name, "model": d.model,
         "android": d.sh("getprop ro.build.version.release").strip(),
         "build": version.group(1) if version else None,
+        "battery_temp_c": int(temp.group(1)) / 10 if temp else None,
+        "battery_pct": int(level.group(1)) if level else None,
         "fixture": FIXTURE_INFO,
         "metrics": metrics,
     }
@@ -497,7 +503,8 @@ def saved(device):
 
 def report(result, history):
     print(f"\n{result['device']} ({result['model']}, Android {result['android']}, {result['build']}, "
-          f"commit {result['commit']}{' + local changes' if result['dirty'] else ''})")
+          f"commit {result['commit']}{' + local changes' if result['dirty'] else ''}, "
+          f"battery {result.get('battery_temp_c')} °C {result.get('battery_pct')} %)")
     # Against the first save too, so regressions each too small to see cannot add up unnoticed.
     refs = [("baseline", history[0])] if history else []
     if len(history) > 1:

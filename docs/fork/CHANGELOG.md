@@ -14,6 +14,10 @@ Changes you will notice in the app, newest first. Upstream Reikai's own changes 
   Browse → Sources → Filter → Novels still has its own switches for installed novels.
 
 ### Other
+- Speed and memory are now measured on your tablet and phone ([baseline](perf/README.md)). For
+  that, both carry a second "Reikai JP" icon (a test copy with a made-up library in a
+  `ReikaiJPBench` folder): ignore it, it never touches your own library. The app itself only gains
+  two timing lines in the system log, with no visible effect.
 - The app is called Reikai JP and installs beside upstream Reikai. New versions are published on
   this fork's GitHub Releases and the app offers them itself ([install guide](install.md)).
 - About shows the version as "Nightly r" plus a number (higher is newer) and its GitHub link

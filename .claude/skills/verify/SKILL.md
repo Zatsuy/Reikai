@@ -18,7 +18,7 @@ out of your context.
 | Seams clean | `scripts/fork/seams.py --check` |
 | Harness intact | `python3 .claude/hooks/test_hooks.py` |
 | Works on the device | install, open, look (below); a screenshot or UI dump you actually read |
-| Faster | before and after numbers from the same measurement on the device |
+| Faster | before and after numbers from the same measurement on the device: `scripts/fork/perf.py run` against the saved baseline ([docs/fork/perf/](../../../docs/fork/perf/README.md)) |
 | A subagent did it | `git diff` shows it |
 
 **On a device** (when `adb devices -l` does not list the one you need, ask the owner to connect it
@@ -30,9 +30,9 @@ so check there first, then the phone (`SM_A546E`). With both connected every `ad
 - install: `scripts/fork/gw :app:installDebug`
 - open: `adb shell monkey -p <package> -c android.intent.category.LAUNCHER 1`
 - look: `adb exec-out screencap -p > build/fork-logs/screen.png`, then Read the image; or
-  `adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml build/fork-logs/`
-- cold start time: `adb shell am force-stop <package> && adb shell am start -W -n <package>/eu.kanade.tachiyomi.ui.main.MainActivity`
-  (read `TotalTime`; take the median of five)
+  `adb shell uiautomator dump /data/local/tmp/ui.xml && adb pull /data/local/tmp/ui.xml build/fork-logs/`
+- speed and memory: `scripts/fork/perf.py run` (benchmark build, fixed library, compared with the
+  saved baseline); a quick look on the debug build is `am start -W` and its `TotalTime`
 - crashes: `adb logcat -d -b crash`
 
 Report what ran and what it showed in a few lines. A failure is reported as a failure, with the
