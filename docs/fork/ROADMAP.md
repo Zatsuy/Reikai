@@ -47,9 +47,9 @@ email you (safe to ignore), and the next agent session you start sees it and fix
 
 - [ ] **4.1 The reader**: vertical or horizontal text (your choice), pages or scrolling, furigana
   modes, Japanese fonts and line breaking, position kept when fonts change.
-- [ ] **4.2 Default for Japanese, never forced**: opens automatically for Japanese novels, explains
-  itself the first time, and one tap in the reader menu returns to the standard reader (remembered
-  per novel).
+- [ ] **4.2 Default for Japanese, never forced**: opens automatically for Japanese novels in
+  vertical text; the first time, a one-time message offers horizontal instead (D-026); the reader
+  menu has an option to return to the standard reader (remembered per novel).
 - [ ] **4.3 Tap to look up** in the reader, with the sentence, highlight, book title, chapter and
   cover filled into the card.
 - [ ] **4.4 Character counts and reading statistics**, compatible with ttu.

@@ -32,6 +32,9 @@ the log; *Standing decisions* is the current state.
 | D-021 | **GitHub Actions minutes are scarce (free plan).** Agents never spend CI runs to prove something they can prove locally: a flaky test is fixed when a local harness that forces the bad timing fails before the fix and passes after, not after repeated CI runs (owner, 2026-09-27). | 2026-09-27 |
 | D-023 | **A connected device is the owner's go-ahead to use it.** When the owner connects the tablet or phone, the agent may use it for the whole session and temporarily change the settings it needs (above all keeping the screen awake while plugged in). It tells the owner straight away when it changes a setting, puts every setting back as it was once it is done with that device for the session, says so at that moment, and repeats it in the final report (owner, 2026-09-27). | 2026-09-27 |
 | D-024 | **Go: the lookup engine is Yomitan's own code** (was the Phase 2 go/no-go). The spike ran Yomitan 26.9.8.0 unmodified on both devices within the popup budget; Phase 3 builds the engine on it and must fix what the spike found (dictionary pictures, the import path, engine start and first popup, chapter pages kept off the engine's origin, a popup placed by the app on phones). Details: `docs/fork/research/yomitan-spike-2026-09.md` (owner, 2026-09-27). | 2026-09-27 |
+| D-025 | **Yomitan lookup can be switched off, and is on by default.** A reader who does not want the popup (a native speaker, say) turns it off in settings; while it is off the engine never starts, so it costs no memory (owner, 2026-09-27). | 2026-09-27 |
+| D-026 | **The Japanese reader starts in vertical text and, once, offers horizontal** (refines D-003). The first time it opens, a short one-time message says it is reading vertically like a printed book and offers to switch to horizontal; the choice stays changeable in the reader's own settings. Going back to the standard (non-Japanese) reader is only an option in the reader menu, not part of that first-time message (owner, 2026-09-27). | 2026-09-27 |
+| D-027 | **Phase 3 is built as one item in one session** (owner, 2026-09-27), with subagents doing the reading and building. Japanese reading UX and Yomitan's ease of use are improved wherever the agent sees fit, without editing Yomitan's files (D-002), so automatic Yomitan updates keep working. | 2026-09-27 |
 
 ## Open
 
@@ -42,6 +45,12 @@ item asks with AskUserQuestion and moves the answer to *Standing decisions*.
 
 ## Log
 
+- **2026-09-27** Owner, starting Phase 3: build all of Phase 3 at once with subagents (D-027);
+  Yomitan switchable, on by default ("a japanese native may want to use the app and find the popup
+  annoying and it consumes RAM as well", D-025); the Japanese reader starts vertical with a one-time
+  offer of horizontal, the standard reader only from the menu (D-026). Reported: on Kakuyomu,
+  Firefox selects a whole word where upstream Reikai's reader selects one kanji and the rest has to
+  be dragged. Tablet connected for the session; ask for the phone only when it gives better results.
 - **2026-09-27** Owner, on the Yomitan spike: the test card goes in a test deck that is deleted
   afterwards; no note type in use yet, so Lapis 1.7.0 was added to the collection. With the numbers:
   "Go" (now D-024); the spike's test data removed from both devices, Lapis kept.
