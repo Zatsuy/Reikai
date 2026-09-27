@@ -17,6 +17,7 @@ Usage:
                                                 (refused for uncommitted code, a stale APK or lost samples)
 
 Devices are adb serials or the aliases `tablet` and `phone`; the default is every connected one.
+Several devices are measured at the same time.
 Metrics (ms unless noted; lower is better):
   cold_start           launcher tap to first frame (am start -W), what the owner waits through;
                        it includes Reikai's 500 ms minimum splash
@@ -41,6 +42,7 @@ import subprocess
 import sys
 import time
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
@@ -527,13 +529,28 @@ def main():
     if a.command == "fixture":
         build_fixture()
         return
-    for d in devices(a.devices):
-        if a.command == "setup":
-            setup(d, a.fresh)
+    found = devices(a.devices)
+    if a.command == "setup" and not FIXTURE.exists():
+        build_fixture()  # before the threads, which would otherwise race to build it
+    if a.command == "run":
+        for d in found:
+            if not installed(d):
+                sys.exit(f"{d.name}: not set up; run scripts/fork/perf.py setup {d.name}")
+    # The devices share nothing but the USB bus, and every measurement is taken on the device, so they
+    # run side by side: a two-device run takes as long as the slower device.
+    work = (lambda d: setup(d, a.fresh)) if a.command == "setup" else (lambda d: measure(d, a.runs))
+    with ThreadPoolExecutor(len(found)) as pool:
+        futures = {d: pool.submit(work, d) for d in found}
+    failed = False
+    for d, future in futures.items():
+        try:
+            result = future.result()
+        except (SystemExit, Exception) as e:  # one device failing leaves the other's numbers standing
+            print(f"{d.name}: failed: {e}")
+            failed = True
             continue
-        if not installed(d):
-            sys.exit(f"{d.name}: not set up; run scripts/fork/perf.py setup {d.name}")
-        result = measure(d, a.runs)
+        if a.command == "setup":
+            continue
         report(result, saved(d.name))
         if a.save and (why := unsaveable(result)):
             print(f"  not saved: {'; '.join(why)}")
@@ -542,7 +559,8 @@ def main():
             with RESULTS.open("a") as f:
                 f.write(json.dumps(result, ensure_ascii=False) + "\n")
             print(f"  saved to {RESULTS.relative_to(ROOT)}")
-
+    if failed:
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
