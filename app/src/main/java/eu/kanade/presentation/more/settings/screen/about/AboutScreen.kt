@@ -156,7 +156,8 @@ object AboutScreen : SearchableSettings {
                             LinkIcon(
                                 label = "GitHub",
                                 icon = SimpleIcons.Github,
-                                url = "https://github.com/unseensnick/Reikai",
+                                // FORK: the GitHub link opens Reikai JP's repository
+                                url = jp.reikai.ForkRelease.REPO_URL,
                             )
                         }
                     },
