@@ -557,6 +557,11 @@
     return geo.vertical ? geo.W - geo.R : geo.T;
   }
 
+  // Scroll mode: how much of the chapter one screen shows along the scroll.
+  function screenExtent() {
+    return geo.vertical ? geo.W : geo.H - geo.insetTop - geo.insetBottom;
+  }
+
   /*
    * Scroll mode: how far to scroll so the line box holding rect starts at the reading edge (the
    * glyph's own box sits half the leading inside it). Under a pixel is no move at all.
@@ -701,6 +706,17 @@
     post({ t: 'pos', pos: state });
   }
 
+  /*
+   * Asks for the next or previous chapter. The place reached is posted first: the app replaces this
+   * document on an edge, so a pos still waiting for its frame (a scroll that has not settled, the end
+   * that auto-scroll just reached) would never arrive, and the chapter would keep an older place and
+   * never be seen to its end.
+   */
+  function postEdge(forward) {
+    postPos(false);
+    post({ t: 'edge', forward: forward });
+  }
+
   /* Lays the chapter out again at the intended position, which it leaves as it is. */
   function relayout() {
     relayoutPending = false;
@@ -729,7 +745,7 @@
     if (geo.paged) {
       var target = page + (forward ? 1 : -1);
       if (target < 0 || target >= geo.pages) {
-        post({ t: 'edge', forward: forward });
+        postEdge(forward);
         return;
       }
       setPage(target);
@@ -739,11 +755,10 @@
     }
     var at = scrollProgress();
     if (forward ? at >= geo.maxScroll - 1 : at <= 1) {
-      post({ t: 'edge', forward: forward });
+      postEdge(forward);
       return;
     }
-    var screen = geo.vertical ? geo.W : geo.H - geo.insetTop - geo.insetBottom;
-    var step = Math.max(1, Math.round(screen * TURN_SCROLL_SHARE));
+    var step = Math.max(1, Math.round(screenExtent() * TURN_SCROLL_SHARE));
     scrollToProgress(at + (forward ? step : -step), true);
     schedulePos();
   }
@@ -798,8 +813,9 @@
     }
   }
 
-  // Scroll mode only; px is pixels a 60 Hz frame, upstream's auto-scroll unit.
-  var auto = { raf: 0, rate: 0, last: 0, carry: 0, reported: 0 };
+  // Scroll mode only; px is pixels a 60 Hz frame, upstream's auto-scroll unit. endAt: when the scroll
+  // reached the chapter's end (0 while it has not).
+  var auto = { raf: 0, rate: 0, last: 0, carry: 0, reported: 0, endAt: 0 };
 
   function autoScroll(px) {
     var rate = num(px, 0) * 60;
@@ -811,6 +827,7 @@
     if (auto.raf) return;
     auto.last = 0;
     auto.carry = 0;
+    auto.endAt = 0;
     auto.reported = performance.now();
     auto.raf = requestAnimationFrame(autoStep);
   }
@@ -826,11 +843,21 @@
         auto.carry -= step;
         var at = scrollProgress();
         if (step > 0 && at >= geo.maxScroll - 1) {
-          schedulePos();
-          post({ t: 'edge', forward: true });
-          return;
+          // The last screen is still being read: the next chapter comes after as long as scrolling
+          // that screen away would take, as if the scroll went on into it (upstream's seamless
+          // chapters), rather than the moment the chapter's last line comes into view.
+          auto.carry = 0;
+          if (!auto.endAt) {
+            auto.endAt = now;
+            postPos(false);
+          } else if (now - auto.endAt >= screenExtent() / auto.rate * 1000) {
+            postEdge(true);
+            return;
+          }
+        } else {
+          auto.endAt = 0;
+          scrollToProgress(at + step, true);
         }
-        scrollToProgress(at + step, true);
       }
     }
     auto.last = now;
@@ -1024,8 +1051,8 @@
       var along = geo.vertical ? touch.clientX - p.x : p.y - touch.clientY;
       var across = geo.vertical ? touch.clientY - p.y : touch.clientX - p.x;
       if (Math.abs(along) < EDGE_PULL_PX || Math.abs(along) < 2 * Math.abs(across)) return;
-      if (along > 0 && p.atEnd) post({ t: 'edge', forward: true });
-      else if (along < 0 && p.atStart) post({ t: 'edge', forward: false });
+      if (along > 0 && p.atEnd) postEdge(true);
+      else if (along < 0 && p.atStart) postEdge(false);
     }, { capture: true, passive: true });
 
     document.addEventListener('touchcancel', function () { pull = null; }, { capture: true, passive: true });

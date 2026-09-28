@@ -82,7 +82,11 @@ async function serve(route) {
 const INIT_SCRIPT = `
   window.__jpMessages = [];
   window.__cspViolations = [];
-  window.jpReader = { postMessage: (text) => window.__jpMessages.push(JSON.parse(text)) };
+  window.__jpTimes = [];
+  window.jpReader = { postMessage: (text) => {
+    window.__jpMessages.push(JSON.parse(text));
+    window.__jpTimes.push(performance.now());
+  } };
   document.addEventListener('securitypolicyviolation',
     (e) => window.__cspViolations.push(e.violatedDirective + ' ' + e.blockedURI + ' ' + e.sourceFile + ':' + e.lineNumber));
 `;
@@ -291,6 +295,19 @@ async function pagedTests(context, vp) {
             const forward = await waitMessage(page, 'edge', from);
             same(forward.forward, true, 'turn past the last page posts edge forward');
             same((await state(page)).page, pages, 'no page change at the end');
+            // Onto the last page and straight past it, before the turn's pos had its frame: that
+            // place is posted before the edge, since the app replaces the document on an edge.
+            await page.evaluate(() => JpReader.turn(-1));
+            await settle(page);
+            from = await mark(page);
+            await page.evaluate(() => {
+                JpReader.turn(1);
+                JpReader.turn(1);
+            });
+            await waitMessage(page, 'edge', from);
+            const flushed = await messagesSince(page, from);
+            same(flushed.map((m) => m.t).slice(0, 2), ['pos', 'edge'], 'pos, then edge');
+            same([flushed[0].pos.page, flushed[0].pos.endSeen], [pages, true], 'the last page posted before the edge');
             const pos = await waitMessage(page, 'pos', 0);
             check(pos.pos.chars === ready.pos.chars, 'pos messages after turns');
             for (let p = pages - 1; p >= 1; p--) await page.evaluate(() => JpReader.turn(-1));
@@ -575,12 +592,30 @@ async function scrollTests(context, vp) {
             check(ran > 30, `auto-scroll at 3 px a frame moved ${ran} px forward in 600 ms (${JSON.stringify(before)} to ${JSON.stringify(after)})`);
             await settle(page, 100);
             same(await axis(page), after, 'autoScroll(0) stops');
+            // From nearly two screens before the end, so the end is reached while it runs.
             await page.evaluate((n) => JpReader.seekChar(n), ready.pos.chars - 30);
             await settle(page, 300);
+            await page.evaluate(() => {
+                JpReader.turn(-1);
+                JpReader.turn(-1);
+            });
+            await settle(page, 300);
+            check(!(await state(page)).endSeen, 'auto-scroll starts before the end');
             from = await mark(page);
             await page.evaluate(() => JpReader.autoScroll(20));
             same((await waitMessage(page, 'edge', from, 5000)).forward, true, 'auto-scroll reaching the end posts edge forward');
             check((await state(page)).endSeen, 'auto-scroll stops at the end');
+            const heard = await messagesSince(page, 0);
+            const times = await page.evaluate(() => window.__jpTimes);
+            const edgeAt = heard.findIndex((m, i) => i >= from && m.t === 'edge');
+            const lastPos = heard.slice(0, edgeAt).filter((m) => m.t === 'pos' || m.t === 'ready').pop();
+            check(lastPos && lastPos.pos.endSeen, `the last place posted before the edge is the end: ${JSON.stringify(lastPos)}`);
+            // The last screen is read before the next chapter: as long as scrolling it away would take.
+            const endAt = heard.findIndex((m, i) => i >= from && m.t === 'pos' && m.pos.endSeen);
+            const lastScreen = writing === 'vertical' ? vp.width : vp.height - BASE.insets.top - BASE.insets.bottom;
+            const dwellMs = (lastScreen / (20 * 60)) * 1000;
+            const waited = times[edgeAt] - times[endAt];
+            check(waited >= dwellMs * 0.9, `the edge came ${Math.round(waited)} ms after the end, not the ${Math.round(dwellMs)} ms the last screen takes`);
 
             // A wheel (a mouse or a keyboard on the tablet) is the reader's own scroll too.
             await page.evaluate(() => JpReader.seekChar(0));

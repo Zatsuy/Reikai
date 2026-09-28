@@ -38,7 +38,9 @@ PLAYWRIGHT_BROWSERS_PATH=build/ms-playwright \
 - **Scrolling in both directions**: vertical text scrolls right to left (negative `scrollX`),
   horizontal text downward; `turn` moves 90% of a screen; `edge` at both ends; native touch drags
   and flings (Chromium's own touch input, so momentum is the browser's); a pull past either end
-  posts `edge`; wheel; auto-scroll and its `edge` at the end.
+  posts `edge`; wheel; auto-scroll and its `edge` at the end, which waits as long as the last
+  screen takes to scroll away. Every `edge` comes after the place it was asked from (a `pos` with
+  `endSeen` for a forward one), even a turn made before the previous turn's `pos` was posted.
 - **Taps**: a character goes to `JpReader.onTextTap`; declined or unset posts `tap` `none`; margins
   follow the tap zones; zones mode; long press; `touch`; swipes and `invertSwipe`.
 - **Furigana**: all five modes by computed style; a tap on hidden furigana reveals it (toggle hides
