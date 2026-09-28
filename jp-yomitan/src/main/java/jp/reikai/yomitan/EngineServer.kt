@@ -49,7 +49,7 @@ internal class EngineServer(
             else -> "yomitan/" + clean.removePrefix("/")
         }
         val stream = asset?.let { runCatching { assets.open(it) }.getOrNull() } ?: return notFound()
-        return WebResourceResponse(mimeType(clean), "utf-8", 200, "OK", ASSET_HEADERS, stream)
+        return WebResourceResponse(mimeType(clean), "utf-8", 200, "OK", assetHeaders(clean), stream)
     }
 
     private fun proxies(kind: PageKind, request: WebResourceRequest): Boolean =
@@ -148,9 +148,20 @@ internal class EngineServer(
     private fun failure(status: Int, reason: String) =
         WebResourceResponse("text/plain", "utf-8", status, reason, CORS_HEADERS, ByteArrayInputStream(ByteArray(0)))
 
-    private companion object {
+    internal companion object {
         /** Engine files are public and fixed for an app version; chapter pages may import them (Phase 4). */
         val ASSET_HEADERS = mapOf("Cache-Control" to "no-cache", "Access-Control-Allow-Origin" to "*")
+
+        /**
+         * Only Yomitan's popup may sit in a frame of another site (a chapter page, Phase 4), as in a
+         * browser, where it is the one page its manifest makes web-accessible. Its other pages
+         * (settings, search, the backend) show only in the app's own WebViews or in frames of each
+         * other, so a web page cannot frame them and trick a tap into changing a setting.
+         */
+        val SAME_ORIGIN_FRAMES = mapOf("Content-Security-Policy" to "frame-ancestors 'self'")
+
+        fun assetHeaders(path: String): Map<String, String> =
+            if (path.endsWith(".html") && path != "/popup.html") ASSET_HEADERS + SAME_ORIGIN_FRAMES else ASSET_HEADERS
         val CORS_HEADERS = mapOf("Access-Control-Allow-Origin" to YomitanOrigin.ORIGIN)
         val FORWARDED_HEADERS = setOf("accept", "accept-language", "range", "user-agent")
 
