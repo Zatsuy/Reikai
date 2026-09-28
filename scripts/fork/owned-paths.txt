@@ -18,3 +18,4 @@ app/src/androidTest/java/jp/reikai/
 app/src/debug/java/jp/reikai/
 app/src/debug/assets/jp-reikai/
 jp-yomitan/
+app/src/main/assets/jp-reader/

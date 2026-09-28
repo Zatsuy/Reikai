@@ -35,6 +35,9 @@ the log; *Standing decisions* is the current state.
 | D-025 | **Yomitan lookup can be switched off, and is on by default.** A reader who does not want the popup (a native speaker, say) turns it off in settings; while it is off the engine never starts, so it costs no memory (owner, 2026-09-27). | 2026-09-27 |
 | D-026 | **The Japanese reader starts in vertical text and, once, offers horizontal** (refines D-003). The first time it opens, a short one-time message says it is reading vertically like a printed book and offers to switch to horizontal; the choice stays changeable in the reader's own settings. Going back to the standard (non-Japanese) reader is only an option in the reader menu, not part of that first-time message (owner, 2026-09-27). | 2026-09-27 |
 | D-027 | **Phase 3 is built as one item in one session** (owner, 2026-09-27), with subagents doing the reading and building. Japanese reading UX and Yomitan's ease of use are improved wherever the agent sees fit, without editing Yomitan's files (D-002), so automatic Yomitan updates keep working. | 2026-09-27 |
+| D-028 | **Phase 4 is built as one item in one session** (owner, 2026-09-28: "complete the entirety of Phase 4 in an efficient way"), with subagents doing the reading and building, as Phase 3 was (D-027). 4.5's list is still put to the owner, who picks what gets built. | 2026-09-28 |
+| D-029 | **In the Japanese reader a tap on a word looks it up, and that is configurable** (owner, 2026-09-28). Swipes and the volume keys turn pages, a tap off the text opens the menu; a setting switches taps to turning pages (long-press still looks up). | 2026-09-28 |
+| D-030 | **Tsundoku parity (4.5): build the status bar, short chapters marked read, chapter translation and EPUB export** (owner, 2026-09-28). Not now: read-aloud background options, saved passages (Phase 6's mining log covers them). | 2026-09-28 |
 
 ## Open
 
@@ -45,6 +48,9 @@ item asks with AskUserQuestion and moves the answer to *Standing decisions*.
 
 ## Log
 
+- **2026-09-28** Owner, starting Phase 4: build all of it in one session, efficiently (D-028). Taps in
+  the Japanese reader: "look up by default, but make it configurable" (D-029). From the Tsundoku
+  list: status bar, short chapters read, chapter translation, EPUB export (D-030).
 - **2026-09-27** Owner, starting Phase 3: build all of Phase 3 at once with subagents (D-027);
   Yomitan switchable, on by default ("a japanese native may want to use the app and find the popup
   annoying and it consumes RAM as well", D-025); the Japanese reader starts vertical with a one-time
