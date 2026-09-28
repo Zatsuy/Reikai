@@ -65,6 +65,9 @@ async function serve(route) {
     const path = url.pathname;
     if (path === '/lib/z-worker.js') {
         // zip.js starting its own worker inside Yomitan's import worker: WebView never serves that.
+        // Chrome does not send a worker's worker through this routing either (it then fails to load
+        // from the unresolvable .invalid host and the import hangs, as in WebView); this catches it
+        // sooner should that change.
         fail('zip.js asked for its worker (lib/z-worker.js): the import worker would hang in WebView');
         return route.fulfill({status: 404, body: ''});
     }

@@ -3,7 +3,8 @@
  * of the app's hub. GPL-3.0-or-later. Run: node --test jp-yomitan/src/test/js/*.test.mjs
  *
  * Each test loads the stand-in into a fresh VM context holding just the web platform pieces it uses,
- * as WebView would inject it into a new document. Roadmap 3.6's smoke test can reuse `load`.
+ * as WebView would inject it into a new document. The stand-in with Yomitan itself, in headless
+ * Chrome, is scripts/fork/yomitan-smoke/ (roadmap 3.6).
  */
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';

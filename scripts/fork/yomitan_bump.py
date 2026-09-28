@@ -21,8 +21,8 @@ Usage:
   scripts/fork/yomitan_bump.py tripwire [--write]
       compare the surfaces of the vendored Yomitan that Reikai JP's stand-in depends on with the
       reviewed baseline (jp-yomitan/yomitan-surface.json); exit 1 listing every change. --write
-      regenerates the baseline: an agent does that only after reviewing a change (README.md next
-      to this script), never the workflow.
+      regenerates the baseline: an agent does that only after reviewing a change
+      (scripts/fork/yomitan-smoke/README.md), never the workflow.
   scripts/fork/yomitan_bump.py smoke
       run the vendored Yomitan with the stand-in in headless Chrome (scripts/fork/yomitan-smoke/)
   scripts/fork/yomitan_bump.py update [TAG] [--pinned VERSION] [--soak-days N] [--no-smoke]

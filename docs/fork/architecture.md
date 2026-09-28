@@ -61,9 +61,14 @@ while staying a thin, mergeable layer over Reikai.
   the message port, and found what the stand-in must still cover (no SharedWorker in WebView, no
   worker started by a worker, `tabs.query` listing real tabs, AnkiConnect routed through the app):
   [the spike's findings](research/yomitan-spike-2026-09.md).
-- **Updates:** a workflow checks Yomitan releases, vendors the new one, runs Yomitan's own
-  golden-file tests through the stand-in in Node, and applies it by itself when they pass
-  (decision D-015); a failure waits for the next agent session. Nothing in Yomitan's files is
+- **Updates:** a weekly workflow takes Yomitan's latest promoted release after a 7-day wait,
+  vendors it, and applies it by itself (decision D-015) when two checks pass: a static tripwire
+  (the `chrome.*` calls, actions, permissions, database schema and call sites the stand-in relies
+  on, compared with a reviewed baseline) and a smoke test in headless Chrome (the release with the
+  stand-in and a copy of the hub imports Yomitan's test dictionary, looks a word up and draws a
+  picture). Yomitan's own test suites are not run: they test its source tree with their own mocks,
+  nothing of the stand-in's. A failure waits for the next agent session
+  ([how it works](../../scripts/fork/yomitan-smoke/README.md)). Nothing in Yomitan's files is
   edited by hand.
 - **Escape hatch:** if IndexedDB proves too slow on a phone, only the database layer changes. The
   translator touches eight database functions (`findTermsBulk`, `findTermMetaBulk`, ...), which can
