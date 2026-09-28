@@ -16,8 +16,9 @@
  *   gives the page's theme, for Yomitan's default "match the page" popup theme; `reikai-load` tells
  *   this load's "ready" from an earlier one's.
  * - Lookups Yomitan makes inside the popup (a word tapped in a definition, with its "search in the
- *   popup" setting) say their page is light and is the popup itself: every history state the page
- *   writes keeps the reader's theme, and the reader's address and title for Anki's {url} and
+ *   popup" setting) say their page is light and is the popup itself, and a word picked from the
+ *   parsed sentence above the results names no page at all: every history state the page writes
+ *   keeps the reader's theme, and the reader's address and title for Anki's {url} and
  *   {document-title}.
  * - Yomitan tells every tab when its settings or dictionaries change; a standalone popup has no page
  *   to pass that on, so the app is told ("stale") and loads the page again when it is not in use.
@@ -26,7 +27,8 @@
  *   connects as that page would.
  * - It tells the app (web message listener `reikaiPopup`) when it is ready, when a lookup is on
  *   screen (first result, or a notice), whether Yomitan's history has a previous lookup to go back to,
- *   and when Yomitan's own close button is pressed.
+ *   and when Yomitan's own close button is pressed. "ready", "stale" and "nav" carry the load number,
+ *   so the app ignores what an earlier load said after it moved on.
  */
 (function reikaiPopupHost() {
     'use strict';
@@ -48,13 +50,15 @@
     let source = null;
 
     // Every history state the page writes (Yomitan's DisplayHistory keeps the very object) keeps the
-    // reader's theme and, for a lookup made inside the popup, the reader's page.
+    // reader's theme and, for a lookup made inside the popup (which names the popup, or no page:
+    // display.js _onQueryParserSearch), the reader's page.
     const popupAddress = `${location.origin}/popup.html`;
     const adopt = (data) => {
         const state = data?.state;
         if (state === null || typeof state !== 'object') { return; }
         if (theme !== null) { state.pageTheme = theme; }
-        if (source !== null && typeof state.url === 'string' && state.url.startsWith(popupAddress)) {
+        const inPopup = typeof state.url !== 'string' || state.url.startsWith(popupAddress);
+        if (source !== null && inPopup) {
             for (const key of ['url', 'documentTitle']) {
                 if (typeof source[key] === 'string') { state[key] = source[key]; } else { delete state[key]; }
             }
@@ -148,7 +152,7 @@
             const now = document.documentElement.dataset.hasNavigationPrevious === 'true';
             if (now !== back) {
                 back = now;
-                post({t: 'nav', back});
+                post({t: 'nav', back, load});
             }
         }).observe(document.documentElement, {attributes: true, attributeFilter: ['data-has-navigation-previous']});
         // Yomitan's close button asks a content page that is not there; the app closes the sheet.

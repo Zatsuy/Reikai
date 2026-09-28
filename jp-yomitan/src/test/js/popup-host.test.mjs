@@ -120,6 +120,16 @@ test('a word looked up inside the popup keeps the reader\'s theme, address and t
     assert.equal(state.documentTitle, '第30話');
 });
 
+test('a word picked from the parsed sentence, which names no page, gets the reader\'s address and title', () => {
+    const {page} = load();
+    page.__reikaiPopup.show('/popup.html?type=terms&query=x', {url: 'https://kakuyomu.jp/works/1', documentTitle: '第30話', pageTheme: 'dark'}, 1);
+    // Yomitan's lookup from its query parser (display.js _onQueryParserSearch).
+    const state = {sentence: {text: 'x', offset: 0}, optionsContext: {}, cause: 'queryParser'};
+    page.history.pushState({id: 'c', state}, '', '/popup.html?type=terms&query=x');
+    assert.equal(state.url, 'https://kakuyomu.jp/works/1');
+    assert.equal(state.documentTitle, '第30話');
+});
+
 test('from another app, with no page behind the lookup, the popup\'s own address is dropped', () => {
     const {page} = load();
     page.__reikaiPopup.show('/popup.html?type=terms&query=x', {pageTheme: 'dark'}, 1);
@@ -153,7 +163,8 @@ test('the app hears when Yomitan\'s history gains or loses a lookup to go back t
     root.hidden = false; // any attribute change the observer sees
     root.dataset.hasNavigationPrevious = 'false';
     root.hidden = true;
-    assert.deepEqual(posted, [{t: 'nav', back: true}, {t: 'nav', back: false}]);
+    // With the load number: an earlier load's word on its way out is not this page's.
+    assert.deepEqual(posted, [{t: 'nav', back: true, load: 2}, {t: 'nav', back: false, load: 2}]);
     page.__reikaiPopup.back();
     assert.equal(elements['#navigate-previous-button'].clicks, 1);
 });

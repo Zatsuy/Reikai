@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.MutableContextWrapper
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.webkit.WebView
 import androidx.webkit.WebViewCompat
@@ -33,7 +35,7 @@ import java.io.Closeable
  * Kept ready between lookups: [prepare] loads the page (with an empty lookup, which makes Yomitan
  * load its settings) so the next [show] only swaps the lookup in (`assets/jp-reikai/popup-host.js`).
  * Yomitan reads its settings once per load, so when they or the dictionaries change the page loads
- * again: at once while no lookup is on it, else with the next lookup or [clear]. The WebView lives in
+ * again: shortly after the last change while no lookup is on it, else with the next lookup or [clear]. The WebView lives in
  * a [MutableContextWrapper], so the same prepared page moves between activities ([moveTo]). Main
  * thread only.
  */
@@ -90,6 +92,13 @@ class YomitanPopup private constructor(
     private var stale = false
 
     /**
+     * Loads a stale page again while nothing is on it: once the changes have stopped, since Yomitan's
+     * settings page reports every control it changes, and a load costs the renderer each time.
+     */
+    private val handler = Handler(Looper.getMainLooper())
+    private val reloadIdle = Runnable { if (!closed && stale && current < 0) reload(theme) }
+
+    /**
      * Loads the page with nothing looked up, in the page theme [dark] (see [PopupLookup.dark]), so the
      * first lookup is as quick as the next.
      */
@@ -99,6 +108,7 @@ class YomitanPopup private constructor(
     }
 
     private fun reload(dark: Boolean?) {
+        handler.removeCallbacks(reloadIdle)
         ready = false
         loading = true
         stale = false
@@ -157,6 +167,7 @@ class YomitanPopup private constructor(
         if (closed) return
         closed = true
         ready = false
+        handler.removeCallbacks(reloadIdle)
         page.close()
         webView.destroy()
     }
@@ -182,16 +193,24 @@ class YomitanPopup private constructor(
                 if (fromLoad != load || closed) return
                 logcat(LogPriority.DEBUG) { "Yomitan popup: settings or dictionaries changed" }
                 stale = true
-                // Nothing on the page: load it again now, so the next lookup is quick.
-                if (current < 0) reload(theme)
+                // Nothing on the page: load it again soon, so the next lookup is quick.
+                handler.removeCallbacks(reloadIdle)
+                if (current < 0) handler.postDelayed(reloadIdle, STALE_RELOAD_MILLIS)
             }
-            "nav" -> canGoBack = message["back"]?.jsonPrimitive?.booleanOrNull == true
+            "nav" -> {
+                // An earlier load's word on its way out never gives the new page a "back".
+                if (fromLoad != load) return
+                canGoBack = message["back"]?.jsonPrimitive?.booleanOrNull == true
+            }
             "close" -> listener?.onCloseRequested()
         }
     }
 
     companion object {
         private const val CHANNEL = "reikaiPopup"
+
+        /** How long after the last change of settings or dictionaries an idle page loads again. */
+        private const val STALE_RELOAD_MILLIS = 1_500L
 
         /**
          * A new popup for [host]'s window, attached to the engine (which it starts, and holds until
