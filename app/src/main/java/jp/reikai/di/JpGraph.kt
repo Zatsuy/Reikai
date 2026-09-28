@@ -10,6 +10,7 @@ import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
+import eu.kanade.domain.source.interactor.GetIncognitoState
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import jp.reikai.JpPreferences
@@ -18,6 +19,7 @@ import jp.reikai.data.JpReaderDatabase
 import jp.reikai.lookup.JpLookup
 import jp.reikai.lookup.JpPageOpener
 import jp.reikai.lookup.PreferenceYomitanStorage
+import jp.reikai.reader.page.JpReaderModes
 import jp.reikai.yomitan.LocalServer
 import jp.reikai.yomitan.YomitanConfig
 import jp.reikai.yomitan.YomitanEngine
@@ -55,8 +57,14 @@ interface JpGraph {
     /** Text-to-speech as an audio source: whether a Japanese voice is there (3.5). */
     val ttsAudio: TtsAudio
 
+    /** Which reader each open novel is read in, the Japanese one or upstream's (4.2). */
+    val jpReaderModes: JpReaderModes
+
     /** The Japanese reader's place in each chapter, by character (4.1). */
     val jpChapterPositions: JpChapterPositions
+
+    /** Incognito keeps no reading place in the fork's database either (4.1). */
+    val getIncognitoState: GetIncognitoState
 }
 
 val Context.jpGraph: JpGraph get() = metroGraph<JpGraph>()

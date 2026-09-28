@@ -40,4 +40,25 @@ class JpPreferences(private val preferenceStore: PreferenceStore) {
 
     /** The lookup sheet's height as a share of the window's, as the reader last dragged it. */
     fun lookupSheetHeight() = preferenceStore.getFloat("jp_lookup_sheet_height", 0.5f)
+
+    // The Japanese reader's own settings (phase 4 ruling 5); colours, size, line height and margins
+    // are upstream's reader settings, shared with the standard reader.
+
+    /** Text direction: `vertical` (D-026, the default) or `horizontal`. */
+    fun readerWriting() = preferenceStore.getString("jp_reader_writing", "vertical")
+
+    /** `paged` (the default, ruling 8) or `scroll`. */
+    fun readerLayout() = preferenceStore.getString("jp_reader_layout", "paged")
+
+    /** Furigana, ttu's modes: `show`, `partial` (dimmed), `full` (hidden), `toggle`, `hide` (ruling 10). */
+    fun readerFurigana() = preferenceStore.getString("jp_reader_furigana", "show")
+
+    /** `mincho`, `gothic`, or the file name of a font added through the reader's font manager. */
+    fun readerFont() = preferenceStore.getString("jp_reader_font", "mincho")
+
+    /** What a tap on text does: `lookup` (D-029, the default) or `zones` (the reader's tap zones). */
+    fun readerTap() = preferenceStore.getString("jp_reader_tap", "lookup")
+
+    /** The one-time message about vertical text was shown (D-026). */
+    fun readerIntroShown() = preferenceStore.getBoolean("jp_reader_intro_shown", false)
 }

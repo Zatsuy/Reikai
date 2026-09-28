@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reikai JP's Japanese reader (roadmap 4.1 and 4.2). Plain words: no jargon beyond "furigana". -->
+<resources>
+    <!-- The reader menu's switch (top bar, overflow), for the novel open. -->
+    <string name="jp_reader_switch_to_japanese">Switch to Japanese reader</string>
+    <string name="jp_reader_switch_to_standard">Switch to standard reader</string>
+
+    <!-- Reader settings sheet, under "For this series". -->
+    <string name="jp_reader_reader">Reader</string>
+    <string name="jp_reader_japanese">Japanese</string>
+    <string name="jp_reader_standard">Standard</string>
+
+    <!-- The Japanese reader's own settings, shown while it is the reader. -->
+    <string name="jp_reader_settings">Japanese reader</string>
+    <string name="jp_reader_layout">Reading</string>
+    <string name="jp_reader_layout_paged">Pages</string>
+    <string name="jp_reader_layout_scroll">Scrolling</string>
+    <string name="jp_reader_writing">Text direction</string>
+    <string name="jp_reader_writing_vertical">Vertical</string>
+    <string name="jp_reader_writing_horizontal">Horizontal</string>
+    <string name="jp_reader_furigana">Furigana</string>
+    <string name="jp_reader_furigana_show">Show</string>
+    <string name="jp_reader_furigana_partial">Dimmed</string>
+    <string name="jp_reader_furigana_full">Hidden</string>
+    <string name="jp_reader_furigana_toggle">Tap to toggle</string>
+    <string name="jp_reader_furigana_hide">Never</string>
+    <string name="jp_reader_font">Japanese font</string>
+    <string name="jp_reader_font_mincho">Mincho</string>
+    <string name="jp_reader_font_gothic">Gothic</string>
+    <string name="jp_reader_tap">Tap on text</string>
+    <string name="jp_reader_tap_lookup">Look up</string>
+    <string name="jp_reader_tap_zones">Turn pages</string>
+
+    <!-- Shown once, the first time the Japanese reader opens (decision D-026). -->
+    <string name="jp_reader_intro_title">Vertical text</string>
+    <string name="jp_reader_intro_body">This reader shows Japanese the way a printed book does: lines run from top to bottom, and pages turn from right to left. You can change this any time in the reader settings.</string>
+    <string name="jp_reader_intro_keep">Keep vertical</string>
+    <string name="jp_reader_intro_horizontal">Switch to horizontal</string>
+</resources>

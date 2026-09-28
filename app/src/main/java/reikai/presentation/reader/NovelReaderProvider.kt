@@ -330,7 +330,15 @@ class NovelReaderProvider(
         jp.reikai.reader.JpReaderHook.attach(host, viewModel)
         // The session and its position outlive the Activity, so a rebuild lands where the reader is.
         viewportRebuilds.onEach { host.recreate() }.launchIn(host.lifecycleScope)
-        val viewport = createViewport(host)
+        // FORK --> Reikai JP's Japanese reader, or upstream's own viewport, whichever the novel reads in
+        val viewport = jp.reikai.reader.page.JpPageHook.viewport(
+            host,
+            viewModel,
+            novelPreferences,
+            fontManager,
+            imageRequests,
+        ) { createViewport(host) }
+        // FORK <--
         host.showViewport(viewport)
         // Asked for rather than cast: which text renderer is running is the provider's choice.
         // A novel viewport that does not answer would render an empty reader in silence, so say so.

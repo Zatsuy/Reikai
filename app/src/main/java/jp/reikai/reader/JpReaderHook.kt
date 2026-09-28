@@ -13,6 +13,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
+import jp.reikai.reader.page.JpPageViewport
 import jp.reikai.yomitan.text.JapaneseText
 import reikai.presentation.reader.NovelReaderViewModel
 import java.io.File
@@ -64,6 +65,11 @@ object JpReaderHook {
     @JvmStatic
     fun decorate(view: WebView) {
         sessionOf(view.context)?.decorate(view)
+    }
+
+    /** The Japanese reader's page viewport, built for [host] (4.1); the session hears its documents. */
+    internal fun pageViewport(host: Activity, viewport: JpPageViewport) {
+        synchronized(sessions) { sessions[host] }?.onPageViewport(viewport)
     }
 
     /**

@@ -107,6 +107,8 @@ internal fun ColumnScope.NovelReadingPage(pages: ReaderSettingsPages.Novel) {
     HeadingItem(MR.strings.pref_category_for_this_series)
     val orientation by pages.orientation.collectAsState(null)
     EntryRotationRow(orientation) { pages.onChangeOrientation(it.flagValue) }
+    // FORK: Reikai JP's Japanese or standard reader for this series, and the Japanese reader's settings
+    jp.reikai.reader.page.JpReaderSettingsRows(pages.installedFonts)
 
     HeadingItem(MR.strings.pref_category_text)
     val renderingModePref = preferences.readerRenderingMode()

@@ -57,6 +57,8 @@ class NovelChapterTextLoader(
         preferences.readerRegexReplacements().changes(),
         preferences.readerShowRawHtml().changes(),
         preferences.readerRenderingMode().changes(),
+        // FORK: a switch between Reikai JP's Japanese reader and the standard one changes the target too
+        jp.reikai.reader.page.JpPageHook.readerSwitches(context),
     )
         .merge()
         .map { pipelineSnapshot() }
@@ -77,6 +79,8 @@ class NovelChapterTextLoader(
         preferences.readerShowRawHtml().get(),
         // The target: embedded CSS and JS survive only for a WebView page.
         preferences.readerRenderingMode().get(),
+        // FORK: the switch between Reikai JP's Japanese reader and the standard one
+        jp.reikai.reader.page.JpPageHook.readerSwitchCount(context),
     )
 
     private val sourcesByNovel: MutableMap<Long, NovelSource> =
@@ -100,9 +104,12 @@ class NovelChapterTextLoader(
      */
     suspend fun load(chapter: NovelChapter, fromSource: Boolean = false): Pair<String, String?> {
         val (raw, baseUrl) = fetch(chapter, fromSource)
+        // FORK: the WebView form for a novel read in Reikai JP's Japanese reader, whatever the global mode
+        val jpTarget = jp.reikai.reader.page.JpPageHook.pageTarget(context, this, chapter, raw)
         val config = NovelContentConfig.from(
             preferences = preferences,
-            target = when (preferences.readerRenderingMode().get()) {
+            // FORK: Reikai JP's target above, else upstream's
+            target = jpTarget ?: when (preferences.readerRenderingMode().get()) {
                 NovelRenderingMode.NATIVE -> RenderTarget.TEXT_VIEW
                 else -> RenderTarget.WEB_VIEW
             },

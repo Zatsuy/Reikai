@@ -182,7 +182,8 @@ class NovelReaderViewModel(
         installer = installer,
         preferences = novelPreferences,
         readDownloaded = { novel, chapter -> downloadManager.getChapterText(novel, chapter) },
-    )
+        // FORK: Reikai JP learns which novel this session's chapters are prepared for
+    ).also { jp.reikai.reader.page.JpPageHook.bindSession(context, it, novelId) }
 
     /** Asked for the owner of each chapter written, since a merged novel's members can differ. */
     private val incognito = ChapterIncognito(
@@ -1399,7 +1400,10 @@ class NovelReaderViewModel(
     }
 
     /** Whether seamless chapters is on, which decides whether the window holds more than one chapter. */
-    private fun windowedReading() = novelPreferences.readerSeamlessChapters().get()
+    // FORK --> Reikai JP's Japanese reader holds one chapter per page, whatever the setting
+    private fun windowedReading() = novelPreferences.readerSeamlessChapters().get() &&
+        !jp.reikai.reader.page.JpPageHook.holdsOneChapter(context, novelId)
+    // FORK <--
 
     /**
      * One speculative request per neighbour, so crossing into it needs no round trip and the source

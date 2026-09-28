@@ -25,6 +25,7 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.util.system.isNightMode
 import jp.reikai.di.jpGraph
 import jp.reikai.lookup.LookupSheet
+import jp.reikai.reader.page.JpPageViewport
 import jp.reikai.yomitan.R
 import jp.reikai.yomitan.YomitanEngine
 import jp.reikai.yomitan.popup.PopupLookup
@@ -157,6 +158,16 @@ internal class JpReaderSession(
                 view.setTextClassifier(it)
                 view.setOnTouchListener(presses)
             }
+        }
+    }
+
+    /**
+     * The Japanese reader's page viewport (4.1). Its touches count as reading for the warm-up, as a
+     * text view's do; the lookup in its page (4.3) attaches through its listener.
+     */
+    fun onPageViewport(viewport: JpPageViewport) {
+        viewport.listeners += object : JpPageViewport.Listener {
+            override fun onTouch() = onTouched()
         }
     }
 
