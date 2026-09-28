@@ -3,6 +3,9 @@ package jp.reikai.data
 import app.cash.sqldelight.db.AfterVersion
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import io.kotest.matchers.shouldBe
+import jp.reikai.stats.TtuStatistic
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
@@ -45,7 +48,55 @@ class JpReaderDatabaseTest {
     }
 
     @Test
-    fun `the schema is at version 1 until statistics arrive`() {
-        JpReaderDatabase.Schema.version shouldBe 1L
+    fun `the schema is at version 2 with the reading statistics`() {
+        JpReaderDatabase.Schema.version shouldBe 2L
     }
+
+    @Test
+    fun `a database made before statistics gains them and keeps its places`() = runTest {
+        JpReaderDatabase.Schema.migrate(driver, 0L, 1L).await()
+        val position = JpReaderDatabase.ChapterPosition(3L, 40, 900, 4, 1L)
+        database.savePosition(position)
+        JpReaderDatabase.Schema.migrate(driver, 1L, 2L).await()
+        database.position(3L) shouldBe position
+        database.allStatistics() shouldBe emptyList()
+        database.saveStatistics(listOf(row(9L, "猫", "2026-09-28", 100)))
+        database.statistics("猫") shouldBe listOf(row(9L, "猫", "2026-09-28", 100))
+    }
+
+    @Test
+    fun `a day of a title is kept whole and the newest replaces it`() = runTest {
+        JpReaderDatabase.Schema.create(driver).await()
+        val completed = Json.parseToJsonElement("""{"dateKey":"2026-09-27","charactersRead":5}""").jsonObject
+        val full = JpReaderDatabase.StatisticRow(
+            novelId = 9L,
+            statistic = TtuStatistic(
+                title = "吾輩は猫である",
+                dateKey = "2026-09-27",
+                charactersRead = 1200,
+                readingTime = 300,
+                minReadingSpeed = 9000,
+                altMinReadingSpeed = 9500,
+                lastReadingSpeed = 14400,
+                maxReadingSpeed = 20000,
+                lastStatisticModified = 1_790_000_000_000,
+                completedBook = 1,
+                completedData = completed,
+            ),
+        )
+        database.saveStatistics(listOf(full, row(9L, "吾輩は猫である", "2026-09-28", 50), row(4L, "other", "2026-09-28", 7)))
+        database.statistics("吾輩は猫である") shouldBe listOf(full, row(9L, "吾輩は猫である", "2026-09-28", 50))
+
+        database.saveStatistics(listOf(row(9L, "吾輩は猫である", "2026-09-28", 80)))
+        database.allStatistics() shouldBe listOf(
+            row(4L, "other", "2026-09-28", 7),
+            full,
+            row(9L, "吾輩は猫である", "2026-09-28", 80),
+        )
+    }
+
+    private fun row(novelId: Long, title: String, dateKey: String, characters: Long) = JpReaderDatabase.StatisticRow(
+        novelId,
+        TtuStatistic(title, dateKey, charactersRead = characters, readingTime = 60, lastStatisticModified = 5L),
+    )
 }

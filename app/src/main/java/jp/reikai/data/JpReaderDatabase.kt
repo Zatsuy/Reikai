@@ -2,16 +2,20 @@ package jp.reikai.data
 
 import app.cash.sqldelight.db.AfterVersion
 import app.cash.sqldelight.db.QueryResult
+import app.cash.sqldelight.db.SqlCursor
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.db.SqlSchema
+import jp.reikai.stats.TtuStatistic
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Reikai JP's own reading data, in its own database file (`jp_reader.db`), never in upstream's schema
  * (its migrations are one numbered sequence a fork migration would collide with). Plain SQL over a
  * SQLDelight driver: the app's bundled SQLite on the device, an in-memory JDBC one in JVM tests.
  *
- * Version 1 holds the Japanese reader's place in each chapter by character (phase 4 ruling 7). Reading
- * statistics (4.4) add their tables as version 2, as one more step in [Schema.migrate].
+ * Version 1 holds the Japanese reader's place in each chapter by character (phase 4 ruling 7); version 2
+ * adds the reading statistics (4.4, ruling 12): ttu's rows, one per novel title and day.
  */
 class JpReaderDatabase(private val driver: SqlDriver) {
 
@@ -67,6 +71,88 @@ class JpReaderDatabase(private val driver: SqlDriver) {
     }
 
     /**
+     * A day of reading one novel: ttu's row ([statistic], keyed by its title and day as in ttu) and the
+     * novel it was last written for, for this app's own lists.
+     */
+    data class StatisticRow(val novelId: Long, val statistic: TtuStatistic)
+
+    /** Every day read of [title], by day. Call off the main thread. */
+    suspend fun statistics(title: String): List<StatisticRow> = driver.executeQuery(
+        identifier = null,
+        sql = "SELECT $STATISTIC_COLUMNS FROM reading_statistic WHERE title = ? ORDER BY date_key",
+        mapper = { cursor -> QueryResult.Value(statisticRows(cursor)) },
+        parameters = 1,
+    ) { bindString(0, title) }.await()
+
+    /** Every day read of every novel, by title and day. Call off the main thread. */
+    suspend fun allStatistics(): List<StatisticRow> = driver.executeQuery(
+        identifier = null,
+        sql = "SELECT $STATISTIC_COLUMNS FROM reading_statistic ORDER BY title, date_key",
+        mapper = { cursor -> QueryResult.Value(statisticRows(cursor)) },
+        parameters = 0,
+    ).await()
+
+    /**
+     * Writes [rows], each replacing the stored row of its title and day. A few rows every few seconds,
+     * so one statement each (a transaction would have to hold one of the driver's pooled connections).
+     */
+    suspend fun saveStatistics(rows: Collection<StatisticRow>) {
+        rows.forEach { row ->
+            val s = row.statistic
+            driver.execute(
+                identifier = null,
+                sql = "INSERT OR REPLACE INTO reading_statistic($STATISTIC_COLUMNS) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                parameters = 12,
+            ) {
+                bindString(0, s.title)
+                bindString(1, s.dateKey)
+                bindLong(2, row.novelId)
+                bindLong(3, s.charactersRead)
+                bindLong(4, s.readingTime)
+                bindLong(5, s.minReadingSpeed)
+                bindLong(6, s.altMinReadingSpeed)
+                bindLong(7, s.lastReadingSpeed)
+                bindLong(8, s.maxReadingSpeed)
+                bindLong(9, s.lastStatisticModified)
+                bindLong(10, s.completedBook)
+                bindString(11, s.completedData?.toString())
+            }.await()
+        }
+    }
+
+    private fun statisticRows(cursor: SqlCursor): List<StatisticRow> {
+        val rows = ArrayList<StatisticRow>()
+        while (cursor.next().value) {
+            rows += StatisticRow(
+                novelId = cursor.getLong(2)!!,
+                statistic = TtuStatistic(
+                    title = cursor.getString(0)!!,
+                    dateKey = cursor.getString(1)!!,
+                    charactersRead = cursor.getLong(3)!!,
+                    readingTime = cursor.getLong(4)!!,
+                    minReadingSpeed = cursor.getLong(5)!!,
+                    altMinReadingSpeed = cursor.getLong(6)!!,
+                    lastReadingSpeed = cursor.getLong(7)!!,
+                    maxReadingSpeed = cursor.getLong(8)!!,
+                    lastStatisticModified = cursor.getLong(9)!!,
+                    completedBook = cursor.getLong(10),
+                    completedData = cursor.getString(11)?.let { text ->
+                        runCatching { Json.parseToJsonElement(text) as? JsonObject }.getOrNull()
+                    },
+                ),
+            )
+        }
+        return rows
+    }
+
+    private companion object {
+        const val STATISTIC_COLUMNS = "title, date_key, novel_id, characters_read, reading_time, " +
+            "min_reading_speed, alt_min_reading_speed, last_reading_speed, max_reading_speed, " +
+            "last_statistic_modified, completed_book, completed_data"
+    }
+
+    /**
      * The tables, version by version. A new version adds a step to [steps] and raises [version]; a
      * step never changes once released, so a database at any version reaches the newest one.
      */
@@ -84,6 +170,28 @@ class JpReaderDatabase(private val driver: SqlDriver) {
                     updated_at INTEGER NOT NULL
                 )
                 """.trimIndent(),
+            ),
+            // Version 2 (4.4): ttu's reading statistics, one row per novel title and day (ttu's key), with
+            // the novel last read under that title.
+            listOf(
+                """
+                CREATE TABLE reading_statistic(
+                    title TEXT NOT NULL,
+                    date_key TEXT NOT NULL,
+                    novel_id INTEGER NOT NULL,
+                    characters_read INTEGER NOT NULL,
+                    reading_time INTEGER NOT NULL,
+                    min_reading_speed INTEGER NOT NULL,
+                    alt_min_reading_speed INTEGER NOT NULL,
+                    last_reading_speed INTEGER NOT NULL,
+                    max_reading_speed INTEGER NOT NULL,
+                    last_statistic_modified INTEGER NOT NULL,
+                    completed_book INTEGER,
+                    completed_data TEXT,
+                    PRIMARY KEY(title, date_key)
+                )
+                """.trimIndent(),
+                "CREATE INDEX reading_statistic_date ON reading_statistic(date_key)",
             ),
         )
 
