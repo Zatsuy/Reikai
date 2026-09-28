@@ -1,6 +1,8 @@
 package jp.reikai.yomitan.check
 
+import android.content.ContentValues
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.ViewGroup
@@ -11,17 +13,24 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import jp.reikai.di.jpGraph
+import jp.reikai.yomitan.LocalRequest
 import jp.reikai.yomitan.PageKind
 import jp.reikai.yomitan.YomitanEngine
 import jp.reikai.yomitan.YomitanOrigin
 import jp.reikai.yomitan.YomitanPage
 import jp.reikai.yomitan.YomitanPageListener
+import jp.reikai.yomitan.anki.AnkiConnect
+import jp.reikai.yomitan.audio.YomitanAudioSources
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -46,6 +55,13 @@ import kotlin.coroutines.resume
  * (the settings page's "delete all dictionaries"), `{"do":"close"}` (close the pages),
  * `{"do":"release"}` / `{"do":"acquire"}` (end or take this screen's use of the engine),
  * `{"do":"switch","on":false}` (the lookup switch, D-025), `{"do":"crash"}` (kill WebView's renderer).
+ * Anki and audio (3.2, 3.3): `{"do":"eval","js":".."}` (in the open page), `{"do":"anki","request":{..}}`
+ * (one AnkiConnect request, timed), `{"do":"ankiStatus"}`, `{"do":"ankiDeck","name":".."}` and
+ * `{"do":"ankiDelete","notes":[..]}` (test set-up through AnkiDroid's provider), `{"do":"pickLocalAudio"}`
+ * (the system file picker, then LocalAudio.setDatabase), `{"do":"localAudioClear"}`,
+ * `{"do":"localAudioGet","path":".."}` (the local audio route directly), `{"do":"fdProbe"}` (how the picked
+ * file opens), `{"do":"tts"}`,
+ * `{"do":"audioSources","local":true,"tts":true}` (YomitanAudioSources.apply).
  * Test files pushed to `<external files>/yomitan-check/` are served at `/__reikai/check/<name>`.
  */
 class EngineCheckActivity : ComponentActivity() {
@@ -57,6 +73,8 @@ class EngineCheckActivity : ComponentActivity() {
     private var page: YomitanPage? = null
     private var queue: Job? = null
     private val checkFiles by lazy { File(getExternalFilesDir(null), "yomitan-check") }
+    private var picked: CompletableDeferred<Uri?>? = null
+    private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { picked?.complete(it) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -133,7 +151,7 @@ class EngineCheckActivity : ComponentActivity() {
                     command.getString("action"),
                     params?.let(Json::parseToJsonElement) ?: JsonNull,
                 )
-                result("api", JSONObject().put("result", element.toString().take(4000)))
+                result("api", JSONObject().put("result", element.toString()))
             }
             "settings" -> open(PageKind.SETTINGS, "settings.html")
             "search" -> {
@@ -145,6 +163,49 @@ class EngineCheckActivity : ComponentActivity() {
             "close" -> closePage()
             "switch" -> jpGraph.jpPreferences.lookupEnabled().set(command.getBoolean("on"))
             "crash" -> crashRenderer()
+            "eval" -> {
+                val current = page ?: error("open a page first")
+                result("eval", JSONObject().put("value", current.webView.evaluate(command.getString("js"))))
+            }
+            "anki" -> anki(command.getJSONObject("request").toString())
+            "ankiStatus" -> result("ankiStatus", JSONObject().put("status", jpGraph.ankiAccess.status().name))
+            "ankiDeck" -> withContext(Dispatchers.IO) {
+                val values = ContentValues().apply { put("deck_name", command.getString("name")) }
+                val uri = contentResolver.insert(Uri.parse("$ANKI/decks"), values)
+                result("ankiDeck", JSONObject().put("uri", uri.toString()))
+            }
+            "ankiDelete" -> withContext(Dispatchers.IO) {
+                val notes = command.getJSONArray("notes")
+                val deleted = (0 until notes.length()).sumOf {
+                    contentResolver.delete(Uri.parse("$ANKI/notes/${notes.getLong(it)}"), null, null)
+                }
+                result("ankiDelete", JSONObject().put("deleted", deleted))
+            }
+            "pickLocalAudio" -> {
+                val wait = CompletableDeferred<Uri?>().also { picked = it }
+                picker.launch(arrayOf("*/*"))
+                val uri = wait.await() ?: error("nothing picked")
+                val started = System.nanoTime()
+                val status = jpGraph.localAudio.setDatabase(uri)
+                val ms = (System.nanoTime() - started) / 1_000_000
+                val picked = JSONObject().put("uri", uri.toString()).put("status", status.toString())
+                result("localAudio", picked.put("ms", ms))
+            }
+            "localAudioClear" -> {
+                jpGraph.localAudio.clear()
+                result("localAudio", JSONObject().put("status", jpGraph.localAudio.status.value.toString()))
+            }
+            "localAudioGet" -> withContext(Dispatchers.IO) {
+                val request = LocalRequest("GET", command.getString("path"), emptyMap(), emptyMap(), null)
+                val answer = jpGraph.localAudio.route.handle(request)
+                result("localAudioGet", JSONObject().put("status", answer?.status).put("bytes", answer?.body?.size))
+            }
+            "fdProbe" -> fdProbe()
+            "tts" -> result("tts", JSONObject().put("status", jpGraph.ttsAudio.status().toString()))
+            "audioSources" -> {
+                val changed = YomitanAudioSources.apply(engine, command.getBoolean("local"), command.getBoolean("tts"))
+                result("audioSources", JSONObject().put("changedProfiles", changed))
+            }
             else -> error("unknown command")
         }
     }
@@ -171,6 +232,42 @@ class EngineCheckActivity : ComponentActivity() {
         attached.load(path)
         loaded.await()
         result("page", JSONObject().put("kind", kind.name).put("loadMs", (System.nanoTime() - started) / 1_000_000))
+    }
+
+    /** Why SQLite can or cannot open the picked local audio file in place (3.3's ruling). */
+    private suspend fun fdProbe() = withContext(Dispatchers.IO) {
+        val uri = Uri.parse(jpGraph.jpPreferences.localAudioUri().get())
+        val out = JSONObject().put("uri", uri.toString())
+        fun probe(name: String, block: () -> Any?) {
+            out.put(name, runCatching { block() }.fold({ "ok $it" }, { it.toString() }))
+        }
+        contentResolver.openFileDescriptor(uri, "r")!!.use { descriptor ->
+            val path = "/proc/self/fd/${descriptor.fd}"
+            probe("readlink") { android.system.Os.readlink(path) }
+            probe("javaOpen") { java.io.FileInputStream(path).use { it.read() } }
+            probe("bundledPlain") {
+                androidx.sqlite.driver.bundled.BundledSQLiteDriver()
+                    .open(path, androidx.sqlite.driver.bundled.SQLITE_OPEN_READONLY).close()
+            }
+            probe("framework") {
+                android.database.sqlite.SQLiteDatabase.openDatabase(
+                    path,
+                    null,
+                    android.database.sqlite.SQLiteDatabase.OPEN_READONLY,
+                ).close()
+            }
+        }
+        result("fdProbe", out)
+    }
+
+    /** One AnkiConnect request through the same route the engine uses, timed. */
+    private suspend fun anki(request: String) = withContext(Dispatchers.IO) {
+        val route = AnkiConnect.route(this@EngineCheckActivity, jpGraph.ankiAccess)
+        val started = System.nanoTime()
+        val answer = route.handle(LocalRequest("POST", "/", emptyMap(), emptyMap(), request.toByteArray()))
+        val ms = (System.nanoTime() - started) / 1_000_000.0
+        val text = answer?.body?.toString(Charsets.UTF_8).orEmpty()
+        result("anki", JSONObject().put("ms", ms).put("answer", text))
     }
 
     /** Kills WebView's renderer (shared by every WebView of the app) to check the engine restarts. */
@@ -275,7 +372,17 @@ class EngineCheckActivity : ComponentActivity() {
         return WebResourceResponse("application/zip", null, 200, "OK", headers, FileInputStream(file))
     }
 
-    private fun result(name: String, value: JSONObject) = Log.i(TAG, "RESULT $name $value")
+    /** Logs a result; a long one goes out in `RESULT~` pieces first (logcat cuts lines at about 4 KB). */
+    private fun result(name: String, value: JSONObject) {
+        val text = value.toString()
+        if (text.length <= CHUNK) {
+            Log.i(TAG, "RESULT $name $text")
+            return
+        }
+        val pieces = text.chunked(CHUNK)
+        pieces.forEach { Log.i(TAG, "RESULT~ $name $it") }
+        Log.i(TAG, "RESULT $name {\"pieces\":${pieces.size}}")
+    }
 
     override fun onDestroy() {
         closePage()
@@ -287,6 +394,8 @@ class EngineCheckActivity : ComponentActivity() {
     private companion object {
         const val TAG = "YomitanCheck"
         const val CHECK_PREFIX = "/__reikai/check/"
+        const val ANKI = "content://com.ichi2.anki.flashcards"
+        const val CHUNK = 1000
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val ERRORS_JS = "document.querySelector('#dictionary-error')?.textContent?.trim() ?? ''"
         const val PROGRESS_JS = "[...document.querySelectorAll('.dictionary-import-progress .progress-info, " +

@@ -18,6 +18,10 @@ Usage:
       '{"do":"search","query":"画像"}'  '{"do":"purge"}' (from settings)  '{"do":"close"}'
       '{"do":"release"}' / '{"do":"acquire"}'  '{"do":"api","action":"getDictionaryInfo"}'
       '{"do":"switch","on":false}' (the lookup switch)  '{"do":"crash"}' (kill WebView's renderer)
+      Anki and audio (3.2, 3.3): '{"do":"ankiStatus"}'  '{"do":"anki","request":{"action":"deckNames","version":2}}'
+      '{"do":"ankiDeck","name":"Reikai JP test"}'  '{"do":"ankiDelete","notes":[123]}'  '{"do":"eval","js":"1+1"}' (open page)
+      '{"do":"pickLocalAudio"}' (answer the system picker on the device)  '{"do":"localAudioClear"}'
+      '{"do":"localAudioGet","path":"/localaudio/get/"}'  '{"do":"tts"}'  '{"do":"audioSources","local":true,"tts":true}'
   scripts/fork/yomitan_check.py mem DEVICE            PSS of the app and of its WebView renderer
   scripts/fork/yomitan_check.py shot DEVICE FILE      screenshot to FILE (PNG)
   scripts/fork/yomitan_check.py clean DEVICE          remove the pushed test files
@@ -107,6 +111,7 @@ def follow(serial, until, timeout, fatal=True):
     end = time.monotonic() + timeout
     matched = False
     seen = []
+    pieces = []
     lines = queue.Queue()
     threading.Thread(target=lambda: [lines.put(l) for l in proc.stdout], daemon=True).start()
     try:
@@ -116,6 +121,13 @@ def follow(serial, until, timeout, fatal=True):
             except queue.Empty:
                 continue
             text = line.split(": ", 1)[-1].rstrip()
+            if text.startswith("RESULT~ "):
+                # A long result in pieces (logcat cuts lines): print them joined with the closing line.
+                pieces.append(text.split(" ", 2)[2])
+                continue
+            if pieces and text.startswith("RESULT "):
+                text = " ".join(text.split(" ", 2)[:2]) + " " + "".join(pieces)
+                pieces.clear()
             if re.match(r"(RESULT|MARK|tripwire|Yomitan's backend|import progress)", text) or line.startswith(("E/", "W/")):
                 seen.append(text)
                 print(text, flush=True)
