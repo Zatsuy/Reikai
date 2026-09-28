@@ -47,7 +47,9 @@ Spike facts: [yomitan-spike-2026-09.md](yomitan-spike-2026-09.md). Citations are
   `getURL` and the manifest use the fixed origin and an embedded manifest (not `location.origin`
   or a sync XHR); `storage.session` lives in the hub (the backend writes keys other pages read,
   `options-util.js:1172`, `backend.js:2857`); `storage.local` is app-backed (backed up, survives
-  WebView data loss); the document's role is decided natively from `sourceOrigin`, `isMainFrame`
+  WebView data loss; as built, one `jp_` string preference, since upstream's backup carries only the
+  app's preference file: about 16 KB stored for one profile, read again and the engine restarted
+  when a restored backup replaces it); the document's role is decided natively from `sourceOrigin`, `isMainFrame`
   and which WebView sent it, never claimed by the page; no-op stubs log a "called" line so the
   tripwire sees reliance on them (`tabs.create` resolving `undefined` at `options-util.js:1869`);
   `browser` stays undefined (Chrome code paths). `chrome.offscreen` stays absent.
@@ -99,7 +101,9 @@ Spike facts: [yomitan-spike-2026-09.md](yomitan-spike-2026-09.md). Citations are
   search, settings, lookup activity); never started while lookup is off (D-025); started when a
   Japanese novel's reader opens (and by the search and lookup screens); destroyed about 60 s after
   the last user leaves, at once when lookup is switched off, on `onTrimMemory` past the grace
-  period; restarted on `onRenderProcessGone`. One hidden WebView (1x1, alpha 0, attached, with a
+  period; restarted on `onRenderProcessGone` (as built: at once after a crash, three times in five
+  minutes at most; after the system killed the renderer for memory, or a failure, only when a screen
+  next needs it). One hidden WebView (1x1, alpha 0, attached, with a
   `MutableContextWrapper` so it moves between activities) loading `background.html`. Measure the
   engine alone (renderer PSS delta) and set the budget in `architecture.md`.
 - **Risk:** Settings → Advanced → "Clear WebView data" runs `WebStorage.deleteAllData()` and deletes
@@ -165,7 +169,11 @@ answered with `TextToSpeech.synthesizeToFile`, last in the list, so it plays and
   FUSE path (`/mnt/user/0/emulated/0/Download/...`), and re-opening `/proc/self/fd/N` is refused
   with EACCES for any open, plain Java included, so neither the bundled nor the framework SQLite can
   use it (tablet, 2026-09-27). Cost: the file's size again in storage (several GB); the settings
-  screen should say so and that the original can then be deleted.
+  screen should say so and that the original can then be deleted. The copy is a cancellable job in
+  `LocalAudio`'s own scope, not WorkManager (a worker would need a foreground notification to
+  outlive the app, for a one-time copy): a new pick or a removal cancels it, a failed, cancelled or
+  short copy deletes its `.part` file, and a copy the process did not finish starts again on the
+  next audio lookup.
 - Ranking as Hoshi-Reader, without its mp3-only filter (WebView plays ogg/opus/m4a too).
 - Text-to-speech: Google TTS's `ja-JP` voice on the tablet, WAV (about 70 KB per word). WebView has
   no `speechSynthesis` at all (`typeof speechSynthesis` is `undefined`), so Yomitan's own TTS source
