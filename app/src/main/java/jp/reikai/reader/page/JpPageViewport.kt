@@ -153,23 +153,20 @@ class JpPageViewport internal constructor(
 
     /**
      * Whether the documents load Yomitan's scanner (4.3: lookup is on and joined to this page). The
-     * scanner, and the stand-in it runs on, come only with a new document, so switched on while a chapter
-     * is open, that chapter's document is opened again where the reader is; switched off, the scanner in
-     * the page is no longer joined to anything.
+     * scanner, and the stand-in it runs on, come only with a new document, so a switch while a chapter is
+     * open opens that chapter's document again where the reader is: switched on, with the scanner;
+     * switched off, without it, before the page can send anything more. A page whose lookup bridges were
+     * taken away under it ended the app in WebView's native code with its next message (seen on the
+     * tablet: a touch after lookup went off), and its scanner kept taps on text from opening the menu.
+     * Set before the bridges go ([JpPageLookup.unbind]). A document still on its way is checked once it
+     * is ready.
      */
     var lookup = false
         set(value) {
             if (field == value) return
             field = value
             if (value) lookupJoins++
-            if (!ready) return // the document on its way is checked when it is ready
-            if (value) {
-                if (scannerMismatch()) reopen(lastAnchor)
-            } else if (documentJoin != 0) {
-                // Its scanner is joined to nothing now: taps on text go back to opening the menu.
-                runInPage("if (window.JpReader) { JpReader.onTextTap = null; }")
-                documentJoin = 0
-            }
+            if (ready && scannerMismatch()) reopen(lastAnchor)
         }
 
     /** Each time lookup is switched on; a document's scanner works only for the one it was built in. */
@@ -277,6 +274,9 @@ class JpPageViewport internal constructor(
     /** The page's renderer is gone: WebView forbids any further use of this view but its destruction. */
     private var gone = false
 
+    /** The viewport is being destroyed. */
+    private var ended = false
+
     private val webView: WebView = WebView(context).apply {
         WebView.setWebContentsDebuggingEnabled(webContentsDebugging(devTools, context.isDebugInspectorBuild()))
         with(settings) {
@@ -380,6 +380,7 @@ class JpPageViewport internal constructor(
     override fun onChapterStepped() = Unit
 
     override fun destroy() {
+        ended = true
         listeners.forEach { it.onDestroy(webView) }
         listeners.clear()
         requestInterceptor = null
@@ -440,6 +441,7 @@ class JpPageViewport internal constructor(
 
     /** Opens the document on screen again at [anchor], the same chapter as it was reported so far. */
     private fun reopen(anchor: Int?) {
+        if (ended || gone) return
         val chapter = shown ?: return
         val settings = documentSettings ?: return
         scope.launch { open(chapter, settings, reopenAt = anchor) }
