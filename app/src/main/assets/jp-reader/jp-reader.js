@@ -485,6 +485,7 @@
     style.setProperty('--jp-pad-right', R + 'px');
     style.setProperty('--jp-pad-bottom', B + 'px');
     style.setProperty('--jp-pad-left', L + 'px');
+    style.setProperty('--jp-inset-bottom', s.insets.bottom + 'px');
     style.setProperty('--jp-page-w', W + 'px');
     style.setProperty('--jp-page-h', H + 'px');
     // One column a page: wider than the text area, so exactly one fits; the gap makes up the page.

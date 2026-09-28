@@ -15,15 +15,16 @@ import androidx.recyclerview.widget.RecyclerView
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import jp.reikai.reader.page.JpPageViewport
 import jp.reikai.yomitan.text.JapaneseText
+import kotlinx.coroutines.flow.StateFlow
 import reikai.presentation.reader.NovelReaderViewModel
 import java.io.File
 import java.util.WeakHashMap
 
 /**
- * Reikai JP's hook into upstream's novel reader: five one-line seams call it (the provider's
- * attach, the native renderer's layout manager and each of its text chunks, the WebView, the
- * WebView document's opening tag). Everything it
- * does lives in the [JpReaderSession] of the reader's activity.
+ * Reikai JP's hook into upstream's novel reader: one-line seams call it (the provider's attach, the
+ * native renderer's layout manager and each of its text chunks, the WebView, the WebView document's
+ * opening tag, the model's report of a chapter that fits on one screen). Everything it does lives in
+ * the [JpReaderSession] of the reader's activity.
  */
 object JpReaderHook {
 
@@ -70,6 +71,26 @@ object JpReaderHook {
     /** The Japanese reader's page viewport, built for [host] (4.1); the session hears its documents. */
     internal fun pageViewport(host: Activity, viewport: JpPageViewport) {
         synchronized(sessions) { sessions[host] }?.onPageViewport(viewport)
+    }
+
+    /**
+     * Which reader [host]'s novel reads in, the Japanese one or the standard one (null until known), for
+     * the status bar (4.5).
+     */
+    internal fun readerSwitch(host: Activity, isJapanese: StateFlow<Boolean?>) {
+        synchronized(sessions) { sessions[host] }?.onReaderKnown(isJapanese)
+    }
+
+    /**
+     * `NovelReaderViewModel.reportFitsOnScreen`: a chapter of [viewModel]'s reader fits on one screen or
+     * page, or no longer does. [finish] marks a chapter read through upstream's own finishing (the one a
+     * forward step from a chapter that fits takes), for "mark chapters that fit on one screen as read"
+     * (4.5, ruling 14). Any thread.
+     */
+    @JvmStatic
+    fun chapterFits(viewModel: NovelReaderViewModel, chapterId: Long, fits: Boolean, finish: (Long) -> Unit) {
+        val session = synchronized(sessions) { sessions.values.firstOrNull { it.readsFor(viewModel) } } ?: return
+        session.onChapterFits(chapterId, fits, finish)
     }
 
     /**

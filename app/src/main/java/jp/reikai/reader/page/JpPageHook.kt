@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import jp.reikai.di.JpGraph
 import jp.reikai.reader.JpReaderHook
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import mihon.core.metro.GraphProvider
 import reikai.domain.novel.NovelPreferences
@@ -74,7 +75,10 @@ object JpPageHook {
         val graph = graph(host) ?: return standard()
         // The page talks to the app through a web message listener; a WebView too old for one keeps
         // upstream's reader.
-        if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return standard()
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+            JpReaderHook.readerSwitch(host, MutableStateFlow(false))
+            return standard()
+        }
         val switch = JpReaderSwitch(
             host = host,
             viewModel = viewModel,
@@ -103,6 +107,7 @@ object JpPageHook {
             },
         )
         synchronized(switches) { switches[host] = switch }
+        JpReaderHook.readerSwitch(host, switch.isJapanese)
         return switch
     }
 

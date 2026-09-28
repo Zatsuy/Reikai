@@ -38,7 +38,8 @@ class JpReadingStatistics(private val database: () -> JpReaderDatabase) {
                 .onFailure { logcat(LogPriority.WARN, it) { "Could not read reading statistics" } }
                 .getOrDefault(emptyList())
         }
-        return overlay(stored.filter { it.statistic.title == title }, unwritten.values.filter { it.statistic.title == title })
+        val newer = unwritten.values.filter { it.statistic.title == title }
+        return overlay(stored.filter { it.statistic.title == title }, newer)
     }
 
     /** Every day read of every novel, the unwritten ones included. */

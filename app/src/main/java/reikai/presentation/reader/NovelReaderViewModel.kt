@@ -716,6 +716,8 @@ class NovelReaderViewModel(
     fun reportFitsOnScreen(chapterId: Long, fits: Boolean) {
         // A measurement of the page an open replaced says nothing about the window that replaced it.
         if (!reportsCount()) return
+        // FORK: Reikai JP marks a chapter that fits read as it opens (4.5), by the forward step's own finish
+        jp.reikai.reader.JpReaderHook.chapterFits(this, chapterId, fits) { persistProgress(it, 100) }
         val changed = if (fits) fitsOnScreen.add(chapterId) else fitsOnScreen.remove(chapterId)
         // A chapter that turns out to fit is one the reader cannot scroll past, so the window has to
         // reach beyond it; one that grows past a screen lets the window shrink back.

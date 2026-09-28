@@ -8,6 +8,7 @@
  *   --jp-font-family --jp-font-size --jp-line-height --jp-indent --jp-align
  *   --jp-bg --jp-text --jp-hint
  *   --jp-pad-top --jp-pad-right --jp-pad-bottom --jp-pad-left   margins plus system-bar insets
+ *   --jp-inset-bottom                                          what the app covers at the bottom
  *   --jp-page-w --jp-page-h --jp-col-w --jp-col-gap            the viewport and the page columns
  *   --jp-img-max-w --jp-img-max-h                              the text area a picture must fit
  *
@@ -166,6 +167,20 @@ html.jp-scroll.jp-horizontal {
 html.jp-scroll.jp-horizontal body {
   min-height: 100%;
   touch-action: pan-y;
+}
+
+/* Horizontal text scrolls under whatever the app keeps over the bottom of the page (its status bar or
+   progress readout): the page's own colour covers it there, as under a toolbar. Every other layout
+   keeps its text clear of that space by its padding. */
+html.jp-scroll.jp-horizontal body::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--jp-inset-bottom, 0px);
+  background: var(--jp-bg, #fff);
+  pointer-events: none;
 }
 
 html.jp-scroll.jp-vertical {

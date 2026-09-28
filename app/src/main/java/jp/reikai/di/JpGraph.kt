@@ -21,6 +21,7 @@ import jp.reikai.lookup.JpLookup
 import jp.reikai.lookup.JpPageOpener
 import jp.reikai.lookup.PreferenceYomitanStorage
 import jp.reikai.reader.page.JpReaderModes
+import jp.reikai.stats.JpReadingStatistics
 import jp.reikai.yomitan.LocalServer
 import jp.reikai.yomitan.YomitanConfig
 import jp.reikai.yomitan.YomitanEngine
@@ -63,6 +64,9 @@ interface JpGraph {
 
     /** The Japanese reader's place in each chapter, by character (4.1). */
     val jpChapterPositions: JpChapterPositions
+
+    /** Reading statistics, ttu's rows per novel title and day (4.4). */
+    val jpReadingStatistics: JpReadingStatistics
 
     /** Incognito keeps no reading place in the fork's database either (4.1). */
     val getIncognitoState: GetIncognitoState

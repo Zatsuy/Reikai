@@ -53,6 +53,8 @@ import reikai.util.webContentsDebugging
 import tachiyomi.core.common.util.system.logcat
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.coroutines.resume
+import kotlin.math.ceil
+import kotlin.math.max
 
 /**
  * The Japanese reader (phase 4, item 4.1): one chapter per document in a WebView, laid out by the page
@@ -100,11 +102,36 @@ class JpPageViewport internal constructor(
         /** A touch began on the page. */
         fun onTouch() = Unit
 
+        /** The page said where it is (its landing, a page turn, a settled scroll, a re-layout). */
+        fun onPosition(report: PageReport) = Unit
+
         /** The viewport ends: [webView] is destroyed right after. */
         fun onDestroy(webView: WebView) = Unit
     }
 
     val listeners = CopyOnWriteArrayList<Listener>()
+
+    /**
+     * Where the page of [chapterId] is ([pos]). [openedAtEnd]: its document was opened on its last page by
+     * a step back from the next chapter. [incognito]: the chapter's source keeps no reading history.
+     */
+    data class PageReport(
+        val chapterId: Long,
+        val pos: JpPagePosition,
+        val openedAtEnd: Boolean,
+        val incognito: Boolean,
+    )
+
+    /**
+     * Space at the bottom of the page kept free of text for the reader's status bar (4.5), in dp, which
+     * the page's CSS pixels are. Changing it lays the page out again where it is.
+     */
+    var reservedBottomDp: Int = 0
+        set(value) {
+            if (field == value) return
+            field = value
+            documentSettings?.let(::applySettings)
+        }
 
     /** Whether the next documents load Yomitan's scanner (4.3: lookup is on and joined to this page). */
     @Volatile
@@ -130,6 +157,9 @@ class JpPageViewport internal constructor(
     private var incognito = false
     private var fitsReported: Boolean? = null
     private var endReported = false
+
+    /** The document on screen was opened on its last page by a step back. */
+    private var openedAtEnd = false
 
     /**
      * An edge step asked for and not answered yet, so a second swipe steps no further. Cleared by the
@@ -333,6 +363,7 @@ class JpPageViewport internal constructor(
         // A later load or the viewport's end overtook this one while it was built.
         if (number != documents || chapterId != chapter.chapterId) return
         incognito = built.incognito
+        openedAtEnd = atEnd
         servedFonts = built.fonts.toSet()
         val documentId = "${chapter.chapterId}-$number"
         served = documentId to built.html
@@ -361,7 +392,21 @@ class JpPageViewport internal constructor(
     }
 
     private fun settingsJson(settings: NovelReaderSettings, options: JpPageOptions, insetTop: Int) =
-        JpPageSettings.json(options, look(settings), settings.tapZones.toJpTapLayout(), insetTop, insetBottom = 0)
+        JpPageSettings.json(options, look(settings), settings.tapZones.toJpTapLayout(), insetTop, insetBottom(settings))
+
+    /**
+     * What covers the bottom of the page: the status bar, or else upstream's progress readout, which sits
+     * over the page's last line while the menu is closed (seen on the tablet in scroll mode).
+     */
+    private fun insetBottom(settings: NovelReaderSettings): Int {
+        val readout = if (settings.showProgressPercentage) {
+            // Its text is bodySmall, a 16 sp line, with an outline around it.
+            ceil(READOUT_LINE_SP * context.resources.configuration.fontScale).toInt() + READOUT_OUTLINE_DP
+        } else {
+            0
+        }
+        return max(reservedBottomDp, readout)
+    }
 
     private fun look(settings: NovelReaderSettings) = JpPageLook(
         fontSize = settings.fontSize,
@@ -447,6 +492,10 @@ class JpPageViewport internal constructor(
             positions.put(
                 JpReaderDatabase.ChapterPosition(id, pos.anchor, pos.chars, percent, System.currentTimeMillis()),
             )
+        }
+        if (listeners.isNotEmpty()) {
+            val report = PageReport(id, pos, openedAtEnd, incognito)
+            listeners.forEach { it.onPosition(report) }
         }
     }
 
@@ -567,5 +616,9 @@ class JpPageViewport internal constructor(
     private companion object {
         /** The page's `window.jpReader`. */
         const val MESSAGE_NAME = "jpReader"
+
+        /** Upstream's progress readout (`ReaderPageIndicator`): a bodySmall line and its outline. */
+        const val READOUT_LINE_SP = 16f
+        const val READOUT_OUTLINE_DP = 2
     }
 }

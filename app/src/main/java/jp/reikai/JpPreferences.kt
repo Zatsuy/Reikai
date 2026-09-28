@@ -61,4 +61,15 @@ class JpPreferences(private val preferenceStore: PreferenceStore) {
 
     /** The one-time message about vertical text was shown (D-026). */
     fun readerIntroShown() = preferenceStore.getBoolean("jp_reader_intro_shown", false)
+
+    // Tsundoku's reading aids (4.5, D-030; phase 4 rulings 13 and 14).
+
+    /** The status bar (clock, battery, chapter, progress, characters, speed) in the Japanese reader. */
+    fun readerStatusBar() = preferenceStore.getBoolean("jp_reader_status_bar", true)
+
+    /** The status bar (clock, battery, chapter, progress) in the standard reader; off by default. */
+    fun standardStatusBar() = preferenceStore.getBoolean("jp_standard_status_bar", false)
+
+    /** A chapter that fits on one screen or page is marked read when it opens, in either reader. */
+    fun shortChaptersRead() = preferenceStore.getBoolean("jp_short_chapters_read", true)
 }

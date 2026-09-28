@@ -21,6 +21,7 @@ import jp.reikai.di.jpGraph
 import jp.reikai.yomitan.R
 import reikai.novel.font.NovelFont
 import tachiyomi.core.common.preference.Preference
+import tachiyomi.presentation.core.components.CheckboxItem
 import tachiyomi.presentation.core.components.HeadingItem
 import tachiyomi.presentation.core.components.SettingsItemsPaddings
 import tachiyomi.presentation.core.util.collectAsState
@@ -42,7 +43,8 @@ fun jpReaderMenuAction(): AppBar.OverflowAction? {
 
 /**
  * The reader settings sheet's rows for the Japanese reader, under "For this series": which reader this
- * novel opens in, and, while it is the Japanese one, its own settings, pages or scrolling first.
+ * novel opens in, and, while it is the Japanese one, its own settings, pages or scrolling first. Both
+ * readers end with the status bar and "mark chapters that fit on one screen as read" (4.5).
  */
 @Composable
 fun JpReaderSettingsRows(installedFonts: suspend () -> List<NovelFont>) {
@@ -62,8 +64,15 @@ fun JpReaderSettingsRows(installedFonts: suspend () -> List<NovelFont>) {
             label = { Text(stringResource(R.string.jp_reader_standard)) },
         )
     }
-    if (!current) return
     val preferences = remember(activity) { activity.jpGraph.jpPreferences }
+    if (!current) {
+        // The standard reader's own: its status bar (off by default) and short chapters (shared).
+        Column {
+            CheckboxItem(stringResource(R.string.jp_reader_status_bar), preferences.standardStatusBar())
+            CheckboxItem(stringResource(R.string.jp_reader_short_chapters), preferences.shortChaptersRead())
+        }
+        return
+    }
     Column {
         HeadingItem(stringResource(R.string.jp_reader_settings))
         ChoiceRow(
@@ -96,6 +105,8 @@ fun JpReaderSettingsRows(installedFonts: suspend () -> List<NovelFont>) {
             preferences.readerTap(),
             listOf("lookup" to R.string.jp_reader_tap_lookup, "zones" to R.string.jp_reader_tap_zones),
         )
+        CheckboxItem(stringResource(R.string.jp_reader_status_bar), preferences.readerStatusBar())
+        CheckboxItem(stringResource(R.string.jp_reader_short_chapters), preferences.shortChaptersRead())
     }
 }
 

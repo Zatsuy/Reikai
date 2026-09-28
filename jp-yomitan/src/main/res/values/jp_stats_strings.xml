@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Reading statistics (roadmap 4.4), the status bar and short chapters marked read (4.5). "ttu" is
+  ッツ Ebook Reader, named because the export is made for it.
+-->
+<resources>
+    <!-- Reader settings sheet: the status bar and short chapters, for the reader in use. -->
+    <string name="jp_reader_status_bar">Status bar</string>
+    <string name="jp_reader_short_chapters">Mark chapters that fit on one screen as read</string>
+
+    <!-- The status bar at the bottom of the reader. -->
+    <string name="jp_status_battery">%1$d%%</string>
+    <string name="jp_status_charging">%1$d%% ⚡</string>
+    <string name="jp_status_characters">%1$s / %2$s</string>
+    <string name="jp_status_speed">%1$s/h</string>
+    <string name="jp_status_progress">%1$d%%</string>
+</resources>

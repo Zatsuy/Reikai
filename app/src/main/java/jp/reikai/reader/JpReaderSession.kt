@@ -19,24 +19,33 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.util.system.isNightMode
+import jp.reikai.data.JpReaderDatabase
 import jp.reikai.di.jpGraph
 import jp.reikai.lookup.LookupSheet
 import jp.reikai.reader.page.JpPageLookup
 import jp.reikai.reader.page.JpPageViewport
 import jp.reikai.reader.page.JpScanMessage
+import jp.reikai.stats.JpReadingTracker
+import jp.reikai.stats.TtuStatistic
 import jp.reikai.yomitan.R
 import jp.reikai.yomitan.YomitanEngine
 import jp.reikai.yomitan.popup.PopupLookup
 import jp.reikai.yomitan.text.JapaneseText
 import jp.reikai.yomitan.text.TextWindow
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import logcat.logcat
@@ -46,6 +55,7 @@ import reikai.presentation.reader.readerBackgroundColorInt
 import reikai.presentation.reader.resolvedForSystemTheme
 import java.lang.ref.WeakReference
 import java.util.Locale
+import java.util.WeakHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -54,7 +64,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * Reikai JP's part of one novel reader (one [ReaderActivity]): Japanese text is drawn with Japanese
  * glyphs and long-presses select whole Japanese words ([JpTextClassifier]); with lookup on (D-025),
  * the lookup engine warms up once the first chapter is on screen, "Look up" leads the selection
- * toolbar and opens the lookup sheet over the reader. Ends with the activity.
+ * toolbar and opens the lookup sheet over the reader. It also carries the status bar (4.5), the reading
+ * statistics of the Japanese reader (4.4) and the marking of chapters that fit on one screen (4.5). Ends
+ * with the activity.
  */
 internal class JpReaderSession(
     private val host: ReaderActivity,
@@ -91,6 +103,18 @@ internal class JpReaderSession(
 
     /** Lookup by tap in the Japanese reader's page (4.3), for the page viewport of this reader. */
     private var pageLookup: JpPageLookup? = null
+
+    /** The status bar (4.5), made now so the Japanese page can keep its height clear from its first layout. */
+    private val statusBar = JpStatusBar(host, viewModel, graph.jpPreferences)
+
+    /** The Japanese reader's reading statistics (4.4); made with its first page viewport. */
+    private var tracker: JpReadingTracker? = null
+
+    /** Chapters upstream's renderers say fit on one screen or page, and those this reader marked read. */
+    private val fitting = HashSet<Long>()
+    private val finishedShort = HashSet<Long>()
+    private var finishShort: ((Long) -> Unit)? = null
+    private var shortJob: Job? = null
 
     /** Tells this reader's "Look up" presses from another reader's. */
     private val id = nextId.incrementAndGet()
@@ -132,6 +156,9 @@ internal class JpReaderSession(
             IntentFilter(ACTION_LOOK_UP),
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        // A chapter that fits, once it is the one being read (it opened, or the reader scrolled onto it).
+        viewModel.chapter.onEach { checkShortChapter() }.launchIn(host.lifecycleScope)
+        graph.jpPreferences.shortChaptersRead().changes().onEach { checkShortChapter() }.launchIn(host.lifecycleScope)
         job = host.lifecycleScope.launch {
             val chapter = viewModel.chapter.filterNotNull().first()
             val lang = chapter.sourceId?.let { graph.novelSourceManager.get(it)?.langCode() }
@@ -173,9 +200,32 @@ internal class JpReaderSession(
      * the WebView reader.
      */
     fun onPageViewport(viewport: JpPageViewport) {
+        val tracker = tracker ?: startTracker().also { tracker = it }
         viewport.listeners += object : JpPageViewport.Listener {
-            override fun onTouch() = onTouched()
+            override fun onTouch() {
+                onTouched()
+                tracker.activity()
+            }
+
+            override fun onPosition(report: JpPageViewport.PageReport) {
+                val pos = report.pos
+                tracker.position(
+                    chapterId = report.chapterId,
+                    charOffset = pos.charOffset,
+                    chars = pos.chars,
+                    endSeen = pos.endSeen,
+                    openedAtEnd = report.openedAtEnd,
+                    incognito = report.incognito,
+                )
+                statusBar.setPage(pos.charOffset, pos.chars)
+                statusBar.setSpeed(tracker.session.lastReadingSpeed)
+            }
         }
+        // The page keeps the status bar's height free of text, from its first layout on.
+        val barSetting = graph.jpPreferences.readerStatusBar()
+        viewport.reservedBottomDp = if (barSetting.get()) statusBar.heightDp else 0
+        barSetting.changes().onEach { on -> viewport.reservedBottomDp = if (on) statusBar.heightDp else 0 }
+            .launchIn(host.lifecycleScope)
         val webView = viewport.view as? WebView ?: return
         decorate(webView)
         pageLookup?.unbind()
@@ -196,6 +246,8 @@ internal class JpReaderSession(
     private val pageListener = object : JpPageLookup.Listener {
         override fun onFound(found: JpScanMessage.Found, word: IntRange?, askedAt: Long) {
             if (closed || !graph.jpLookup.isEnabled) return
+            // Looking a word up is reading too.
+            tracker?.activity()
             val lookup = popupLookup(found.query, found.sentence, found.offset, kanji = found.kanji)
             sheet().show(lookup, askedAt, word)
             seenEngine = graph.yomitanEngine
@@ -212,8 +264,77 @@ internal class JpReaderSession(
         override fun context(): Pair<String?, String?> = chapterUrl to documentTitle()
     }
 
+    /** Which reader the novel reads in is known (or will be, [isJapanese]): the status bar can show. */
+    fun onReaderKnown(isJapanese: StateFlow<Boolean?>) {
+        if (!closed) statusBar.start(isJapanese)
+    }
+
+    /** Whether this session belongs to the reader of [model]. */
+    fun readsFor(model: NovelReaderViewModel): Boolean = viewModel === model && !closed
+
+    /**
+     * Counts this reader's time and characters in the Japanese reader (4.4): ticks while the Activity is
+     * resumed, positions from the page, the title's days from the statistics, the rows back to them
+     * every few seconds and on pause. The session's own totals outlive a rebuild of the Activity.
+     */
+    private fun startTracker(): JpReadingTracker {
+        val statistics = graph.jpReadingStatistics
+        val novelId = viewModel.novelId
+        val tracker = JpReadingTracker(session = sessionTotals[viewModel]) { rows ->
+            statistics.put(rows.map { JpReaderDatabase.StatisticRow(novelId, it) })
+        }
+        host.lifecycleScope.launch {
+            val title = viewModel.entryTitle.filterNotNull().first().takeIf { it.isNotBlank() } ?: return@launch
+            tracker.begin(title, statistics.forTitle(title).map { it.statistic })
+        }
+        host.lifecycleScope.launch {
+            host.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                tracker.resume()
+                try {
+                    while (true) {
+                        delay(TICK_MILLIS)
+                        if (tracker.tick()) statusBar.setSpeed(tracker.session.lastReadingSpeed)
+                    }
+                } finally {
+                    tracker.pause()
+                    sessionTotals[viewModel] = tracker.session
+                }
+            }
+        }
+        return tracker
+    }
+
+    /** A chapter of this reader fits on one screen or page, or no longer does (any thread). */
+    fun onChapterFits(chapterId: Long, fits: Boolean, finish: (Long) -> Unit) {
+        host.runOnUiThread {
+            if (closed) return@runOnUiThread
+            finishShort = finish
+            if (fits) fitting += chapterId else fitting -= chapterId
+            checkShortChapter()
+        }
+    }
+
+    /**
+     * Marks the chapter being read as read when it fits on one screen or page (4.5, ruling 14), once it
+     * has fitted for a moment: a chapter can measure short before its pictures arrive. Through upstream's
+     * finishing, as a forward step from it would, so history, "read" and trackers see the same.
+     */
+    private fun checkShortChapter() {
+        shortJob?.cancel()
+        val id = viewModel.chapter.value?.chapterId ?: return
+        val finish = finishShort ?: return
+        if (id !in fitting || id in finishedShort || !graph.jpPreferences.shortChaptersRead().get()) return
+        shortJob = host.lifecycleScope.launch {
+            delay(SHORT_SETTLE_MILLIS)
+            if (!closed && viewModel.chapter.value?.chapterId == id && id in fitting && finishedShort.add(id)) {
+                finish(id)
+            }
+        }
+    }
+
     private fun onLanguage(japanese: Boolean) {
         this.japanese = japanese
+        if (japanese) statusBar.setJapaneseText()
         if (japanese) waiting.forEach { it.get()?.textLocale = Locale.JAPANESE }
         waiting.clear()
         if (japanese) {
@@ -282,6 +403,7 @@ internal class JpReaderSession(
 
     private fun onLookUp(query: String, sentence: String?, offset: Int, askedAt: Long = SystemClock.uptimeMillis()) {
         if (!graph.jpLookup.isEnabled) return
+        tracker?.activity()
         sheet().show(popupLookup(query, sentence, offset), askedAt, word = pressedLine)
         // Built by the sheet by now: the next selection may use it as soon as it is ready.
         seenEngine = graph.yomitanEngine
@@ -357,6 +479,8 @@ internal class JpReaderSession(
         if (closed) return
         closed = true
         pageLookup = null
+        statusBar.close()
+        shortJob?.cancel()
         job?.cancel()
         lookupJob?.cancel()
         runCatching { host.unregisterReceiver(receiver) }
@@ -473,6 +597,15 @@ internal class JpReaderSession(
         private const val DARK_LUMINANCE = 0.4
 
         private val nextId = AtomicInteger()
+
+        /** Each reader's session totals (ttu's `sessionStatistics`), kept across a rebuild of its Activity. */
+        private val sessionTotals = WeakHashMap<NovelReaderViewModel, TtuStatistic>()
+
+        /** The tracker's tick. */
+        private const val TICK_MILLIS = 1_000L
+
+        /** How long a chapter must fit before it is marked read: its pictures can make it grow. */
+        private const val SHORT_SETTLE_MILLIS = 1_500L
 
         /**
          * Whether a point (view pixels) is well before the page's one-character selection: left of it,
