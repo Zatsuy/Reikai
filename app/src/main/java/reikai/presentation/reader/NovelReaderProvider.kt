@@ -326,6 +326,8 @@ class NovelReaderProvider(
     // Built here rather than from the host's manga collector, which is what updateViewer hangs off and
     // which never fires without a Manga in state.
     override fun attach(host: ReaderActivity) {
+        // FORK: Reikai JP's reader hook (Japanese glyphs and word selection, the lookup engine and popup)
+        jp.reikai.reader.JpReaderHook.attach(host, viewModel)
         // The session and its position outlive the Activity, so a rebuild lands where the reader is.
         viewportRebuilds.onEach { host.recreate() }.launchIn(host.lifecycleScope)
         val viewport = createViewport(host)

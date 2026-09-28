@@ -73,7 +73,8 @@ object NovelWebDocument {
         // trimming the whole document copied it for nothing, since its own lines carry no indent.
         return buildString {
             appendLine("<!DOCTYPE html>")
-            appendLine("<html>")
+            // FORK: lang="ja" for a Japanese novel, so its kanji are never drawn in Chinese forms
+            appendLine(jp.reikai.reader.JpReaderHook.htmlTag(context, chapterHtml))
             appendLine("<head>")
             appendLine("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1\">")
             appendLine("<style id=\"rk-font-face\">${fontFace(settings.fontFamily, fontSource)}</style>")

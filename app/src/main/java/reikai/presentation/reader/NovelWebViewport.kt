@@ -200,6 +200,8 @@ class NovelWebViewport(
         // all and the flag stays off.
         settings.allowFileAccess = false
         isLongClickable = textSelectable
+        // FORK: Reikai JP selects whole Japanese words
+        jp.reikai.reader.JpReaderHook.decorate(this)
         if (textSelectable) {
             isFocusable = true
             isFocusableInTouchMode = true

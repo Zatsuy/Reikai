@@ -1356,6 +1356,8 @@ class NovelTextViewport(
             } else {
                 LinkOnlyMovementMethod
             }
+            // FORK: Reikai JP selects whole Japanese words and draws Japanese glyphs
+            jp.reikai.reader.JpReaderHook.decorate(this)
         }
 
     /** One item per chapter in the window. */

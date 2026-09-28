@@ -20,6 +20,7 @@ import jp.reikai.yomitan.audio.TtsAudio
 import mihon.core.metro.IsDebugBuild
 import mihon.core.metro.metroGraph
 import okhttp3.CookieJar
+import reikai.novel.source.NovelSourceManager
 
 /**
  * Reikai JP's members of the app graph, read with `context.jpGraph` where there is no constructor
@@ -29,6 +30,9 @@ import okhttp3.CookieJar
 interface JpGraph {
     val jpPreferences: JpPreferences
     val yomitanEngine: YomitanEngine
+
+    /** The reader's source language, for its Japanese hook (3.4). */
+    val novelSourceManager: NovelSourceManager
 
     /** Whether AnkiDroid can be reached, and the calls refused while it cannot (3.4, 3.5). */
     val ankiAccess: AnkiAccess
