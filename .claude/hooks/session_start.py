@@ -22,6 +22,7 @@ WATCHED = {
     "fork-upstream-sync.yml": ("Upstream sync", "run /sync-upstream"),
     "fork-release.yml": ("App release", "run /debug on the failed run"),
     "fork-ci.yml": ("Fork CI on main", "run /debug on the failed run"),
+    "fork-yomitan-update.yml": ("Yomitan update", "follow scripts/fork/yomitan-smoke/README.md"),
 }
 
 

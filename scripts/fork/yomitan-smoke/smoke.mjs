@@ -235,8 +235,12 @@ async function launch() {
     if (process.env.REIKAI_CHROME) { return chromium.launch({executablePath: process.env.REIKAI_CHROME}); }
     try {
         return await chromium.launch({channel: 'chrome'});
-    } catch {
-        return chromium.launch();
+    } catch (chromeError) {
+        try {
+            return await chromium.launch();
+        } catch (chromiumError) {
+            throw new Error(`no browser: Google Chrome (${chromeError.message.split('\n')[0]}) and Playwright's Chromium (${chromiumError.message.split('\n')[0]})`);
+        }
     }
 }
 

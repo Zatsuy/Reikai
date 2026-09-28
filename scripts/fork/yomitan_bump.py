@@ -40,6 +40,8 @@ import re
 import shutil
 import subprocess
 import sys
+import time
+import urllib.error
 import urllib.request
 import zipfile
 from datetime import datetime, timedelta, timezone
@@ -78,8 +80,15 @@ def http_get(url, accept=None):
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if token and url.startswith("https://api.github.com/"):
         request.add_header("Authorization", f"Bearer {token}")
-    with urllib.request.urlopen(request, timeout=120) as response:
-        return response.read()
+    # Three tries: a passing network hiccup should not wake an agent (D-015).
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                return response.read()
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt == 2 or (isinstance(e, urllib.error.HTTPError) and e.code < 500 and e.code != 429):
+                raise
+            time.sleep(10 * (attempt + 1))
 
 
 def github_api(path):

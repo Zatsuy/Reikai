@@ -1,0 +1,100 @@
+name: Yomitan update
+
+# Keeps Reikai JP's Yomitan current with nobody's attention (decision D-015). Every Wednesday it asks
+# GitHub for Yomitan's latest promoted release; once one newer than the vendored version has been
+# out for 7 days, it vendors it (SHA-256 checked against GitHub's digest), runs the static tripwire
+# and the headless-Chrome smoke test, and pushes `chore(yomitan): update to <tag>` to main, which the
+# daily App release workflow then ships. When a check fails the run fails and pushes nothing: the
+# next agent session sees it in its session-start lines and follows
+# scripts/fork/yomitan-smoke/README.md. Most weeks only the check runs, well under a minute.
+# Pushes with GitHub's Actions token: the update changes no workflow file, and a push made with that
+# token starts no other workflow, so the assets-only commit costs no Fork CI build (D-021).
+
+on:
+  schedule:
+    - cron: '30 5 * * 3'
+  workflow_dispatch:
+
+concurrency:
+  group: yomitan-update
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: Check, update, prove, push
+    # Only main is updated; a dispatch from another branch would push that branch's tree to main.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # GitHub switches off a public repository's schedules after 60 days without activity; re-enabling
+      # this workflow on each run resets that clock, as in fork-upstream-sync.yml. A step, not a job of
+      # its own, because most runs end after the check and every job is billed a whole minute.
+      - name: Keep the schedule alive
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/fork-yomitan-update.yml/enable"
+
+      - name: Clone repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Is there a new Yomitan release?
+        id: check
+        run: |
+          set -o pipefail
+          python3 scripts/fork/yomitan_bump.py check | tee -a "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+
+      # The runner's own Node and Google Chrome; only the pinned browser driver is installed.
+      - name: Install the smoke test's browser driver
+        if: steps.check.outputs.update == 'true'
+        run: npm ci --prefix scripts/fork/yomitan-smoke --no-audit --no-fund
+
+      - name: Vendor, tripwire, smoke test
+        if: steps.check.outputs.update == 'true'
+        env:
+          TAG: ${{ steps.check.outputs.latest }}
+        run: |
+          set -o pipefail
+          python3 scripts/fork/yomitan_bump.py update "$TAG" 2>&1 | tee "$RUNNER_TEMP/yomitan-update.log"
+
+      - name: Report the failure
+        if: failure() && steps.check.outputs.update == 'true'
+        run: |
+          {
+            echo "### The update to ${{ steps.check.outputs.latest }} stopped; nothing was pushed"
+            echo "An agent reviews it: scripts/fork/yomitan-smoke/README.md. The last lines:"
+            echo '```'
+            tail -n 60 "$RUNNER_TEMP/yomitan-update.log" 2>/dev/null || echo "(no log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push to main
+        if: steps.check.outputs.update == 'true'
+        env:
+          TAG: ${{ steps.check.outputs.latest }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add jp-yomitan/src/main/assets/yomitan jp-yomitan/yomitan-release.json
+          if git diff --cached --quiet; then
+            echo "Yomitan $TAG is already vendored; nothing to push." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git commit -q -m "chore(yomitan): update to $TAG" \
+            -m "The weekly Yomitan update vendored release $TAG after its 7-day wait. The tripwire found no change in what the stand-in relies on, and the headless Chrome smoke test passed."
+          if git push origin HEAD:main 2> "$RUNNER_TEMP/push.err"; then
+            echo "Pushed \`chore(yomitan): update to $TAG\` to main." >> "$GITHUB_STEP_SUMMARY"
+          elif grep -q -E 'non-fast-forward|fetch first|\[rejected\]' "$RUNNER_TEMP/push.err"; then
+            # main moved during the run; next week's run tries again from the new main.
+            echo "::notice::main moved during the run, so nothing was pushed; the next run retries."
+            echo "main moved during the run, so nothing was pushed; the next run retries." >> "$GITHUB_STEP_SUMMARY"
+          else
+            cat "$RUNNER_TEMP/push.err" >&2
+            exit 1
+          fi
