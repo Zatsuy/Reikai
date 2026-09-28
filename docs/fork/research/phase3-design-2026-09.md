@@ -244,7 +244,7 @@ answered with `TextToSpeech.synthesizeToFile`, last in the list, so it plays and
   sentence still reaches Anki through `full` and `offset`.
 - A word tapped inside the results opens Yomitan's nested popup inside the sheet with its defaults
   (`popupNestingMaxDepth` 10); navigating within the sheet instead is Yomitan's
-  `scanning.enablePopupSearch` (off by default), for the settings screen (3.5) to offer.
+  `scanning.enablePopupSearch` (off by default), which a fresh profile now gets (3.5, mobile defaults).
 - **Speed (tablet, warm engine):** the lookup runs while the toolbar shows (`classifyText` preloads
   it into the closed sheet) and a press on "Look up" is taken from the selection's own event
   (`SelectionEvent.ACTION_SMART_SHARE`), 50-70 ms before the action's broadcast arrives. Toolbar tap
@@ -264,8 +264,69 @@ answered with `TextToSpeech.synthesizeToFile`, last in the list, so it plays and
   shortcut and Yomitan's links to its search page open `DictionaryActivity` (`search.html`, keyboard
   opened on the search box instead of moving Yomitan's layout); both say when lookup is off and offer
   to turn it on. The activities are declared in `jp-yomitan`'s manifest (their classes are the app's),
-  so upstream's manifest has no seam; the shortcut is a seam at the top of `app/src/main/shortcuts.xml`
-  because Samsung's launcher shows only an app's first four.
+  so upstream's manifest has no seam. (The "Dictionary" shortcut changed after the device review: see
+  below.)
+
+**Fixes after the device review (2026-09-28, build 257e8e75f on the phone and tablet):**
+- **The popup page reloads itself** when it no longer matches: each load has its own address
+  (`popup.html?reikai-load=N&reikai-theme=dark`; the old `#theme=dark` was a jump within the page
+  after `clear()`, so a lookup in the other reader theme stuck on "Opening the dictionary" and blocked
+  every later lookup), and `popup-host.js` hears Yomitan's `applicationOptionsUpdated` and
+  `applicationDatabaseUpdated`, which the backend sends to every tab, and tells the app ("stale"):
+  the page loads again at once while no lookup is on it, else with the next lookup or when the sheet
+  closes. Yomitan's standalone popup never reacts to them itself (its Frontend does, in a browser).
+  "Ready" carries the load number, so an earlier load's answer is ignored. Before each lookup the
+  host hides "No results" and "No dictionaries", so a lookup that ends on the notice already showing
+  is still reported (the spinner covered it forever).
+- **Lookups inside the popup** (a tapped word with `enablePopupSearch`) write `pageTheme: 'light'` and
+  the popup's own address into their history state (`display.js`
+  `_onContentTextScannerSearchSuccess`); the host keeps the reader's theme and page (for Anki's `{url}`
+  and `{document-title}`) in every state the page writes, since DisplayHistory keeps the very object.
+  The back gesture presses Yomitan's own "previous" button while its history has one.
+- **"Invalid action"** when adding a card was the popup's `FrameEndpoint` (`comm/frame-endpoint.js`),
+  which in a standalone popup never connects and logs every window message, here the card template
+  renderer's frame's `ready` and `response`. Not a stand-in or hub gap. The host now connects it as
+  Yomitan's own host page would (`frameEndpointReady` -> `frameEndpointConnect`); should that change,
+  only the log comes back. The tripwire fingerprints all of these (`yomitan_bump.py` call sites).
+- **"Look up in Reikai JP"** finishes once out of sight (a link in the results, home), so it never
+  waits over the other app holding the popup; a screen lets the popup go only while it still holds
+  it; a lookup made ahead of the sheet is used only while the popup still has it; after a swipe-down
+  close the sheet is laid out again at full height while parked.
+- **Ruling: the sheet opens at the top when at the bottom it would cover the word** (the pressed line,
+  measured in native mode, about a line around the finger in WebView mode), and otherwise at the
+  bottom; with both covering it, on the side farther from the word. Handle and rounded corners face the
+  page, dragging towards the page grows it. Cost if wrong: a sheet that jumps between top and bottom
+  feels less predictable than one that always sits in the same place; the alternative (shrinking the
+  sheet, or scrolling the reader) either leaves too little room or needs an upstream seam.
+- **Ruling: the Dictionary shortcut is offered for the home screen only**, from the Japanese
+  settings ("Add the dictionary to the home screen"), not in the long-press list. Samsung's launcher
+  shows four shortcuts and, like Launcher3, drops the last manifest one to make room for a dynamic
+  one, so both a line in upstream's `shortcuts.xml` and a dynamic shortcut cost upstream's Browse
+  (checked on the tablet). `shortcuts.xml` is upstream's again. `DictionaryActivity` has its own task
+  affinity, so a launcher's NEW_TASK/CLEAR_TASK start never clears Reikai's task (it destroyed an open
+  reader). Cost if wrong: the owner who wants it in the long-press list loses Browse there instead.
+- **The first long-press after opening a chapter** focused the chapter's selectable text, and
+  RecyclerView scrolled the focused item's top into place (87 px on the tablet) under the finger,
+  which then selected from one line into the next (upstream's native reader, lookup off too). A
+  one-line seam in `NovelTextViewport` gives it `JpReaderHook.layoutManager`, whose
+  `onRequestChildFocus` never scrolls; a handle dragged to the edge still scrolls.
+- **Word selection:** a lone kanji ICU split off a word it does not know joins it back when the
+  dictionary's longest match from the previous piece covers it (伯|爵 pressed on 爵); a word ICU knows
+  is never joined (東京|大学 stays 大学). The dictionary's 150 ms now starts after the WebView page has
+  placed the finger (up to 80 ms), and a WebView press within a quarter character of a boundary keeps
+  Chromium's character (at a word edge it selected と一; now 一致, and と from the middle of と).
+  Tablet, WebView mode: 伯 and 爵 both select 伯爵 (79 and 117 ms); native mode 伯爵 in 22-39 ms.
+- **Warm-up:** the engine's WebView costs the reader's main thread 80-100 ms and the popup 40-70 ms
+  (tablet, native mode); both wait until the page has been neither touched nor scrolled for two
+  seconds (opening the chapter counts), so neither lands in a fling.
+- **Timing after these fixes** (tablet, native mode, warm, toolbar tap to painted results, n=12):
+  min 32, median 52, p95 76, max 76 ms. A lookup after the popup reloaded: 376-396 ms.
+- **Still open:** in WebView mode Chromium's text for the classifier includes ruby furigana, so a
+  press on 着 in 決着《ケリ》 selected ケリをつける (`rt { user-select: none }` keeps furigana out of
+  the selection but left a press on 着 without a toolbar; needs its own look). Yomitan's audio
+  auto-play never plays in the sheet (the popup hears `displayVisibilityChanged` only through a
+  connected content frame). The duplicate "Look up in Reikai JP" in WebView mode was not seen again
+  (Samsung's toolbar now groups text apps under "Manage apps").
 
 ## 3.5 Settings
 
@@ -300,21 +361,43 @@ dictionaries are re-imported from their zips (a Dexie export of 300 MB is too he
   typed as JSON); a blob download (`backup-controller.js` `_saveBlob`) is sent by the stand-in in
   512 KB base64 slices (`save` requests, settings pages only) to `YomitanSaves`, then saved through
   the system's "save as".
-- **Ruling: "Set up cards for Lapis" writes the current profile's first word card format only**
-  (deck, model, fields; Anki on), with Lapis's README markers; MainDefinition is
-  `{single-glossary-<kebab title>}` of Jitendex, else JMdict, else the first enabled word dictionary
-  (`{glossary-first}` with none). Offered only when no card format has a note type and AnkiDroid has
-  one named Lapis. Cost if wrong: other profiles keep no card format.
+- **Ruling: "Set up cards for Lapis" writes the current profile's card formats only**: its first
+  word card format gets Lapis (deck, model, fields; Anki on) with Lapis's README markers, and its
+  other formats without a note type are dropped (Yomitan's default "Reading" and "Kanji" each put an
+  Add button on every entry that failed with "model was not found"); formats with a note type stay.
+  MainDefinition is `{single-glossary-<kebab title>}` of Jitendex, else JMdict, else the first enabled
+  word dictionary (`{glossary-first}` with none). Offered only when no card format has a note type
+  (whether or not Anki is switched on: an imported note type counts) and AnkiDroid has one named
+  Lapis. Cost if wrong: other profiles keep no card format. The kebab case once used the JVM's
+  `(?U)` regex flag, which Android's ICU regex refuses ("Syntax error in regexp pattern near index
+  3"; every JVM test passed); `AndroidRegexTest` now keeps JVM-only regex constructs out of fork code.
+  Yomitan's `modifySettings` answers a refused change with `{error}` instead of failing, so
+  `YomitanSettings.modify` checks every answer.
 - **Ruling: Clear WebView data keeps the engine origin** by deleting every other origin through
   `WebStorage.getOrigins`/`deleteOrigin` and all cookies, and no longer deletes `app_webview/`
   (deleting Chromium's files by hand depends on its layout and would take the dictionaries with it).
-  Cost if wrong: storage WebView does not list per origin is no longer cleared.
+  `deleteOrigin` clears only quota-managed storage (IndexedDB, file systems, Web SQL; the tablet's
+  `Local Storage` survived a clear), so it also deletes `Local Storage`, `Session Storage` and
+  `Service Worker` under `app_webview/Default/` (or `app_webview/` in older WebViews), never
+  `IndexedDB/`. The engine loses only what Yomitan's search page remembers in local storage. Cost if
+  wrong: storage a future WebView keeps elsewhere is not cleared.
 - Tripwire: display history and theme, `_saveBlob`, the recommended list and the page markup both
   hosts find are fingerprinted (`page-elements` surface).
-- **Not yet proven on a device** (the tablet was not connected when this was built): the screen,
-  the section scroll and recommended list, the file picker, the export save, the Lapis card, local
-  audio, Clear WebView data keeping the dictionaries. Mobile defaults for Yomitan's popup
-  (`scanning.enablePopupSearch` and others, set once on a fresh profile) wait for that check.
+- **Mobile defaults** (`MobileDefaults`): when the engine starts with no Yomitan settings stored
+  (Yomitan then makes its defaults), the app sets `general.glossaryLayoutMode` "compact",
+  `general.compactTags`, `scanning.enablePopupSearch` and `scanning.popupNestingMaxDepth` 0 (a
+  tapped word opens in the same sheet, with back and forward). The `jp_yomitan_mobile_defaults_done`
+  flag makes it once: settings that existed when the flag was first read (the owner's tablet) are
+  never touched, nor anything changed or imported later. A test checks the values against the
+  vendored schema, so an update renaming them fails there. Tablet: a fresh profile got all four.
+- **After the device review:** a settings export waiting for "save as" survives the screen being
+  recreated (and a second export while the picker is open is refused), the local audio row can stop a
+  copy in progress (a 4.2 GB copy stopped at 0.96 GB left no file behind), and the screen no longer
+  starts a text-to-speech engine while lookup is off. Proven on the tablet (build 8a354258b): Lapis
+  setup into a test deck and a card with its fields, a text-to-speech card (a .wav in
+  ExpressionAudio), the TTS switch adding and removing the Japanese defaults with it, the settings
+  export, local audio after a copy killed mid-way (restarted on the next audio lookup), the engine
+  after `am kill`, and settings, search and popup pages with `frame-ancestors`.
 
 ## 3.6 Automatic updates
 
