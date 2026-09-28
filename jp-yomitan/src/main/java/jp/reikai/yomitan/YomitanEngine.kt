@@ -60,6 +60,8 @@ import java.lang.ref.WeakReference
  * @property pageOpener opens the pages Yomitan asks for (search 3.4, settings 3.5); by default only
  *   web links open, in the browser.
  * @property debug debug builds: DevTools, Yomitan's console in logcat.
+ * @property onReady runs each time Yomitan's backend is ready; `newSettings` when it started without
+ *   any settings stored (so Yomitan has just made its defaults).
  */
 class YomitanConfig(
     val lookupEnabled: Flow<Boolean>,
@@ -70,6 +72,7 @@ class YomitanConfig(
     val pageOpener: YomitanPageOpener? = null,
     val debug: Boolean = false,
     val idleGraceMillis: Long = 60_000,
+    val onReady: suspend (engine: YomitanEngine, newSettings: Boolean) -> Unit = { _, _ -> },
 )
 
 /** The longest dictionary match at the start of a text ([YomitanEngine.findTerms]). */
@@ -146,6 +149,9 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
     private var engineView: WebView? = null
     private var engineBinding: HubBinding? = null
     private var loadStartedAt = 0L
+
+    /** This start of the engine found no settings stored. */
+    private var startedWithoutSettings = false
     private var graceJob: Job? = null
     private var watchdog: Job? = null
     private val restarts = ArrayDeque<Long>()
@@ -316,6 +322,7 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
         }
         placeEngineView()
         loadStartedAt = SystemClock.elapsedRealtime()
+        startedWithoutSettings = config.storage.get(listOf(OPTIONS_KEY)).isEmpty()
         view.loadUrl(YomitanOrigin.url("background.html"))
         watchdog = scope.launch {
             delay(START_TIMEOUT_MILLIS)
@@ -488,6 +495,11 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
             val ms = SystemClock.elapsedRealtime() - loadStartedAt
             logcat(TAG, LogPriority.INFO) { "Yomitan's backend is ready after $ms ms" }
             stateFlow.value = State.Ready(ms)
+            val newSettings = startedWithoutSettings
+            scope.launch {
+                runCatching { config.onReady(this@YomitanEngine, newSettings) }
+                    .onFailure { logcat(TAG, LogPriority.WARN) { "After the engine started: $it" } }
+            }
         }
 
         override fun onTripwire(path: String, called: Boolean, url: String) {
@@ -524,6 +536,9 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
     companion object {
         const val TAG = "Yomitan"
         private const val START_TIMEOUT_MILLIS = 30_000L
+
+        /** Where Yomitan keeps its settings in `chrome.storage.local` (`options-util.js`). */
+        private const val OPTIONS_KEY = "options"
         private const val RESTART_WINDOW_MILLIS = 5 * 60_000L
         private const val MAX_RESTARTS = 3
 

@@ -28,6 +28,13 @@ class JpPreferences(private val preferenceStore: PreferenceStore) {
     /** The local audio database (`android.db`) the user picked, as a document URI; "" when none. */
     fun localAudioUri() = preferenceStore.getString("jp_local_audio_uri", "")
 
+    /**
+     * Whether Yomitan's settings were ever given the app's phone and tablet defaults
+     * ([jp.reikai.yomitan.settings.MobileDefaults]): once, on the first settings Yomitan made itself,
+     * and never again, whatever the user changes or imports later.
+     */
+    fun yomitanMobileDefaultsDone() = preferenceStore.getBoolean("jp_yomitan_mobile_defaults_done", false)
+
     /** The lookup sheet's height as a share of the window's, as the reader last dragged it. */
     fun lookupSheetHeight() = preferenceStore.getFloat("jp_lookup_sheet_height", 0.5f)
 }

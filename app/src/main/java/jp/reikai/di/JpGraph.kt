@@ -19,6 +19,7 @@ import jp.reikai.yomitan.anki.AnkiAccess
 import jp.reikai.yomitan.anki.AnkiConnect
 import jp.reikai.yomitan.audio.LocalAudio
 import jp.reikai.yomitan.audio.TtsAudio
+import jp.reikai.yomitan.settings.MobileDefaults
 import mihon.core.metro.IsDebugBuild
 import mihon.core.metro.metroGraph
 import okhttp3.CookieJar
@@ -110,6 +111,14 @@ object JpBindings {
                 ),
                 pageOpener = JpPageOpener(context),
                 debug = isDebugBuild,
+                onReady = { engine, newSettings ->
+                    // The phone and tablet defaults go onto Yomitan's own first settings only.
+                    val done = preferences.yomitanMobileDefaultsDone()
+                    if (!done.get()) {
+                        if (newSettings) MobileDefaults.apply(engine)
+                        done.set(true)
+                    }
+                },
             ),
         )
     }
