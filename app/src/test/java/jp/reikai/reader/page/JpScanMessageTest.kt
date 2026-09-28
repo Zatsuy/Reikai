@@ -36,6 +36,16 @@ class JpScanMessageTest {
     }
 
     @Test
+    fun `an offset outside the sentence gives way to the word`() {
+        val before = JpScanMessage.parse("""{"t":"found","query":"猫","sentence":{"text":"猫がいる。","offset":-3}}""")
+        before as JpScanMessage.Found
+        (before.sentence to before.offset) shouldBe ("猫" to 0)
+        val after = JpScanMessage.parse("""{"t":"found","query":"猫","sentence":{"text":"猫がいる。","offset":9}}""")
+        after as JpScanMessage.Found
+        (after.sentence to after.offset) shouldBe ("猫" to 0)
+    }
+
+    @Test
     fun `a very long sentence is cut around the word`() {
         val sentence = "あ".repeat(3000) + "猫" + "い".repeat(3000)
         val found = JpScanMessage.parse("""{"t":"found","query":"猫","sentence":{"text":"$sentence","offset":3000}}""")

@@ -71,8 +71,9 @@ sealed interface JpScanMessage {
             val sentence = message["sentence"] as? JsonObject
             var text = sentence?.string("text").orEmpty()
             var offset = sentence?.int("offset") ?: 0
-            if (!text.regionMatches(offset.coerceIn(0, text.length), query, 0, query.length)) {
-                // A sentence that does not hold the word where it says is no help to a card.
+            if (offset !in 0..text.length || !text.regionMatches(offset, query, 0, query.length)) {
+                // A sentence that does not hold the word where it says (or an offset outside it) is no
+                // help to a card.
                 text = query
                 offset = 0
             } else if (text.length > MAX_SENTENCE) {
