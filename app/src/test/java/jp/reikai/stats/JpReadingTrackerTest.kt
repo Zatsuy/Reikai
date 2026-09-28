@@ -192,6 +192,20 @@ class JpReadingTrackerTest {
     }
 
     @Test
+    fun `a translation read in between counts nothing, and the original counts again from where it lands`() {
+        reading()
+        tracker.position(1L, 900, 20_000, endSeen = false)
+        // The chapter shown translated (4.5): its characters are English, further on than the original's.
+        tracker.position(1L, 2000, 60_000, endSeen = false, incognito = true)
+        tracker.position(1L, 3000, 60_000, endSeen = false, incognito = true)
+        // Back to the original, landing by percent.
+        tracker.position(1L, 1000, 20_000, endSeen = false)
+        tracker.position(1L, 1500, 20_000, endSeen = false)
+        ticks(1)
+        today().charactersRead shouldBe 1400
+    }
+
+    @Test
     fun `pausing counts up to now and hands the days over, and paused time is not counted`() {
         reading()
         ticks(3)

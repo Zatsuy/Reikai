@@ -1548,7 +1548,8 @@ class NovelReaderViewModel(
     }
 
     suspend fun loadChapterHtml(chapter: NovelChapter, fromSource: Boolean = false): Pair<String, String?> = try {
-        textLoader.load(chapter, fromSource)
+        // FORK: Reikai JP swaps in the chapter's translation while the reader shows it translated
+        jp.reikai.translate.JpTranslateHook.load(this, chapter.id, fromSource) { textLoader.load(chapter, fromSource) }
     } catch (e: EmptyChapterException) {
         throw Exception(context.stringResource(MR.strings.novel_chapter_empty), e)
     }

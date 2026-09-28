@@ -114,7 +114,8 @@ class JpReadingTracker(
     /**
      * Where the page is: [charOffset] characters before the first on screen, of the chapter's [chars],
      * [endSeen] when its end is on screen. [openedAtEnd]: the document was opened at its end by a step
-     * back. [incognito]: the chapter's source keeps no history, so nothing is counted.
+     * back. [incognito]: the chapter's source keeps no history, or the page is the chapter translated
+     * (4.5), so nothing is counted, and the next counted page starts afresh from where it lands.
      */
     fun position(
         chapterId: Long,
@@ -127,7 +128,7 @@ class JpReadingTracker(
         activity()
         recording = !incognito
         val previous = last
-        last = Sample(chapterId, charOffset, chars, endSeen)
+        last = Sample(chapterId, charOffset, chars, endSeen).takeUnless { incognito }
         if (previous == null || incognito) {
             mark = charOffset
             return

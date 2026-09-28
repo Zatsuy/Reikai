@@ -18,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.components.AppBar
 import jp.reikai.di.jpGraph
+import jp.reikai.translate.jpTranslateMenuAction
 import jp.reikai.yomitan.R
 import reikai.novel.font.NovelFont
 import tachiyomi.core.common.preference.Preference
@@ -27,11 +28,18 @@ import tachiyomi.presentation.core.components.SettingsItemsPaddings
 import tachiyomi.presentation.core.util.collectAsState
 
 /**
- * The reader menu's switch between the Japanese reader and the standard one (D-003: clearly labelled,
- * one tap back), for the top bar's overflow menu; null outside a novel reader.
+ * The fork's items in the reader's top bar overflow menu: "Translate chapter" or "Show original" (4.5)
+ * and the switch between the readers; none outside a novel reader.
  */
 @Composable
-fun jpReaderMenuAction(): AppBar.OverflowAction? {
+fun jpReaderMenuActions(): List<AppBar.OverflowAction> = listOfNotNull(jpTranslateMenuAction(), jpReaderMenuAction())
+
+/**
+ * The reader menu's switch between the Japanese reader and the standard one (D-003: clearly labelled,
+ * one tap back); null outside a novel reader.
+ */
+@Composable
+private fun jpReaderMenuAction(): AppBar.OverflowAction? {
     val activity = LocalActivity.current ?: return null
     val switch = remember(activity) { JpPageHook.switchOf(activity) } ?: return null
     val japanese by switch.isJapanese.collectAsState()

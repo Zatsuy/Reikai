@@ -70,7 +70,7 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 internal class JpReaderSession(
     private val host: ReaderActivity,
-    private val viewModel: NovelReaderViewModel,
+    internal val viewModel: NovelReaderViewModel,
     private val classifierMode: JpReaderHook.ClassifierMode,
 ) : DefaultLifecycleObserver,
     JpTextClassifier.Hooks {
@@ -215,7 +215,8 @@ internal class JpReaderSession(
                     chars = pos.chars,
                     endSeen = pos.endSeen,
                     openedAtEnd = report.openedAtEnd,
-                    incognito = report.incognito,
+                    // A translation (4.5) is not Japanese read: counted as nothing, as incognito is.
+                    incognito = report.incognito || report.translated,
                 )
                 statusBar.setPage(pos.charOffset, pos.chars)
                 statusBar.setSpeed(tracker.session.lastReadingSpeed)

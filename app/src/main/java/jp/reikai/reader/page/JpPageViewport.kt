@@ -16,6 +16,7 @@ import coil3.imageLoader
 import jp.reikai.JpPreferences
 import jp.reikai.data.JpChapterPositions
 import jp.reikai.data.JpReaderDatabase
+import jp.reikai.translate.ChapterTranslator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -120,6 +121,8 @@ class JpPageViewport internal constructor(
         val pos: JpPagePosition,
         val openedAtEnd: Boolean,
         val incognito: Boolean,
+        /** The document is the chapter translated (4.5): its characters are not Japanese read. */
+        val translated: Boolean = false,
     )
 
     /**
@@ -148,6 +151,27 @@ class JpPageViewport internal constructor(
     private val webImages = NovelWebImages()
 
     private var options: JpPageOptions = readOptions()
+
+    /**
+     * The language the document was translated into (4.5), or null for the chapter as its source has it.
+     * A translation into anything but Japanese is laid out horizontally, whatever the reader's text
+     * direction (Latin text in vertical lines lies on its side); it keeps no place by character and
+     * counts no reading, and taps on it open the menu rather than looking words up.
+     */
+    private var translatedInto: String? = null
+
+    /**
+     * A translation opened over its chapter's place: where it first reported, and whether the reader has
+     * moved since. "Show original" after a look that did not move lands on the original's own place by
+     * character; a percent would land on the page holding it, up to a page earlier.
+     */
+    private class Peek(val chapterId: Long, var landed: Int? = null, var moved: Boolean = false)
+
+    private var peek: Peek? = null
+
+    /** The reader's options as the document on screen follows them. */
+    private fun documentOptions(): JpPageOptions =
+        if (translatedInto.let { it != null && !it.startsWith("ja") }) options.copy(vertical = false) else options
 
     /** The document being shown: its chapter, the settings it was last given, and what it has said. */
     private var chapterId: Long? = null
@@ -276,7 +300,7 @@ class JpPageViewport internal constructor(
     override val view: View get() = webView
 
     /** Vertical text reads from right to left, so the navigator and its chapter buttons point that way. */
-    override val isRtl: Boolean get() = options.vertical
+    override val isRtl: Boolean get() = documentOptions().vertical
 
     override fun seekTo(progress: ChapterProgress) {
         if (progress !is ChapterProgress.Percent) return
@@ -331,20 +355,26 @@ class JpPageViewport internal constructor(
         chapterId = chapter.chapterId
         documentSettings = settings
         val number = ++documents
-        val current = options
-        val withLookup = lookup
+        val translation = ChapterTranslator.languageOf(chapter.html)
+        translatedInto = translation
+        val backFromPeek =
+            peek?.takeIf { translation == null && it.chapterId == chapter.chapterId && !it.moved } != null
+        peek = if (translation != null) Peek(chapter.chapterId) else null
+        val current = documentOptions()
+        val withLookup = lookup && translation == null
         val insetTop = cutoutTopDp()
         documentInset = insetTop
         val baseUrl = chapter.baseUrl?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
         val built = withContext(Dispatchers.IO) {
-            val stored = if (atEnd) null else positions.get(chapter.chapterId)
+            // A place by character is the original's: a translation lands by percent.
+            val stored = if (atEnd || translation != null) null else positions.get(chapter.chapterId)
             val hidden = isIncognito(chapter.sourceId)
             val fonts = fontFiles(current.font)
             withContext(Dispatchers.Default) {
                 val html = webImages.rewrite(JpPageDocument.cleanChapter(chapter.html), baseUrl, chapter.sourceId)
                 val init = JpPageDocument.init(
                     chapterId = chapter.chapterId,
-                    charOffset = stored?.takeIf { it.percent == chapter.progressPercent }?.charOffset,
+                    charOffset = stored?.takeIf { backFromPeek || it.percent == chapter.progressPercent }?.charOffset,
                     fraction = if (atEnd) 1.0 else chapter.progressPercent / 100.0,
                     settings = settingsJson(settings, current, insetTop),
                 )
@@ -356,6 +386,7 @@ class JpPageViewport internal constructor(
                     html,
                     fonts,
                     withLookup,
+                    language = translation ?: "ja",
                 )
                 Built(document, fonts, hidden)
             }
@@ -388,7 +419,7 @@ class JpPageViewport internal constructor(
         documentSettings = settings
         documentInset = cutoutTopDp()
         webView.setBackgroundColor(readerBackgroundColorInt(settings.backgroundColor))
-        runOrQueue("JpReader.applySettings(${settingsJson(settings, options, documentInset)})")
+        runOrQueue("JpReader.applySettings(${settingsJson(settings, documentOptions(), documentInset)})")
     }
 
     private fun settingsJson(settings: NovelReaderSettings, options: JpPageOptions, insetTop: Int) =
@@ -455,7 +486,7 @@ class JpPageViewport internal constructor(
                 pushAutoScroll()
                 onPosition(id, message.pos)
                 listeners.forEach { it.onReady(webView, id) }
-                JpReaderIntro.showOnce(context, jpPreferences, vertical = options.vertical)
+                JpReaderIntro.showOnce(context, jpPreferences, vertical = documentOptions().vertical)
             }
             is JpPageMessage.Position -> {
                 if (!ready || (message.chapterId != null && message.chapterId != id)) return
@@ -486,15 +517,24 @@ class JpPageViewport internal constructor(
             endReported = true
             onChapterEndSeen(id)
         }
-        // Incognito keeps no reading place, upstream's or the fork's. The anchor, not the page's first
-        // character: a document laid out another way lands on the page holding it without slipping back.
-        if (!incognito && pos.chars > 0) {
+        // Incognito keeps no reading place, upstream's or the fork's; a translation's characters are not
+        // the chapter's. The anchor, not the page's first character: a document laid out another way lands
+        // on the page holding it without slipping back.
+        val translated = translatedInto != null
+        peek?.takeIf { it.chapterId == id }?.let { look ->
+            if (look.landed == null) {
+                look.landed = percent
+            } else if (look.landed != percent) {
+                look.moved = true
+            }
+        }
+        if (!incognito && !translated && pos.chars > 0) {
             positions.put(
                 JpReaderDatabase.ChapterPosition(id, pos.anchor, pos.chars, percent, System.currentTimeMillis()),
             )
         }
         if (listeners.isNotEmpty()) {
-            val report = PageReport(id, pos, openedAtEnd, incognito)
+            val report = PageReport(id, pos, openedAtEnd, incognito, translated)
             listeners.forEach { it.onPosition(report) }
         }
     }
@@ -510,7 +550,7 @@ class JpPageViewport internal constructor(
             NovelTapAction.MENU
         } else {
             val zones = documentSettings?.tapZones?.toJpTapLayout() ?: return onToggleMenu()
-            zones.forWriting(options.vertical).actionAt(tap.x, tap.y)
+            zones.forWriting(documentOptions().vertical).actionAt(tap.x, tap.y)
         }
         when (action) {
             NovelTapAction.MENU -> onToggleMenu()

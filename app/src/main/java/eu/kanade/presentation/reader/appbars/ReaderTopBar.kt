@@ -97,8 +97,8 @@ fun ReaderTopBar(
                         ),
                     )
                     // RK <--
-                    // FORK: Reikai JP's switch between the Japanese and the standard reader (novels only)
-                    jp.reikai.reader.page.jpReaderMenuAction()?.let { add(it) }
+                    // FORK: Reikai JP's novel items: translate the chapter, switch between the readers
+                    addAll(jp.reikai.reader.page.jpReaderMenuActions())
                 },
             )
         },

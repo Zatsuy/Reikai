@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chapter translation (roadmap 4.5, phase 4 ruling 15). -->
+<resources>
+    <!-- The reader menu (top bar, overflow), for the chapter open. -->
+    <string name="jp_translate_chapter">Translate chapter</string>
+    <string name="jp_translate_busy">Translating…</string>
+    <string name="jp_translate_original">Show original</string>
+    <string name="jp_translate_started">Translating the chapter…</string>
+    <string name="jp_translate_failed">Translation failed. %1$s</string>
+    <string name="jp_translate_missing_key">Translation needs your key: add it in Settings, Japanese, Translation.</string>
+    <string name="jp_translate_missing_address">Translation needs the AI service\'s address and model: set them in Settings, Japanese, Translation.</string>
+    <string name="jp_translate_nothing">This chapter has no text to translate.</string>
+
+    <!-- Settings, Japanese: the Translation section. -->
+    <string name="jp_settings_translate_group">Translation</string>
+    <string name="jp_settings_translate_note">\"Translate chapter\" in the reader\'s menu sends that chapter\'s text to the service chosen here. Nothing is sent before you tap it.</string>
+    <string name="jp_settings_translate_engine">Service</string>
+    <string name="jp_settings_translate_engine_google">Google Translate (no key)</string>
+    <string name="jp_settings_translate_engine_deepl">DeepL (your key)</string>
+    <string name="jp_settings_translate_engine_ai">AI service (OpenAI-compatible)</string>
+    <string name="jp_settings_translate_target">Translate into</string>
+    <string name="jp_settings_translate_target_device">Device language (%1$s)</string>
+    <string name="jp_settings_translate_deepl_key">DeepL key</string>
+    <string name="jp_settings_translate_deepl_key_summary">A free key ends in :fx. Kept on this device only, never in backups.</string>
+    <string name="jp_settings_translate_key_set">Key set. Kept on this device only, never in backups.</string>
+    <string name="jp_settings_translate_key_save">Save</string>
+    <string name="jp_settings_translate_key_remove">Remove key</string>
+    <string name="jp_settings_translate_ai_preset">AI service</string>
+    <string name="jp_settings_translate_ai_preset_summary">%1$s. Choosing a service fills in its address and a model.</string>
+    <string name="jp_settings_translate_ai_address">Address</string>
+    <string name="jp_settings_translate_ai_model">Model</string>
+    <string name="jp_settings_translate_ai_key">Key for %1$s</string>
+    <string name="jp_settings_translate_ai_key_summary">Not needed for Ollama. Kept on this device only, never in backups.</string>
+    <string name="jp_settings_translate_clear">Delete saved translations</string>
+    <string name="jp_settings_translate_clear_summary">Translations are kept on this device, so a chapter translated once opens translated again without asking the service.</string>
+    <string name="jp_settings_translate_cleared">Saved translations deleted (%1$s)</string>
+</resources>

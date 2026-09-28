@@ -100,6 +100,8 @@ object JpPageDocument {
         chapterHtml: String,
         fontFiles: List<String>,
         lookup: Boolean = false,
+        /** The chapter's language: Japanese, or the one a translation (4.5) is in. */
+        language: String = "ja",
     ): String = buildString(chapterHtml.length + 4096) {
         val classes = listOf(
             if (options.vertical) "jp-vertical" else "jp-horizontal",
@@ -107,7 +109,7 @@ object JpPageDocument {
             "jp-furi-${options.furigana}",
         ).joinToString(" ")
         appendLine("<!DOCTYPE html>")
-        append("<html lang=\"ja\" class=\"").append(classes).append("\" style=\"")
+        append("<html lang=\"").append(escapeHtml(language)).append("\" class=\"").append(classes).append("\" style=\"")
             .append(escapeHtml(firstPaintStyle(options, look))).appendLine("\">")
         appendLine("<head>")
         appendLine("<meta charset=\"utf-8\">")
