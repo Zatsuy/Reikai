@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.provider.Settings
-import android.webkit.WebStorage
 import android.webkit.WebView
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -74,7 +73,6 @@ import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
-import java.io.File
 
 object SettingsAdvancedScreen : SearchableSettings {
 
@@ -313,8 +311,10 @@ object SettingsAdvancedScreen : SearchableSettings {
                                 clearHistory()
                                 clearSslPreferences()
                             }
-                            WebStorage.getInstance().deleteAllData()
-                            context.applicationInfo?.dataDir?.let { File("$it/app_webview/").deleteRecursively() }
+                            // FORK --> every site's storage but the Yomitan dictionaries (the lookup engine's
+                            // origin), instead of all storage and WebView's whole data directory
+                            jp.reikai.settings.WebViewData.clearKeepingDictionaries()
+                            // FORK <--
                             context.toast(MR.strings.webview_data_deleted)
                         } catch (e: Throwable) {
                             logcat(LogPriority.ERROR, e)
