@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reikai JP's own strings (roadmap 3.4). Plain words for Japanese learners: no Yomitan jargon. -->
+<resources>
+    <!-- The first action in the reader's text-selection toolbar. -->
+    <string name="jp_lookup_action">Look up</string>
+    <!-- The entry in every app's text-selection menu. -->
+    <string name="jp_lookup_in_app">Look up in Reikai JP</string>
+    <string name="jp_dictionary">Dictionary</string>
+    <string name="jp_dictionary_long">Japanese dictionary</string>
+
+    <string name="jp_lookup_off_title">Dictionary lookup is off</string>
+    <string name="jp_lookup_off_body">Turn it on to look up Japanese words while you read and from other apps. It only runs while you use it.</string>
+    <string name="jp_lookup_turn_on">Turn on</string>
+    <string name="jp_lookup_starting">Opening the dictionary…</string>
+    <string name="jp_lookup_failed">The dictionary could not start. Close this and try again.</string>
+
+    <string name="jp_lookup_close">Close</string>
+    <string name="jp_lookup_resize">Drag up or down to resize, or down to close</string>
+
+    <string name="jp_anki_allow">Allow Reikai JP to add cards to AnkiDroid</string>
+    <string name="jp_anki_allow_button">Allow</string>
+    <string name="jp_anki_denied">To add cards, allow AnkiDroid in Reikai JP\'s app settings</string>
+    <string name="jp_anki_open_settings">Open settings</string>
+    <string name="jp_anki_missing">AnkiDroid is not installed, so cards cannot be added.</string>
+    <string name="jp_anki_missing_ok">OK</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The dictionary shortcut's icon, in upstream's shortcut colours (app/src/main/res/values/colors.xml). -->
+    <color name="jp_shortcut_background">#FAFAFA</color>
+    <color name="jp_shortcut_foreground">#0058A0</color>
+</resources>

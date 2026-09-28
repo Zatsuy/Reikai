@@ -1,7 +1,13 @@
 package jp.reikai.reader
 
 import android.annotation.SuppressLint
+import android.app.PendingIntent
 import android.app.RemoteAction
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Looper
 import android.os.SystemClock
@@ -9,27 +15,40 @@ import android.view.MotionEvent
 import android.view.View
 import android.webkit.WebView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
+import eu.kanade.tachiyomi.util.system.isNightMode
 import jp.reikai.di.jpGraph
+import jp.reikai.lookup.LookupSheet
+import jp.reikai.yomitan.R
 import jp.reikai.yomitan.YomitanEngine
+import jp.reikai.yomitan.popup.PopupLookup
 import jp.reikai.yomitan.text.JapaneseText
+import jp.reikai.yomitan.text.TextWindow
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import reikai.novel.source.langCode
 import reikai.presentation.reader.NovelReaderViewModel
+import reikai.presentation.reader.readerBackgroundColorInt
+import reikai.presentation.reader.resolvedForSystemTheme
 import java.lang.ref.WeakReference
 import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Reikai JP's part of one novel reader (one [ReaderActivity]): Japanese text is drawn with Japanese
- * glyphs and long-presses select whole Japanese words ([JpTextClassifier]). Ends with the activity.
+ * glyphs and long-presses select whole Japanese words ([JpTextClassifier]); with lookup on (D-025),
+ * the lookup engine warms up once the first chapter is on screen, "Look up" leads the selection
+ * toolbar and opens the lookup sheet over the reader. Ends with the activity.
  */
 internal class JpReaderSession(
     private val host: ReaderActivity,
@@ -48,13 +67,42 @@ internal class JpReaderSession(
     /** Text views made before the language was known, to be given it. */
     private val waiting = ArrayList<WeakReference<TextView>>()
     private var job: Job? = null
+    private var lookupJob: Job? = null
+    private var lease: YomitanEngine.Lease? = null
+    private var sheet: LookupSheet? = null
+    private var chapterUrl: String? = null
+    private var closed = false
+
+    /** Tells this reader's "Look up" presses from another reader's. */
+    private val id = nextId.incrementAndGet()
+    private val receiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.getIntExtra(EXTRA_SESSION, -1) != id) return
+            val query = intent.getStringExtra(EXTRA_QUERY) ?: return
+            // Already looked up when the press was reported.
+            if (query == pressed && SystemClock.uptimeMillis() - pressedAt < PRESS_MEMORY_MILLIS) return
+            onLookUp(query, intent.getStringExtra(EXTRA_SENTENCE), intent.getIntExtra(EXTRA_OFFSET, 0))
+        }
+    }
+    private var pressed: String? = null
+    private var pressedAt = 0L
 
     fun start() {
         host.lifecycle.addObserver(this)
+        // Keeps "Look up in Reikai JP" in step with the lookup switch (it follows the switch while alive).
+        graph.jpLookup
+        ContextCompat.registerReceiver(
+            host,
+            receiver,
+            IntentFilter(ACTION_LOOK_UP),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         job = host.lifecycleScope.launch {
             val chapter = viewModel.chapter.filterNotNull().first()
             val lang = chapter.sourceId?.let { graph.novelSourceManager.get(it)?.langCode() }
             onLanguage(lang == "ja" || JapaneseText.looksJapanese(chapter.html))
+            // The chapter's web address, for Anki's {url}.
+            viewModel.chapter.collect { loaded -> chapterUrl = loaded?.let { viewModel.webUrlFor(it) } }
         }
     }
 
@@ -87,6 +135,71 @@ internal class JpReaderSession(
         this.japanese = japanese
         if (japanese) waiting.forEach { it.get()?.textLocale = Locale.JAPANESE }
         waiting.clear()
+        if (japanese) {
+            lookupJob = host.lifecycleScope.launch {
+                graph.jpPreferences.lookupEnabled().changes().distinctUntilChanged().collect { on ->
+                    if (on) warmUp() else coolDown()
+                }
+            }
+        }
+    }
+
+    /**
+     * Starts the engine and readies the popup for a Japanese novel, each once the main thread is idle,
+     * so neither delays the chapter.
+     */
+    private fun warmUp() {
+        whenIdle {
+            if (closed || lease != null || !graph.jpLookup.isEnabled) return@whenIdle
+            val engine = graph.yomitanEngine
+            lease = engine.acquire(host) ?: return@whenIdle
+            host.lifecycleScope.launch {
+                if (engine.ready() &&
+                    lease != null
+                ) {
+                    whenIdle { if (!closed && lease != null) sheet().prewarm(isDarkPage()) }
+                }
+            }
+        }
+    }
+
+    private fun coolDown() {
+        sheet?.close()
+        lease?.close()
+        lease = null
+    }
+
+    private fun whenIdle(block: () -> Unit) {
+        Looper.myQueue().addIdleHandler {
+            block()
+            false
+        }
+    }
+
+    private fun sheet(): LookupSheet = sheet ?: LookupSheet(host, graph.jpLookup).also { sheet = it }
+
+    private fun onLookUp(query: String, sentence: String?, offset: Int, askedAt: Long = SystemClock.uptimeMillis()) {
+        if (!graph.jpLookup.isEnabled) return
+        sheet().show(popupLookup(query, sentence, offset), askedAt)
+    }
+
+    private fun popupLookup(query: String, sentence: String?, offset: Int): PopupLookup {
+        val novel = viewModel.entryTitle.value
+        val chapter = viewModel.chapter.value?.title
+        return PopupLookup(
+            query = query,
+            sentence = sentence,
+            offset = offset,
+            documentTitle = listOfNotNull(chapter, novel).joinToString(" - ").ifEmpty { null },
+            url = chapterUrl,
+            dark = isDarkPage(),
+        )
+    }
+
+    /** Whether the reader's page is dark, for Yomitan's "match the page" theme. */
+    private fun isDarkPage(): Boolean {
+        val settings = viewModel.settings.value.resolvedForSystemTheme(host.isNightMode())
+        return ColorUtils.calculateLuminance(readerBackgroundColorInt(settings.backgroundColor)) < DARK_LUMINANCE
     }
 
     // --- JpTextClassifier.Hooks, on the classifier's thread ----------------------------------------
@@ -98,10 +211,47 @@ internal class JpReaderSession(
         return engine.findTerms(text, limit = 1)?.length
     }
 
-    override fun lookupAction(query: String, sentence: JapaneseText.Sentence): RemoteAction? = null
+    override fun lookupAction(query: String, sentence: JapaneseText.Sentence): RemoteAction? {
+        if (closed || !graph.jpPreferences.lookupEnabled().get()) return null
+        // The foreground queue: a background broadcast took 70 ms to arrive on the tablet.
+        val intent = Intent(ACTION_LOOK_UP)
+            .setPackage(host.packageName)
+            .addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+            .putExtra(EXTRA_SESSION, id)
+            .putExtra(EXTRA_QUERY, query)
+            .putExtra(EXTRA_SENTENCE, sentence.text)
+            .putExtra(EXTRA_OFFSET, sentence.offset)
+        val pending = PendingIntent.getBroadcast(
+            host,
+            id,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        // Looked up now, while the toolbar shows, so a press on "Look up" only opens the sheet.
+        host.runOnUiThread { if (!closed) sheet?.preload(popupLookup(query, sentence.text, sentence.offset)) }
+        val title = host.getString(R.string.jp_lookup_action)
+        return RemoteAction(Icon.createWithResource(host, R.drawable.jp_ic_lookup), title, title, pending)
+            .apply { setShouldShowIcon(false) }
+    }
+
+    override fun onLookUpPressed(query: String, sentence: JapaneseText.Sentence) {
+        val at = SystemClock.uptimeMillis()
+        host.runOnUiThread {
+            if (closed) return@runOnUiThread
+            pressed = query
+            pressedAt = at
+            onLookUp(query, sentence.text, sentence.offset, at)
+        }
+    }
 
     fun close() {
+        if (closed) return
+        closed = true
         job?.cancel()
+        lookupJob?.cancel()
+        runCatching { host.unregisterReceiver(receiver) }
+        lease?.close()
+        lease = null
         host.lifecycle.removeObserver(this)
         JpReaderHook.ended(this, host)
     }
@@ -126,12 +276,7 @@ internal class JpReaderSession(
             val source = text ?: return null
             val pressed = offset
             if (pressed < 0 || SystemClock.uptimeMillis() - at > PRESS_MEMORY_MILLIS) return null
-            return (start - 1..end).firstOrNull { candidate ->
-                val shift = pressed - candidate
-                candidate in window.indices && shift >= 0 && shift + window.length <= source.length &&
-                    (maxOf(0, candidate - MATCH_REACH) until minOf(window.length, candidate + MATCH_REACH))
-                        .all { window[it] == source[shift + it] }
-            }
+            return TextWindow.locate(window, start, end, source, pressed)
         }
 
         @SuppressLint("ClickableViewAccessibility")
@@ -193,6 +338,15 @@ internal class JpReaderSession(
     }
 
     private companion object {
+        const val ACTION_LOOK_UP = "jp.reikai.action.READER_LOOK_UP"
+        const val EXTRA_SESSION = "session"
+        const val EXTRA_QUERY = "query"
+        const val EXTRA_SENTENCE = "sentence"
+        const val EXTRA_OFFSET = "offset"
+        const val DARK_LUMINANCE = 0.4
+
+        val nextId = AtomicInteger()
+
         /** Whether a point (view pixels) is left of the page's selection: the finger was on the character before it. */
         const val BEFORE_SELECTION =
             "function (x, y) { const s = getSelection(); if (!s || s.rangeCount === 0) { return false; } " +
@@ -203,8 +357,5 @@ internal class JpReaderSession(
 
         /** A long-press asks its question well within this of the finger going down. */
         const val PRESS_MEMORY_MILLIS = 3_000L
-
-        /** How much text on each side of the pressed character must match to place it. */
-        const val MATCH_REACH = 16
     }
 }

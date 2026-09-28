@@ -93,7 +93,7 @@ class YomitanPopup private constructor(
         } else {
             // First, or in the other theme: the page loads (again) first.
             pending = lookup to token
-            prepare(lookup.dark)
+            prepare(lookup.dark ?: theme)
         }
         return token
     }

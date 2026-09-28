@@ -14,6 +14,34 @@
     </queries>
 
     <application>
+        <!--
+          The lookup screens (roadmap 3.4). Their classes are the app's (jp.reikai.lookup), which reach
+          the app's graph; declared here so upstream's manifest stays untouched.
+        -->
+        <!-- "Look up in Reikai JP" in every app's text-selection menu; switched off with lookup (D-025). -->
+        <activity
+            android:name="jp.reikai.lookup.LookupActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/jp_lookup_in_app"
+            android:taskAffinity=""
+            android:theme="@style/Theme.JpLookup">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+        <!-- The dictionary search screen (the launcher's "Dictionary" shortcut). -->
+        <activity
+            android:name="jp.reikai.lookup.DictionaryActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:label="@string/jp_dictionary_long"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.JpDictionary"
+            android:windowSoftInputMode="adjustResize" />
         <provider
             android:name="jp.reikai.yomitan.anki.AnkiMediaProvider"
             android:authorities="${applicationId}.jp-anki-media"

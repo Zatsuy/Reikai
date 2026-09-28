@@ -53,7 +53,17 @@ internal class JpTextClassifier(
 
         /** The "Look up" action for [query] in [sentence], or null while lookup is off. */
         fun lookupAction(query: String, sentence: JapaneseText.Sentence): RemoteAction?
+
+        /**
+         * "Look up" was pressed: told as the press happens, from the selection's own event, before
+         * its action's broadcast (which takes 60-70 ms more to arrive) is even sent.
+         */
+        fun onLookUpPressed(query: String, sentence: JapaneseText.Sentence)
     }
+
+    /** The lookup the toolbar's first action offers now, if it is "Look up". */
+    @Volatile
+    private var offered: Pair<String, JapaneseText.Sentence>? = null
 
     override fun suggestSelection(request: TextSelection.Request): TextSelection {
         val text = request.text
@@ -82,11 +92,11 @@ internal class JpTextClassifier(
         val start = request.startIndex
         val end = request.endIndex
         val selected = text.subSequence(start, end)
+        offered = null
         if (selected.none { JapaneseText.isWordChar(it.code) }) return base
-        val action = hooks.lookupAction(
-            selected.toString(),
-            JapaneseText.sentenceAround(text, start, end),
-        ) ?: return base
+        val sentence = JapaneseText.sentenceAround(text, start, end)
+        val action = hooks.lookupAction(selected.toString(), sentence) ?: return base
+        offered = selected.toString() to sentence
         return TextClassification.Builder()
             .setText(base.text ?: selected.toString())
             .addAction(action)
@@ -106,7 +116,12 @@ internal class JpTextClassifier(
 
     override fun getMaxGenerateLinksTextLength(): Int = system.maxGenerateLinksTextLength
 
-    override fun onSelectionEvent(event: SelectionEvent) = system.onSelectionEvent(event)
+    override fun onSelectionEvent(event: SelectionEvent) {
+        // The toolbar's first action was pressed, which is "Look up" whenever one is offered.
+        val lookUp = offered.takeIf { event.eventType == SelectionEvent.ACTION_SMART_SHARE }
+        if (lookUp != null) hooks.onLookUpPressed(lookUp.first, lookUp.second)
+        system.onSelectionEvent(event)
+    }
 
     /** The dictionary's longest word at [offset], or null past the time budget or without the engine. */
     private fun dictionaryMatch(text: CharSequence, offset: Int, deadline: Long): Int? {

@@ -25,4 +25,7 @@ class JpPreferences(private val preferenceStore: PreferenceStore) {
 
     /** The local audio database (`android.db`) the user picked, as a document URI; "" when none. */
     fun localAudioUri() = preferenceStore.getString("jp_local_audio_uri", "")
+
+    /** The lookup sheet's height as a share of the window's, as the reader last dragged it. */
+    fun lookupSheetHeight() = preferenceStore.getFloat("jp_lookup_sheet_height", 0.5f)
 }
