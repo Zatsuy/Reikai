@@ -10,8 +10,11 @@
     <string name="jp_reader_japanese">Japanese</string>
     <string name="jp_reader_standard">Standard</string>
 
-    <!-- The Japanese reader's own settings, shown while it is the reader. -->
-    <string name="jp_reader_settings">Japanese reader</string>
+    <!-- The Japanese reader's own settings, shown while it is the reader. They apply to every novel read
+         in it, so the heading says so under "For this series". -->
+    <string name="jp_reader_settings">Japanese reader, all novels</string>
+    <!-- The standard reader's fork settings (status bar, short chapters), which apply to every novel. -->
+    <string name="jp_reader_all_novels">All novels</string>
     <string name="jp_reader_layout">Reading</string>
     <string name="jp_reader_layout_paged">Pages</string>
     <string name="jp_reader_layout_scroll">Scrolling</string>

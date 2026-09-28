@@ -52,7 +52,8 @@ private fun jpReaderMenuAction(): AppBar.OverflowAction? {
 /**
  * The reader settings sheet's rows for the Japanese reader, under "For this series": which reader this
  * novel opens in, and, while it is the Japanese one, its own settings, pages or scrolling first. Both
- * readers end with the status bar and "mark chapters that fit on one screen as read" (4.5).
+ * readers end with the status bar and "mark chapters that fit on one screen as read" (4.5). Everything
+ * after the reader choice applies to every novel, under a heading that says so.
  */
 @Composable
 fun JpReaderSettingsRows(installedFonts: suspend () -> List<NovelFont>) {
@@ -74,8 +75,10 @@ fun JpReaderSettingsRows(installedFonts: suspend () -> List<NovelFont>) {
     }
     val preferences = remember(activity) { activity.jpGraph.jpPreferences }
     if (!current) {
-        // The standard reader's own: its status bar (off by default) and short chapters (shared).
+        // The standard reader's own: its status bar (off by default) and short chapters (shared). Both apply
+        // to every novel, which their heading says, since they sit under upstream's "For this series".
         Column {
+            HeadingItem(stringResource(R.string.jp_reader_all_novels))
             CheckboxItem(stringResource(R.string.jp_reader_status_bar), preferences.standardStatusBar())
             CheckboxItem(stringResource(R.string.jp_reader_short_chapters), preferences.shortChaptersRead())
         }
