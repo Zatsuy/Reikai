@@ -270,6 +270,44 @@ zips, settings JSON) and a blob-download bridge (the stand-in patches blob-downl
 backup: `{version:0, ..., options}`, Yomitan migrates it itself (`backup-controller.js:404-458`);
 dictionaries are re-imported from their zips (a Dexie export of 300 MB is too heavy for a phone).
 
+**As built (2026-09-28, `app/.../jp/reikai/settings/`, `jp-yomitan/.../settings/`):**
+- **Settings, Japanese** (`SettingsJapaneseScreen`, `JapaneseSettingsViewModel`): lookup switch (off
+  mid-run says the memory is freed at the next start: WebView's renderer keeps it), "Open
+  dictionary"; installed dictionaries (`getDictionaryInfo`) and "Get recommended dictionaries";
+  AnkiDroid (install link, Allow with the runtime request, "Open settings" once denied for good);
+  cards; local audio (picker, copy progress, size, remove) and text-to-speech (a switch over
+  `YomitanAudioSources`, the voice's state); "Import your desktop Yomitan settings" and "All Yomitan
+  settings". The screen holds the engine only while visible and reads everything afresh on each
+  return. While lookup is off every other row is greyed out (upstream's rows hide when disabled, so
+  the screen draws its own) with one line saying why. Settings search indexes the rows without
+  starting anything.
+- **Yomitan's own pages** open in `YomitanSettingsActivity` (settings.html, and info or legal pages
+  Yomitan links to). There is no deep link in Yomitan's settings (no hash handling; `<body hidden>`
+  until prepared): the activity waits for the body to show, scrolls to the section's `<h2 id>` and,
+  for "Get recommended dictionaries", clicks Yomitan's own `[data-modal-action="show,recommended-dictionaries"]`,
+  whose list (`data/recommended-dictionaries.json`: Jitendex, JMnedict, KANJIDIC, three frequency
+  lists) imports through "Download" and the engine's proxy with Yomitan's progress bar. Yomitan's
+  "no dictionaries" links (popup, search) open the settings screen, which opens that list when none
+  is installed. File inputs open the system picker (`*/*`: a backup copied to a tablet is not always
+  typed as JSON); a blob download (`backup-controller.js` `_saveBlob`) is sent by the stand-in in
+  512 KB base64 slices (`save` requests, settings pages only) to `YomitanSaves`, then saved through
+  the system's "save as".
+- **Ruling: "Set up cards for Lapis" writes the current profile's first word card format only**
+  (deck, model, fields; Anki on), with Lapis's README markers; MainDefinition is
+  `{single-glossary-<kebab title>}` of Jitendex, else JMdict, else the first enabled word dictionary
+  (`{glossary-first}` with none). Offered only when no card format has a note type and AnkiDroid has
+  one named Lapis. Cost if wrong: other profiles keep no card format.
+- **Ruling: Clear WebView data keeps the engine origin** by deleting every other origin through
+  `WebStorage.getOrigins`/`deleteOrigin` and all cookies, and no longer deletes `app_webview/`
+  (deleting Chromium's files by hand depends on its layout and would take the dictionaries with it).
+  Cost if wrong: storage WebView does not list per origin is no longer cleared.
+- Tripwire: display history and theme, `_saveBlob`, the recommended list and the page markup both
+  hosts find are fingerprinted (`page-elements` surface).
+- **Not yet proven on a device** (the tablet was not connected when this was built): the screen,
+  the section scroll and recommended list, the file picker, the export save, the Lapis card, local
+  audio, Clear WebView data keeping the dictionaries. Mobile defaults for Yomitan's popup
+  (`scanning.enablePopupSearch` and others, set once on a fresh profile) wait for that check.
+
 ## 3.6 Automatic updates
 
 `scripts/fork/yomitan_bump.py` (check, vendor, verify) and `.github/workflows/fork-yomitan-update.yml`
