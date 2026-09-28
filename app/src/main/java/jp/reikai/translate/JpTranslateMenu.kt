@@ -15,9 +15,11 @@ import jp.reikai.di.jpGraph
 import jp.reikai.reader.JpReaderHook
 import jp.reikai.yomitan.R
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import reikai.presentation.reader.NovelReaderViewModel
+import reikai.presentation.reader.ReaderLoadState
 import tachiyomi.core.common.util.system.logcat
 
 /**
@@ -30,12 +32,13 @@ fun jpTranslateMenuAction(): AppBar.OverflowAction? {
     val activity = LocalActivity.current ?: return null
     val control = remember(activity) { ChapterTranslationControl.of(activity) } ?: return null
     val chapter by control.viewModel.chapter.collectAsState()
-    val shown by control.session.shown.collectAsState()
     val busy by control.session.busy.collectAsState()
-    val id = chapter?.chapterId ?: return null
+    val open = chapter ?: return null
     return when {
-        busy == id -> AppBar.OverflowAction(title = stringResource(R.string.jp_translate_busy), onClick = {})
-        id in shown -> AppBar.OverflowAction(
+        busy == open.chapterId -> AppBar.OverflowAction(title = stringResource(R.string.jp_translate_busy), onClick = {
+        })
+        // What is on screen decides, not what the session asked for: a reload can still be on its way.
+        ChapterTranslator.languageOf(open.html) != null -> AppBar.OverflowAction(
             title = stringResource(R.string.jp_translate_original),
             onClick = control::showOriginal,
         )
@@ -64,14 +67,17 @@ internal class ChapterTranslationControl(
     fun translate() {
         val chapter = viewModel.chapter.value ?: return
         val id = chapter.chapterId
+        // A translation on screen is never sent as a chapter's text.
+        if (ChapterTranslator.languageOf(chapter.html) != null) return
         if (!session.busy.compareAndSet(null, id)) return
         progress = toast(context.getString(R.string.jp_translate_started), Toast.LENGTH_SHORT)
         viewModel.viewModelScope.launch {
             try {
                 val key = translations.translate(id, chapter.html)
-                val stillOpen = viewModel.chapter.value?.chapterId == id
-                session.show(id, key, (chapter.html to chapter.baseUrl).takeIf { stillOpen })
-                if (stillOpen) reopen(id)
+                // The reader moved on: the translation is saved, and shown at once when asked for again.
+                if (viewModel.chapter.value?.chapterId != id) return@launch
+                session.show(id, key, chapter.html to chapter.baseUrl)
+                reopen(id)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -89,10 +95,19 @@ internal class ChapterTranslationControl(
     fun showOriginal() {
         val id = viewModel.chapter.value?.chapterId ?: return
         session.hide(id, reuseOriginal = true)
-        reopen(id)
+        viewModel.viewModelScope.launch { reopen(id) }
     }
 
-    private fun reopen(id: Long) {
+    /**
+     * Opens chapter [id] again once no load is running (upstream's reload leaves a running load alone,
+     * which would leave the menu's choice unshown), unless the reader has moved on by then.
+     */
+    private suspend fun reopen(id: Long) {
+        viewModel.loadState.first { it != ReaderLoadState.Loading }
+        if (viewModel.chapter.value?.chapterId != id) {
+            session.forgetOriginal(id)
+            return
+        }
         viewModel.reportTopLine(id, null)
         viewModel.reloadChapter(fromSource = false)
     }

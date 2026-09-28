@@ -81,6 +81,16 @@ class TranslationEnginesTest {
     }
 
     @Test
+    fun `google answering three lines as two asks again in halves`() = runTest {
+        answer(200, """[[["One. Two.\n","一。二。\n"],["Three.","三。"]]]""")
+        answer(200, """[[["One.","一。"]]]""")
+        answer(200, """[[["Two.\n","二。\n"],["Three.","三。"]]]""")
+        GoogleTranslateEngine(client).translate(listOf("一。", "二。", "三。"), "ja", "en") shouldContainExactly
+            listOf("One.", "Two.", "Three.")
+        requests.size shouldBe 3
+    }
+
+    @Test
     fun `google refusing is an error, never the source text`() = runTest {
         answer(429, "<html>Too Many Requests</html>")
         val failure = shouldThrow<TranslationFailure> {
@@ -187,6 +197,18 @@ class TranslationEnginesTest {
         val out = ai().translate(listOf("彼は書いた。", "彼女は言った。"), "ja", "en")
         out shouldContainExactly listOf("He wrote.", "She said.")
         requests.size shouldBe 3
+    }
+
+    @Test
+    fun `an ai answer with no text is an error, and one paragraph answered in two parts is joined`() = runTest {
+        answer(
+            200,
+            """{"choices":[{"message":{"role":"assistant","content":null},"finish_reason":"content_filter"}]}""",
+        )
+        shouldThrow<TranslationFailure> { ai().translate(listOf("文"), "ja", "en") }.message shouldBe
+            "Gemini: empty answer"
+        answer(200, chat("""["He ran.", "It rained."]"""))
+        ai().translate(listOf("彼は走った。雨だった。"), "ja", "en") shouldContainExactly listOf("He ran. It rained.")
     }
 
     @Test

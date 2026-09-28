@@ -94,6 +94,11 @@ class TranslationSession internal constructor(
         shownState.update { it + (chapterId to key) }
     }
 
+    /** The next load of [chapterId] runs upstream's loader after all (the reopen it was kept for did not happen). */
+    internal fun forgetOriginal(chapterId: Long) {
+        reuse.remove(chapterId)
+    }
+
     /** [chapterId] shown as its source has it from its next load, which takes the original kept for it. */
     internal fun hide(chapterId: Long, reuseOriginal: Boolean = false) {
         shownState.update { it - chapterId }

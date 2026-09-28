@@ -82,10 +82,8 @@ class OpenAiTranslateEngine(
         val parsed = parseArray(content)
         if (parsed != null && parsed.size == texts.size) return parsed
         if (texts.size == 1) {
-            return listOf(
-                parsed?.singleOrNull() ?: unfence(content).trim().takeIf { it.isNotEmpty() }
-                    ?: throw TranslationFailure("$name: empty answer"),
-            )
+            val one = parsed?.joinToString(" ") ?: unfence(content)
+            return listOf(one.trim().takeIf { it.isNotEmpty() } ?: throw TranslationFailure("$name: empty answer"))
         }
         val half = texts.size / 2
         return inParts(url, texts.subList(0, half), system) + inParts(url, texts.subList(half, texts.size), system)
@@ -153,8 +151,10 @@ Rules:
         /** The model's text in a chat answer. */
         fun reply(body: String, service: String): String = runCatching {
             val choice = json.parseToJsonElement(body).jsonObject.getValue("choices").jsonArray[0].jsonObject
-            choice.getValue("message").jsonObject.getValue("content").jsonPrimitive.content
+            choice.getValue("message").jsonObject["content"]?.jsonPrimitive?.contentOrNull
         }.getOrElse { throw TranslationFailure("$service: unexpected answer") }
+            // No text: a refusal by the service's filter, or a model that ran out of room.
+            ?: throw TranslationFailure("$service: empty answer")
 
         /** The texts of a JSON array somewhere in [content] (a model may fence it or talk around it). */
         fun parseArray(content: String): List<String>? {

@@ -10,8 +10,8 @@
  * Licensed under the Apache License, Version 2.0 (LICENSES/Apache-2.0.txt).
  *
  * Modified for Reikai JP: no TKK token and only the translation (`dt=t`) asked for; the texts of a
- * batch go as lines of one request; a refused request is an error instead of the source text passed
- * off as its translation.
+ * batch go as lines of one request (asked again in halves when the lines do not match); a refused
+ * request is an error instead of the source text passed off as its translation.
  */
 package jp.reikai.translate
 
@@ -26,8 +26,7 @@ import okhttp3.Request
 
 /**
  * Google Translate through the endpoint its web widgets use (`client=gtx`): no key, the default engine.
- * A batch goes as one text of lines; should Google join or split a line, each text of that batch goes
- * again on its own.
+ * A batch goes as one text of lines; should Google join or split a line, the batch goes again in halves.
  */
 class GoogleTranslateEngine(private val client: OkHttpClient) : TranslationEngine {
 
@@ -41,7 +40,10 @@ class GoogleTranslateEngine(private val client: OkHttpClient) : TranslationEngin
         val lines = request(texts.joinToString("\n"), source, target).split('\n').map(String::trim)
         if (lines.size == texts.size) return lines
         if (texts.size == 1) return listOf(lines.joinToString(" ").trim())
-        return texts.map { request(it, source, target).replace('\n', ' ').trim() }
+        // Asked again in halves rather than text by text, which could be a hundred quick requests.
+        val half = texts.size / 2
+        return translate(texts.subList(0, half), source, target) +
+            translate(texts.subList(half, texts.size), source, target)
     }
 
     private suspend fun request(text: String, source: String, target: String): String {

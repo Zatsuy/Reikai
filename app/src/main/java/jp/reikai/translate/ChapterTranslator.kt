@@ -13,9 +13,10 @@ import java.util.IdentityHashMap
  * A chapter's translation in place (4.5, phase 4 ruling 15), on the markup the reader's content
  * pipeline produced: readings (`rt`, `rp`) go, the text is cut into paragraphs where the markup breaks
  * it (block elements and `br`), each paragraph goes to the engine, and each translation goes back
- * where its paragraph was, so pictures, links and the chapter's structure stay. Elements holding a
- * translation get the target language as `lang`, and the document starts with a marker naming it
- * ([languageOf]), which the Japanese reader reads to lay a translation out horizontally.
+ * where its paragraph was, so pictures, links and the chapter's structure stay. Every translation
+ * sits in an element with the target language as `lang` (so a Japanese chapter beside it in one page
+ * keeps `ja`), and the document starts with a marker naming it ([languageOf]), which the Japanese
+ * reader reads to lay a translation out horizontally.
  */
 object ChapterTranslator {
 
@@ -92,10 +93,18 @@ object ChapterTranslator {
         prepared.segments.forEachIndexed { i, segment ->
             val translation = translations[i].trim()
             if (translation.isEmpty()) return@forEachIndexed
-            replace(segment, translation)
-            touched.add(segment.container)
+            // Text straight in the body gets an element to carry its language.
+            val span = if (segment.container ===
+                body
+            ) {
+                Element("span").attr("lang", language).text(translation)
+            } else {
+                null
+            }
+            replace(segment, span ?: TextNode(translation))
+            if (span == null) touched.add(segment.container)
         }
-        touched.forEach { if (it !== body) it.attr("lang", language) }
+        touched.forEach { it.attr("lang", language) }
         return marker(language) + body.html()
     }
 
@@ -162,10 +171,10 @@ object ChapterTranslator {
     private val WHITESPACE = Regex("[\\s ]+")
 
     /**
-     * [translation] where [segment]'s nodes were. Pictures and other media inside them stay: those
+     * [translation] (its text, or a span holding it) where [segment]'s nodes were. Pictures and other media inside them stay: those
      * before the paragraph's first text before the translation, the others after it.
      */
-    private fun replace(segment: Segment, translation: String) {
+    private fun replace(segment: Segment, translation: Node) {
         val before = ArrayList<Element>()
         val after = ArrayList<Element>()
         var seenText = false
@@ -175,14 +184,20 @@ object ChapterTranslator {
                 continue
             }
             val element = node as? Element ?: continue
-            val media = if (element.normalName() in MEDIA) listOf(element) else element.select(MEDIA_SELECTOR).toList()
+            val media = if (element.normalName() in
+                MEDIA
+            ) {
+                listOf(element)
+            } else {
+                outermost(element.select(MEDIA_SELECTOR))
+            }
             (if (seenText) after else before).addAll(media)
             if (element.hasText()) seenText = true
         }
         val kept: MutableSet<Node> = Collections.newSetFromMap(IdentityHashMap())
         kept.addAll(before)
         kept.addAll(after)
-        val text = TextNode(translation)
+        val text = translation
         segment.nodes.first().before(text)
         before.forEach { text.before(it) }
         var last: Node = text
@@ -191,6 +206,13 @@ object ChapterTranslator {
             last = it
         }
         segment.nodes.forEach { if (it !in kept && it.parentNode() != null) it.remove() }
+    }
+
+    /** A `picture` and not also its own `img`, which would be pulled out of it. */
+    private fun outermost(found: List<Element>): List<Element> {
+        val set: MutableSet<Element> = Collections.newSetFromMap(IdentityHashMap())
+        set.addAll(found)
+        return found.filter { element -> element.parents().none { it in set } }
     }
 
     /** Never text to translate: code, forms, scripts and their like. */

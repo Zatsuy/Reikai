@@ -61,6 +61,13 @@ class ChapterTranslatorTest {
     }
 
     @Test
+    fun `a picture element keeps its own img, and text straight in the body carries the language`() {
+        val out = translateAll("""<p>前<a href="x"><picture><source srcset="d.webp"><img src="d.png"></picture></a>後</p>本文""")
+        out shouldContain """<picture><source srcset="d.webp"><img src="d.png"></picture>"""
+        out shouldContain """<span lang="en">T(本文)</span>"""
+    }
+
+    @Test
     fun `a picture inside a link inside the paragraph stays`() {
         val out = translateAll("""<p>前<a href="x"><img src="c.png"></a>後</p>""")
         out shouldContain """<img src="c.png">"""

@@ -14,7 +14,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import jp.reikai.reader.page.JpPageViewport
-import jp.reikai.translate.ChapterTranslator
 import jp.reikai.yomitan.text.JapaneseText
 import kotlinx.coroutines.flow.StateFlow
 import reikai.presentation.reader.NovelReaderViewModel
@@ -96,12 +95,12 @@ object JpReaderHook {
 
     /**
      * The WebView document's opening tag (`NovelWebDocument.build`, off the main thread):
-     * `lang="ja"` for Japanese, so a device in another language never draws Chinese glyph forms; a
-     * chapter shown translated (4.5) carries the language it was translated into.
+     * `lang="ja"` for Japanese, so a device in another language never draws Chinese glyph forms. A
+     * chapter shown translated (4.5) carries its language on its own elements, since the page can hold
+     * Japanese chapters beside it.
      */
     @JvmStatic
     fun htmlTag(context: Context, chapterHtml: String): String {
-        ChapterTranslator.languageOf(chapterHtml)?.let { return "<html lang=\"$it\">" }
         val japanese = sessionOf(context)?.japanese == true || JapaneseText.looksJapanese(chapterHtml)
         return if (japanese) "<html lang=\"ja\">" else "<html>"
     }
