@@ -13,10 +13,14 @@ import androidx.sqlite.driver.bundled.SQLITE_OPEN_URI
 import jp.reikai.yomitan.LocalResponse
 import jp.reikai.yomitan.LocalRoute
 import jp.reikai.yomitan.LocalServer
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -67,6 +71,7 @@ class LocalAudio(
     }
 
     private val app = context.applicationContext
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutex = Mutex()
     private var db: Database? = null
     private val statusFlow = MutableStateFlow(if (savedUri().isEmpty()) Status.None else Status.Closed)
@@ -97,6 +102,21 @@ class LocalAudio(
             openLocked()
             statusFlow.value
         }
+    }
+
+    /**
+     * [setDatabase] in the background, so copying several GB goes on when the screen that picked the
+     * file closes; follow it through [status].
+     */
+    fun pick(uri: Uri): Job = scope.launch { setDatabase(uri) }
+
+    /** The database's size in bytes (the app's copy, or the picked file), or null when none or unknown. */
+    suspend fun size(): Long? = withContext(Dispatchers.IO) {
+        copyFile().takeIf { it.isFile }?.length()
+            ?: savedUri().takeIf { it.isNotEmpty() }?.let { uri ->
+                runCatching { app.contentResolver.openFileDescriptor(Uri.parse(uri), "r")?.use { it.statSize } }
+                    .getOrNull()?.takeIf { it >= 0 }
+            }
     }
 
     /** Forgets the database, and the app's copy of it if there is one. */

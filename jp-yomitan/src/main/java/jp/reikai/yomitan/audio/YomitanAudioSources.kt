@@ -61,6 +61,18 @@ object YomitanAudioSources {
         return targets.size
     }
 
+    /** Which of Reikai JP's sources the current profile lists: (local audio, text-to-speech). */
+    suspend fun listed(engine: YomitanEngine): Pair<Boolean, Boolean> = listed(engine.api("optionsGetFull").jsonObject)
+
+    internal fun listed(options: JsonObject): Pair<Boolean, Boolean> {
+        val index = (options["profileCurrent"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
+        val sources = options["profiles"]?.jsonArray?.getOrNull(index)?.jsonObject?.get("options")?.jsonObject
+            ?.get("audio")?.jsonObject?.get("sources")?.jsonArray.orEmpty().map { it.jsonObject }
+        val local = source("custom-json", LocalAudio.SOURCE_URL)
+        val tts = source("custom", TtsAudio.SOURCE_URL)
+        return sources.any { it.sameAs(local) } to sources.any { it.sameAs(tts) }
+    }
+
     /** One profile's source list with Reikai JP's sources added or removed. */
     internal fun sources(
         current: List<JsonObject>,

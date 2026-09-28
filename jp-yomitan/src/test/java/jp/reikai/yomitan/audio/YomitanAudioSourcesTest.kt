@@ -1,6 +1,7 @@
 package jp.reikai.yomitan.audio
 
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -59,5 +60,19 @@ class YomitanAudioSourcesTest {
             japaneseDefaults = true,
         )
             .types().shouldContainExactly("custom")
+    }
+
+    @Test
+    fun `the current profile's listed sources are read`() {
+        val options = kotlinx.serialization.json.Json.parseToJsonElement(
+            """
+            {"profileCurrent": 1, "profiles": [
+              {"options": {"audio": {"sources": []}}},
+              {"options": {"audio": {"sources": [$tts, ${source("jpod101")}]}}}
+            ]}
+            """.trimIndent(),
+        ) as JsonObject
+
+        YomitanAudioSources.listed(options) shouldBe (false to true)
     }
 }

@@ -51,6 +51,29 @@ class AnkiAccess(context: Context) {
         }
     }
 
+    /** A note type in AnkiDroid's collection, with its fields in order. */
+    data class NoteType(val name: String, val fields: List<String>)
+
+    /**
+     * AnkiDroid's decks, by name, sorted; empty unless [status] is [Status.READY]. Blocking: call it
+     * off the main thread (the Japanese settings' deck choice, 3.5).
+     */
+    fun deckNames(): List<String> = readCollection { ContentAnkiDroid(app).decks().map { it.name }.sorted() }
+
+    /** AnkiDroid's note types; empty unless [status] is [Status.READY]. Blocking, like [deckNames]. */
+    fun noteTypes(): List<NoteType> = readCollection {
+        ContentAnkiDroid(app).models().map { NoteType(it.name, it.fields) }
+    }
+
+    private fun <T> readCollection(read: () -> List<T>): List<T> {
+        if (status() != Status.READY) return emptyList()
+        return try {
+            read()
+        } catch (e: SecurityException) {
+            emptyList()
+        }
+    }
+
     internal fun refused(status: Status, action: String) {
         refusalFlow.tryEmit(Refusal(status, action))
     }
