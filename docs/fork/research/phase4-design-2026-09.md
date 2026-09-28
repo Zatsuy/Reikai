@@ -378,3 +378,105 @@ and `jp/reikai/settings/JpStatisticsScreen.kt`; strings in
   unread to read with progress 100 % 1.5 s later. `:app:assembleNightly` (R8) builds. Not checked:
   an import into ttu itself (the zip follows ttu's `backup-handler.ts`, which skips a title's missing
   book data and stores its statistics by folder name), and the phone.
+
+## As built: translation
+
+Fork code in `app/src/main/java/jp/reikai/translate/` and `jp/reikai/settings/TranslationSettings.kt`;
+strings in `jp-yomitan/src/main/res/values/jp_translate_strings.xml`. The three engine files keep
+Tsundoku's Apache-2.0 notice and say what was modified.
+
+- **Engines** (`TranslationEngine`: texts in, as many out, or `TranslationFailure` with the service's
+  words; never the source text as a translation): `GoogleTranslateEngine` posts a batch as lines of one
+  `q` to `translate.googleapis.com/translate_a/single?client=gtx&sl=..&tl=..&dt=t` (no key, no token;
+  at most 100 texts, 3,500 characters; a batch whose lines come back joined or split goes again in
+  halves, down to single texts). `DeepLTranslateEngine`: repeated `text` fields, at most 50 and 10,000 characters (DeepL's
+  128 KiB, nine bytes a form-encoded Japanese character), `api-free` for keys ending `:fx`, targets
+  `EN-US`, `PT-BR`, `ZH-HANS`/`ZH-HANT`; DeepL's message and what 403, 429 and 456 mean.
+  `OpenAiTranslateEngine`: `<address>/chat/completions` with `model` and two messages only (no
+  temperature or token limit, which newer models refuse), the paragraphs as a JSON array, Tsundoku's
+  novel prompt reworded for an array; an answer that is not an array of as many strings is asked again
+  in halves down to one paragraph (one paragraph answered in parts is joined; an answer with no text, as
+  a content filter gives, is an error). Presets (`AiPreset`) fill the address and a model: OpenAI
+  (`gpt-4.1-mini`), Gemini's `/v1beta/openai/` (`gemini-2.5-flash`), DeepSeek (`deepseek-chat`),
+  OpenRouter, Ollama `http://localhost:11434/v1/` (no key sent when blank), Other. Error bodies in
+  OpenAI's `{"error":{"message"}}` and Gemini's list form are both read (both checked against the live
+  services with a bad key). One OkHttp client from the network helper without cookies, cache or the
+  Cloudflare interceptor, read timeout 2 min.
+- **Translator** (`ChapterTranslator`): parses the pipeline's output, drops `rt`/`rp`, and cuts the text
+  into paragraphs: runs of text and inline elements, cut at `br` and at block children (which hold
+  their own); scripts, styles, `pre`, SVG and form controls are left alone; blank runs are skipped.
+  Each translation replaces its run's nodes where they were; pictures inside the run stay (before the
+  translation if they came before its text, else after; a `picture` with its own `img`). Elements
+  holding a translation get `lang` (text straight in the body a `<span lang>`), so a Japanese chapter
+  beside it in the standard WebView reader's page keeps the page's `ja`; the page starts
+  `<!--reikai-translation:<lang>-->`. A batch answered with another count fails the
+  whole translation; a blank answer for one paragraph leaves it as it was. Source language `ja` when
+  the text looks Japanese, else `auto`; target the device's language, English on a Japanese device,
+  or the one set.
+- **Cache** (`TranslationCache`): `filesDir/jp_translations/<chapterId>/<lang>-<engine>-<hash>.json`,
+  the paragraphs' translations as a JSON array, the hash over the paragraphs' text (SHA-256, 16 hex).
+  Paragraphs rather than a finished `.html` page (the plan's wording): the Japanese reader and the
+  standard reader's two modes each get the chapter in their own markup from the pipeline, and the
+  same paragraphs go back into whichever one opens it, so a chapter translated in one reader opens
+  translated in the other without a new request. A new text's translation by the same engine and
+  language replaces the old file; the AI engine's id carries a hash of address and model, so another
+  model is another translation. Settings has "Delete saved translations".
+- **The seam** (one line in `NovelReaderViewModel.loadChapterHtml`): `JpTranslateHook.load(viewModel,
+  chapterId, fromSource) { upstream's loader }`. A session (keyed weakly by the reader model, so
+  "shown translated" lasts as long as the reading session) exists once the menu has been composed;
+  without one the loader runs as upstream's. For a chapter shown translated the loader's output goes
+  through the cache; a miss (the chapter's text changed) gives the original and drops the chapter from
+  "shown translated". The translate tap and "Show original" hand the next load the original the
+  reader already has (`reuse`), so neither fetches the chapter again (and "Show original" works
+  offline); "Reload from source" never takes it.
+- **Menu:** the top bar's fork seam line now adds a list (`jpReaderMenuActions`): "Translate chapter" /
+  "Translating…" / "Show original" for `viewModel.chapter`, decided by what is on screen (the marker in
+  its HTML), then the reader switch. A translation on screen is never sent as a source. A tap toasts
+  "Translating the chapter…", translates in the model's scope (a rotation does not stop it); if the
+  reader moved on meanwhile, the translation is only saved; else it waits out a load in flight
+  (upstream's reload leaves one alone), reports no top line (the original's line is elsewhere in the
+  translation, so the reopen lands by percent) and calls `reloadChapter(false)`. Errors are a long toast "Translation failed. <service>:
+  <message>", with the progress toast cancelled first (queued behind it, the error showed late and
+  briefly on the tablet); a missing key, address or model says where to set it. Nothing is sent before
+  the tap.
+- **Japanese reader:** a translated document (the marker) gets `lang` of its language, horizontal
+  text when that is not Japanese (the reader's other settings kept; `isRtl`, tap zones and the intro
+  follow), no Yomitan scanner (a tap on text opens the menu), no stored character place (it lands by
+  percent) and no statistics (`PageReport.translated`, counted as incognito; the tracker now starts
+  afresh after an uncounted page, so the original read after a translation counts from where it lands;
+  it also no longer counts the rest of an incognito chapter's last page on leaving it).
+  "Show original" after a look that did not move (the translation's reports kept the percent it first
+  reported) lands on the original's stored character: by percent it landed on the page holding that
+  percent, a page earlier (seen on the tablet: 1,141 of 2,180 back to 720). The standard WebView
+  reader's `<html>` tag is unchanged (`ja` for a Japanese novel); the translation's own elements carry
+  its language.
+  The standard WebView reader's `<html>` tag carries the translation's language (`JpReaderHook.htmlTag`).
+- **Settings:** Settings, Japanese, Translation: a note that the chapter's text goes to the chosen
+  service, Service (Google, DeepL, AI service), Translate into (device language or one of 19), and for
+  DeepL its key, for an AI service the preset, address, model and a key per preset. Keys are
+  `Preference.privateKey("jp_translate_...")` (`__PRIVATE_jp_translate_deepl_key` on the device), left
+  out of backups, shown only as "Key set", typed in a secure field, and removable ("Remove key":
+  upstream's text row refuses an empty value).
+- **Seams:** 51 in 28 files (one new line in `loadChapterHtml`; the top bar line changed in place).
+- **Checked:** JVM tests (43 new: paragraphs, readings dropped, pictures kept, lang and marker, count
+  mismatch, batches, the same hash across markups; each engine's request and answer against a stand-in
+  client, refusals, no connection, halves, an empty AI answer; the cache, reuse, reload from source, a changed text; the
+  tracker after an uncounted page); breaking the `rt` removal, the picture keeping, the count check,
+  the swap, Google's error path or halves, the `picture` rule, the empty-answer check or the tracker
+  change fails them. A review (fresh reviewer) found the menu could follow the session rather than the
+  page, a Japanese chapter next to a translation losing `ja`, and the AI and Google fallbacks above; all
+  fixed before the last tablet run: chapter 7 in the Japanese reader from the paragraphs the native
+  reader had saved (no request), chapter 9 over the network (1.6 and 1.4 s) with every text paragraph
+  carrying `lang="en"`, horizontal, no scanner, then "Show original" back to vertical. Upstream's 537 reader tests pass.
+  Tablet (SM-X520, Kakuyomu novel, Google, 2026-09-28): chapter 5 in the Japanese reader (vertical,
+  1,141 / 2,180, 52 %) translated in two requests (1.7 and 1.3 s), laid out horizontally at 51 % on the
+  same passage, `lang="en"`, no scanner, no `rt`, the marker in the page (DevTools); "Show original"
+  back to vertical at 1,141 / 2,180; the translation again from the cache with no request. The
+  standard reader's native mode showed the same chapter translated from the Japanese reader's saved
+  paragraphs (no request), chapter 7 translated over the network (1.5 and 1.6 s, readings gone), the
+  WebView mode showed it from the cache after the mode change. Airplane mode: "Translation failed.
+  Google Translate: Unable to resolve host ..." and the original stayed, nothing saved; a bad DeepL key:
+  "DeepL: HTTP 403: the key was not accepted: Forbidden. ..." The verbose network log redacts
+  `Authorization`, the only place a key goes. Not checked: DeepL or an AI service with a real key
+  (their error shapes were checked live with bad keys), the phone, a chapter with pictures on the
+  device (JVM only), landing after reading on in a translation.
