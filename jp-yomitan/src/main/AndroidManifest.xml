@@ -33,13 +33,18 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
-        <!-- The dictionary search screen (the launcher's "Dictionary" shortcut). -->
+        <!--
+          The dictionary search screen (the "Dictionary" shortcut on the home screen). A task of its
+          own when started as one (a launcher starts a shortcut with NEW_TASK, and may add CLEAR_TASK),
+          so it never replaces an open reader; from the app's own screens it opens over them.
+        -->
         <activity
             android:name="jp.reikai.lookup.DictionaryActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:exported="false"
             android:label="@string/jp_dictionary_long"
             android:launchMode="singleTop"
+            android:taskAffinity="${applicationId}.dictionary"
             android:theme="@style/Theme.JpDictionary"
             android:windowSoftInputMode="adjustResize" />
         <!-- Yomitan's own settings and other pages (roadmap 3.5), opened from the Japanese settings. -->

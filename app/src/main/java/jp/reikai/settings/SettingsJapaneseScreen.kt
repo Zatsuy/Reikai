@@ -48,6 +48,7 @@ import eu.kanade.presentation.more.settings.screen.LocalSettingsIndexing
 import eu.kanade.presentation.more.settings.screen.SearchableSettings
 import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
 import jp.reikai.di.jpGraph
+import jp.reikai.lookup.DictionaryShortcut
 import jp.reikai.settings.JapaneseSettingsViewModel.Cards
 import jp.reikai.yomitan.R
 import jp.reikai.yomitan.anki.AnkiAccess
@@ -210,6 +211,15 @@ object SettingsJapaneseScreen : SearchableSettings {
                     subtitle = stringResource(R.string.jp_settings_open_dictionary_summary),
                     enabled = on,
                 ) { context.open(context.jpGraph.jpLookup.searchIntent(context)) },
+                if (remember { DictionaryShortcut.canPin(context) }) {
+                    row(
+                        title = stringResource(R.string.jp_settings_pin_dictionary),
+                        subtitle = stringResource(R.string.jp_settings_pin_dictionary_summary),
+                        enabled = on,
+                    ) { DictionaryShortcut.pin(context) }
+                } else {
+                    null
+                },
                 state.engineFailed?.takeIf { on }?.let {
                     Preference.PreferenceItem.InfoPreference(stringResource(R.string.jp_settings_engine_failed, it))
                 },
