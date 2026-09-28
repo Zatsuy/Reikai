@@ -263,6 +263,15 @@ Fork code in `app/src/main/java/jp/reikai/reader/page/` and `jp/reikai/data/`; s
   message parsing and the percent rule, the document's shape and cleaning, the database, and the
   session registry (77 tests). Not yet seen on a device: the page in the reader, landing, paging and
   scrolling in both directions, switching, the intro dialog, read-aloud and fonts.
+- **After the review of 2026-09-28:** the step back lands at the end only of the chapter it opens
+  (`onStepChapter` answers the neighbour it steps to, null when there is none; a failed load ends the
+  step); a WebView without web message listeners is decided standard in `JpReaderModes` itself; a lost
+  renderer rebuilds the Activity (twice within a minute closes the reader); lookup switched on or off
+  in an open chapter opens its document again with or without the scanner (a page whose lookup
+  bridges were removed under it ended the app natively on its next message, seen on the tablet); the
+  chapter's links are made absolute against its web address, and a link into the reader's origin is
+  never opened outside; "Hide chapter title" leaves out the heading; the vertical intro's flag is set
+  only when it shows; `JpPageHook`'s switch map lets go of a destroyed Activity.
 
 ## As built: 4.3 (tap to look up)
 
@@ -360,7 +369,8 @@ and `jp/reikai/settings/JpStatisticsScreen.kt`; strings in
   change re-lays out in place), or with the bar off the height of upstream's readout when that is on
   (a 16 sp line and its outline). Horizontal scroll mode, whose text scrolls under the bottom, paints
   that strip in the page colour (`--jp-inset-bottom`). The standard reader keeps no space: there the
-  bar is opt-in and text scrolls under it.
+  bar is opt-in and see-through, its text outlined in the page colour as upstream's readout is, without
+  the title while that readout shows, so the last line and upstream's bottom overlays stay visible.
 - **Short chapters (ruling 14):** one seam, in `NovelReaderViewModel.reportFitsOnScreen`, hands every
   report to `JpReaderHook.chapterFits` with a finisher calling upstream's own
   `persistProgress(id, 100)`, the path a forward step from a chapter that fits already takes
@@ -403,7 +413,9 @@ Tsundoku's Apache-2.0 notice and say what was modified.
   in halves down to one paragraph (one paragraph answered in parts is joined; an answer with no text, as
   a content filter gives, is an error). Presets (`AiPreset`) fill the address and a model: OpenAI
   (`gpt-4.1-mini`), Gemini's `/v1beta/openai/` (`gemini-2.5-flash`), DeepSeek (`deepseek-chat`),
-  OpenRouter, Ollama `http://localhost:11434/v1/` (no key sent when blank), Other. Error bodies in
+  OpenRouter, Ollama `http://localhost:11434/v1/` (no key sent when blank), Other. Plain http is
+  refused (a setup message asking for https) unless the host is this device or the home network:
+  loopback, 10/8, 172.16/12, 192.168/16, link-local, IPv6 fc00::/7, `localhost`, `*.local`. Error bodies in
   OpenAI's `{"error":{"message"}}` and Gemini's list form are both read (both checked against the live
   services with a bad key). One OkHttp client from the network helper without cookies, cache or the
   Cloudflare interceptor, read timeout 2 min.
@@ -496,12 +508,15 @@ notice and says what was modified (Tsundoku is already credited in `LICENSES/Rea
   navigator's top screen is a `NovelScreen` (nothing on a manga's). The tap finds the novel by
   `sourceId` and `novelUrl`; with no chapter downloaded it says so in a toast and asks for no file,
   else `CreateDocument("application/epub+zip")` offers `<title>.epub`, takes a persistable permission
-  (as a backup's location does) and queues `NovelEpubJob`.
+  (as a backup's location does) and queues `NovelEpubJob`, which releases it again when the export
+  fails or writes nothing, and on success keeps it for the newest book only (`jp_export_last_book`),
+  so the notification still opens it.
 - **Job** (`NovelEpubJob`, a `CoroutineWorker`, unique work `jp_epub_export` appended, so two books are
   never written at once): foreground on upstream's common channel with "Chapter N of M" and Cancel
   (ids -9401, -9402); then "EPUB saved: <title>" with "N chapters exported, M not downloaded were
-  skipped" (the second half only when something was), and a tap opens the book (`ACTION_VIEW`). An
-  export with nothing in it, a failure or a cancel deletes the picked file.
+  skipped" (the second half only when something was), and a tap opens the book (`ACTION_VIEW`); with
+  notifications off, blocked or refused, the same result as a long toast. The file is opened truncated
+  (`"wt"`). An export with nothing in it, a failure or a cancel deletes the picked file.
 - **Chapters** (`NovelEpubExport`): the ones the screen lists, in reading order: the novel's own by
   `sourceOrder`, a merged novel's whole group as its stitch orders them; user-hidden chapters left out.
   Each chapter's text from `NovelDownloadManager.getChapterText` (built on first use), through
