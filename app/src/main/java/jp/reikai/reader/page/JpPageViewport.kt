@@ -253,6 +253,7 @@ class JpPageViewport internal constructor(
                 )
             },
             document = { id -> served?.takeIf { it.first == id }?.second },
+            documentUrl = { served?.first?.let(JpPageDocument::url) },
             fontManager = fontManager,
             fonts = { servedFonts },
             extra = { requestInterceptor },
@@ -371,7 +372,7 @@ class JpPageViewport internal constructor(
             val hidden = isIncognito(chapter.sourceId)
             val fonts = fontFiles(current.font)
             withContext(Dispatchers.Default) {
-                val html = webImages.rewrite(JpPageDocument.cleanChapter(chapter.html), baseUrl, chapter.sourceId)
+                val html = webImages.rewrite(JpPageDocument.cleanChapter(chapter.html, baseUrl), baseUrl, chapter.sourceId)
                 val init = JpPageDocument.init(
                     chapterId = chapter.chapterId,
                     charOffset = stored?.takeIf { backFromPeek || it.percent == chapter.progressPercent }?.charOffset,

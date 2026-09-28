@@ -100,6 +100,26 @@ class JpPageDocumentTest {
     }
 
     @Test
+    fun `a relative link points at the chapter's own site, a jump within the chapter stays`() {
+        val cleaned = JpPageDocument.cleanChapter(
+            """<p><a href="notes.html#n1">注</a><a href="/works/2">次</a><a href="#n2">＊</a><a href="">空</a></p>""",
+            baseUrl = "https://kakuyomu.jp/works/1/episodes/7",
+        )
+        cleaned shouldBe """<p><a href="https://kakuyomu.jp/works/1/episodes/notes.html#n1">注</a>""" +
+            """<a href="https://kakuyomu.jp/works/2">次</a><a href="#n2">＊</a><a href="">空</a></p>"""
+    }
+
+    @Test
+    fun `a link into the reader's own origin is never opened outside the page`() {
+        val document = JpPageDocument.url("7-2")
+        JpPageClient.isOwnOrigin("https://chapter.reikai.invalid/chapter/notes.html") shouldBe true
+        JpPageClient.isOwnOrigin("https://kakuyomu.jp/works/2") shouldBe false
+        JpPageClient.staysInDocument("$document#n1", document) shouldBe true
+        JpPageClient.staysInDocument("https://chapter.reikai.invalid/chapter/notes.html", document) shouldBe false
+        JpPageClient.staysInDocument(document, document) shouldBe false
+    }
+
+    @Test
     fun `ruby survives cleaning`() {
         JpPageDocument.cleanChapter("<p><ruby>漢字<rt>かんじ</rt></ruby></p>") shouldBe "<p><ruby>漢字<rt>かんじ</rt></ruby></p>"
     }

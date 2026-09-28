@@ -68,10 +68,13 @@ object JpPageDocument {
      * written back balanced (a stray end tag or an unclosed element would otherwise swallow the page
      * script that follows it), with every script and scripting attribute gone whatever the reader's
      * "keep embedded scripts" setting says, since the Japanese reader never runs a chapter's code.
+     * A link relative to the chapter's page is made absolute against [baseUrl] (its web address), as its
+     * pictures are, rather than resolving against this reader's private origin, which is no address
+     * anywhere; a jump within the chapter (`#…`) stays as it is.
      * Off the main thread: it is proportional to the chapter.
      */
-    fun cleanChapter(html: String): String {
-        val document = runCatching { Jsoup.parseBodyFragment(html) }.getOrNull()
+    fun cleanChapter(html: String, baseUrl: String? = null): String {
+        val document = runCatching { Jsoup.parseBodyFragment(html, baseUrl.orEmpty()) }.getOrNull()
             ?: return "<pre>" + escapeHtml(html) + "</pre>"
         document.outputSettings().prettyPrint(false)
         document.select(DROPPED).remove()
@@ -79,6 +82,14 @@ object JpPageDocument {
             element.attributes().map { it.key }
                 .filter { it.startsWith("on", ignoreCase = true) }
                 .forEach(element::removeAttr)
+        }
+        if (baseUrl != null) {
+            document.select("a[href]").forEach { link ->
+                val href = link.attr("href").trim()
+                if (href.isEmpty() || href.startsWith("#")) return@forEach
+                val absolute = link.absUrl("href")
+                if (absolute.startsWith("http://") || absolute.startsWith("https://")) link.attr("href", absolute)
+            }
         }
         return document.body().html()
     }

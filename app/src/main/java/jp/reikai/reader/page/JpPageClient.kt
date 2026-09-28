@@ -13,19 +13,23 @@ import tachiyomi.core.common.util.system.logcat
 import java.io.ByteArrayInputStream
 import java.io.FileInputStream
 import java.io.InputStream
+import java.net.URI
 
 /**
  * Serves the Japanese reader's origin (`https://chapter.reikai.invalid`): the chapter document, the
  * page script and stylesheet from `assets/jp-reader/`, and the fonts the reader added. Pictures and
  * links go through upstream's [NovelChapterNavigationClient] (pictures fetched with the source's own
- * client, a tapped link opened in the browser, every other navigation refused). Anything else is
- * refused here rather than fetched: the page never reaches the network itself.
+ * client, a tapped link opened in the browser, every other navigation refused), except a link into
+ * this origin, which is never opened outside it. Anything else is refused here rather than fetched:
+ * the page never reaches the network itself.
  */
 internal class JpPageClient(
     private val context: Context,
     private val upstream: NovelChapterNavigationClient,
     /** The document for a path's id, or null for one this viewport no longer serves. */
     private val document: (documentId: String) -> String?,
+    /** The address of the document on screen, whose own fragments are the only links kept in the page. */
+    private val documentUrl: () -> String?,
     private val fontManager: NovelFontManager,
     /** Font files the current document declares; only those are served. */
     private val fonts: () -> Set<String>,
@@ -53,8 +57,11 @@ internal class JpPageClient(
         return refused(FORBIDDEN)
     }
 
-    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-        upstream.shouldOverrideUrlLoading(view, request)
+    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+        val url = request.url.toString()
+        if (isOwnOrigin(url)) return !staysInDocument(url, documentUrl())
+        return upstream.shouldOverrideUrlLoading(view, request)
+    }
 
     private fun serveDocument(id: String): WebResourceResponse {
         val html = document(id) ?: return refused(NOT_FOUND)
@@ -125,7 +132,19 @@ internal class JpPageClient(
         else -> null
     }
 
-    private companion object {
+    internal companion object {
+        /**
+         * Whether [url] is this reader's private origin, which is no address anywhere else: a link there (a
+         * relative one the chapter was built without a web address for) is never opened in the browser.
+         */
+        fun isOwnOrigin(url: String): Boolean =
+            runCatching { URI(url).let { it.scheme == "https" && it.host == JpPageDocument.HOST } }.getOrDefault(false)
+
+        /** A jump within the document on screen ([documentUrl] plus a fragment), the only link kept in the page. */
+        fun staysInDocument(url: String, documentUrl: String?): Boolean =
+            NovelChapterNavigationClient.decide(url, documentUrl, hasGesture = true) ==
+                NovelChapterNavigationClient.Decision.ALLOW
+
         const val OK = 200
         const val FORBIDDEN = 403
         const val NOT_FOUND = 404
