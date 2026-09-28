@@ -193,3 +193,65 @@ counted in code points; an `img` whose class contains `gaiji` counts 1.
 Chapter open not slower than upstream's WebView mode on the tablet; a page turn inside one frame;
 re-layout after a settings change under 300 ms for a 20 000-character chapter on the tablet; tap
 to popup as Phase 3 (p95 under 150-200 ms).
+
+## As built: 4.1 and 4.2 (Kotlin)
+
+Fork code in `app/src/main/java/jp/reikai/reader/page/` and `jp/reikai/data/`; strings in
+`jp-yomitan/src/main/res/values/jp_reader_strings.xml`.
+
+- **Viewport** `JpPageViewport`: one chapter per document at
+  `https://chapter.reikai.invalid/chapter/<chapterId>-<n>`, served with the page assets and the
+  reader's added fonts (`/font/<file>`, only those the document declares) by `JpPageClient`, which
+  hands pictures and links to upstream's `NovelChapterNavigationClient` and refuses every other
+  request. CSP header: scripts from `'self'` and Yomitan's origin only, inline styles allowed, no
+  eval. The chapter's markup is re-parsed and loses every script, handler and embedding element
+  (`JpPageDocument.cleanChapter`), whatever "keep embedded scripts" says. Page messages come through
+  `addWebMessageListener("jpReader")`, main frame of the chapter origin only; `pos` before `ready`
+  of the current document is ignored, and a `chapterId` field, if the page ever sends one, must
+  match.
+- **Upstream's callbacks:** every `pos` goes to `saveProgress` as a whole percent (0 when the
+  chapter fits on one page, 100 once its end is on screen, else the character share capped at 99,
+  as upstream's scroll reports), `reportTopLine(null)` (so a switch back lands at the percent),
+  `reportFitsOnScreen` on change, `reportChapterEndSeen` once. `edge` steps the chapter through the
+  engine (one step until the reader moves again); a step back opens the previous chapter on its last
+  page. `tap`: with "Tap on text: Look up" it opens the menu; with "Turn pages" upstream's tap zones
+  decide, mirrored left to right for vertical text (`JpTapLayout`). Volume keys turn pages.
+- **Position** (ruling 7): `JpChapterPositions` over `JpReaderDatabase` (`jp_reader.db`, plain SQL
+  on the bundled SQLite; version 1 = `chapter_position(chapter_id, char_offset, chars, percent,
+  updated_at)`; 4.4 adds version 2). A chapter lands at the stored character when the stored
+  `percent` equals the percent upstream opens it at, else at upstream's percent (so a place the
+  standard reader, a mark-as-read or another device moved since is not trusted). Incognito stores
+  nothing.
+- **Which reader** (`JpReaderModes`, decided once per reading session, keyed by the novel the
+  session opened): the novel's choice in `viewer_flags` bits `0x300` (`JpReaderChoice`, written by
+  `SetJpReaderChoice`), else Japanese for a source whose language is `ja`, standard for another
+  specific language, and for a source that is not one language (`all`, unknown, local) whatever
+  `JapaneseText.looksJapanese` says of the first chapter loaded. The source language is read
+  without loading plugins (the seen-source record, else an app source). The viewport, the chapter
+  pipeline and the model's window read the same answer.
+- **Why a holder** (`JpReaderSwitch`): `createViewport` runs synchronously in `onCreate`, before the
+  novel row is read, so the provider gets a placeholder that builds the real viewport (the
+  Japanese one, or upstream's own through the provider's `createViewport`) once the answer is
+  known: from the row a few milliseconds later off the main thread, or from the first chapter's
+  text. A rebuild around a live session builds at once. The built view goes into the reader's
+  container beside the placeholder, not inside it, because upstream's viewports lift the
+  container's focus block from their direct parent (text selection).
+- **Switching:** "Switch to Japanese reader" / "Switch to standard reader" in the top bar's
+  overflow menu, and "Reader: Japanese / Standard" under "For this series" in the settings sheet,
+  followed there (Japanese reader only) by Reading (Pages / Scrolling), Text direction, Furigana,
+  Japanese font and Tap on text. A switch updates the session at once, bumps a counter the chapter
+  pipeline watches (so the chapter is prepared again for the other reader), writes the flags and
+  rebuilds the Activity, as upstream's rendering-mode change does. The first time the Japanese
+  reader lands in vertical text, a one-time dialog (`jp_reader_intro_shown`) offers horizontal.
+- **Seams (9 in 5 files):** `NovelReaderProvider.attach` (the holder), `NovelChapterTextLoader`
+  (the WebView form for the Japanese reader; the switch counter in `settingsChanged` and its
+  snapshot), `NovelReaderViewModel` (binding the session's loader to its novel; `windowedReading`
+  off for the Japanese reader, which is how seamless chapters stay off: the model then behaves as
+  with the setting off), `NovelReaderSettingsPages` (the rows), `ReaderTopBar` (the menu item).
+- **Hooks for 4.3:** `JpPageViewport.listeners` (`onDocumentStart(webView, chapterId)` before each
+  load, `onReady`, `onTouch`) and `requestInterceptor` (answers the page's requests first, e.g.
+  Yomitan's origin); `JpReaderSession.onPageViewport` receives each new page viewport.
+- **Checked on the JVM only:** flag bits, the decision table, settings JSON and zone mirroring,
+  message parsing and the percent rule, the document's shape and cleaning, the database, and the
+  session registry (77 tests). Not yet seen on a device: the page in the reader, landing, paging and
+  scrolling in both directions, switching, the intro dialog, read-aloud and fonts.
