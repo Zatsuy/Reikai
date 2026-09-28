@@ -318,6 +318,30 @@
     }
   }
 
+  // How far into the chapter its own title is looked for, in characters other than white space.
+  var OWN_TITLE_SPAN = 300;
+  // A title's parts, as sources join a part's name and the episode's: "第一部 - 第1話：…".
+  var TITLE_PARTS = /\s+[-‐–—―|｜]\s+/;
+
+  /*
+   * Most sources open a chapter with its own heading, which the app's title heading would repeat, so
+   * that one goes when the chapter's opening already carries the title (its last part, the episode's
+   * name, when the source joins several). A chapter without one keeps it.
+   */
+  function dropRepeatedTitle() {
+    var heading = chapter.querySelector('.jp-title');
+    if (!heading) return;
+    var squeeze = function (text) { return (text || '').replace(/\s+/g, ''); };
+    var parts = (heading.textContent || '').split(TITLE_PARTS);
+    var title = squeeze(parts[parts.length - 1]);
+    if (Array.from(title).length < 2) return;
+    var opening = '';
+    for (var node = heading.nextSibling; node && opening.length < OWN_TITLE_SPAN; node = node.nextSibling) {
+      opening += squeeze(node.textContent);
+    }
+    if (opening.slice(0, OWN_TITLE_SPAN).indexOf(title) >= 0) heading.remove();
+  }
+
   function ensureViewportMeta() {
     if (document.querySelector('meta[name="viewport"]')) return;
     var meta = document.createElement('meta');
@@ -1309,6 +1333,7 @@
     ensureViewportMeta();
     applyClasses();
     applyVars();
+    dropRepeatedTitle();
     wrapTateChuYoko();
     buildUnits();
     if (init.charOffset !== null && init.charOffset !== undefined && isFinite(Number(init.charOffset))) {

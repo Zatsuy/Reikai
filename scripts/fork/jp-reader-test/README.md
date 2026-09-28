@@ -48,7 +48,8 @@ PLAYWRIGHT_BROWSERS_PATH=build/ms-playwright \
 - **Read-aloud**: `paragraphs()` equals upstream's rule; `highlight` marks and turns to a paragraph
   or part of one; `firstVisibleParagraph`.
 - **Typography**: upright one- and two-digit runs and `!!` `!?` `?!` in vertical text only;
-  `line-break: strict`.
+  `line-break: strict`; emphasis (`em`) as sesame dots, not italic; the title heading dropped when
+  the chapter opens with its own title, kept otherwise.
 - **Timing**: re-layout of the 20 000-character chapter after a font-size change (fails over
   300 ms) and `turn()` at a reader's pace (fails over a frame), printed at the end.
 - **Hygiene**: no page errors, no CSP violations (one test uses a policy with no inline styles at

@@ -67,6 +67,14 @@ html.jp-vertical .jp-tcy {
   -webkit-text-combine: horizontal;
 }
 
+/* Emphasis as Japanese print sets it, sesame dots beside the characters (傍点, what Kakuyomu's
+   emphasisDots mean), never slanted: a Japanese face has no italic, so the browser only skews it. */
+#jp-chapter em {
+  font-style: normal;
+  -webkit-text-emphasis: filled sesame;
+  text-emphasis: filled sesame;
+}
+
 /* A chapter's own columns or orphan rules would break the one-column-a-page count. */
 body,
 body * {

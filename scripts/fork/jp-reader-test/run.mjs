@@ -158,14 +158,15 @@ const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.l
 const allMessages = [];
 const pageErrors = [];
 
+// chapterKey names a chapter of CHAPTERS, or is a chapter itself ({id, html}) for a one-off document.
 async function open(context, chapterKey, {settings = {}, charOffset = null, fraction = 0, strict = false, script = true} = {}) {
-    const chapter = CHAPTERS[chapterKey];
+    const chapter = typeof chapterKey === 'string' ? CHAPTERS[chapterKey] : chapterKey;
     const s = settingsWith(settings);
     const path = `/chapter/${nextDoc++}`;
     const html = chapterDocument(chapter, {charOffset, fraction, settings: s}, {inlineStyles: !strict, script});
     docs.set(path, {html, csp: strict ? STRICT_CSP : CSP});
     const page = await context.newPage();
-    page.on('pageerror', (error) => pageErrors.push(`${chapterKey}: ${error.message}`));
+    page.on('pageerror', (error) => pageErrors.push(`${chapter.id}: ${error.message}`));
     if (SLOWDOWN > 1) {
         const cdp = await context.newCDPSession(page);
         await cdp.send('Emulation.setCPUThrottlingRate', {rate: SLOWDOWN});
@@ -840,6 +841,38 @@ async function typographyTests(context, vp) {
         const texts = await long.page.evaluate(() => [...new Set([...document.querySelectorAll('.jp-tcy')].map((e) => e.textContent))].sort());
         same(texts, ['!!', '!?', '12', '3', '7', '?!'], 'wrapped runs in the long chapter');
         await close(long.page);
+    });
+
+    await test(`${vp.name} the title heading is not repeated when the chapter opens with its own`, async () => {
+        // As Kakuyomu's chapters come: the part and the episode as headings, the title joining both.
+        const own = {id: 9101, html: '<h1 class="jp-title">第一部 - 第1話：港の朝</h1>\n' +
+            '<div>\n  <p>第一部</p>\n  <h2>第1話：港の朝</h2>\n</div>\n<p>船が港に着いた。</p>'};
+        let {page, ready} = await open(context, own);
+        same(await page.evaluate(() => document.querySelectorAll('.jp-title').length), 0, 'the added title goes');
+        same(ready.pos.chars, await page.evaluate(() => ttuRef.countNodes(document.getElementById('jp-chapter'))),
+            'counted without it');
+        same((await page.evaluate(() => JpReader.paragraphs())).slice(0, 2), ['第一部', '第1話：港の朝'], 'read aloud without it');
+        await close(page);
+        for (const [id, html, why] of [
+            [9102, '<h1 class="jp-title">第2話：雨</h1>\n<p>雨が降った。港の朝は静かだった。</p>', 'a chapter without its own title'],
+            [9103, '<h1 class="jp-title">雨</h1>\n<p>雨が降った。</p>', 'a title too short to tell'],
+        ]) {
+            ({page} = await open(context, {id, html}));
+            same(await page.evaluate(() => document.querySelectorAll('.jp-title').length), 1, `kept for ${why}`);
+            await close(page);
+        }
+    });
+
+    await test(`${vp.name} emphasis as sesame dots, never slanted`, async () => {
+        const {page} = await open(context, {id: 9104, html: '<h1 class="jp-title">強調</h1>\n' +
+            '<p>これは<em class="emphasisDots"><span>大</span><span>事</span></em>だ。</p>'});
+        const style = await page.evaluate(() => {
+            const cs = getComputedStyle(document.querySelector('#jp-chapter em'));
+            return {fontStyle: cs.fontStyle, emphasis: cs.textEmphasisStyle};
+        });
+        same(style.fontStyle, 'normal', 'not italic');
+        check(style.emphasis.includes('sesame'), `sesame dots: ${style.emphasis}`);
+        await close(page);
     });
 
     await test(`${vp.name} strict Content-Security-Policy: no inline style needed`, async () => {
