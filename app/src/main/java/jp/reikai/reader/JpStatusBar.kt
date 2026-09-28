@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.util.system.isNightMode
@@ -53,7 +54,8 @@ import kotlin.math.max
  * [JpPreferences.standardStatusBar]).
  *
  * Cheap by design: one View drawing three prepared strings, redrawn only when one changes; the clock
- * ticks once a minute, the battery comes from its sticky broadcast, and nothing runs while it is hidden.
+ * ticks once a minute, the battery comes from its sticky broadcast, and nothing runs while it is hidden
+ * or the reader is in the background.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 internal class JpStatusBar(
@@ -118,11 +120,13 @@ internal class JpStatusBar(
                 false -> preferences.standardStatusBar().changes().map { if (it) false else null }
             }
         }
-        job = combine(enabled, host.menuVisibility) { which, menu -> which to menu }
+        // Shown only while the reader is started: the clock and the battery receiver stop in the background.
+        val started = host.lifecycle.currentStateFlow.map { it.isAtLeast(Lifecycle.State.STARTED) }
+        job = combine(enabled, host.menuVisibility, started) { which, menu, visible -> Triple(which, menu, visible) }
             .distinctUntilChanged()
-            .onEach { (which, menu) ->
+            .onEach { (which, menu, visible) ->
                 japanese = which == true
-                show(which != null && !menu)
+                show(which != null && !menu && visible)
             }
             .launchIn(host.lifecycleScope)
         viewModel.chapter.onEach { bar.setTitle(it?.title.orEmpty()) }.launchIn(host.lifecycleScope)

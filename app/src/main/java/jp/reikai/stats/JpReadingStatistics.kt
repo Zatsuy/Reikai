@@ -31,25 +31,30 @@ class JpReadingStatistics(private val database: () -> JpReaderDatabase) {
     private val writeLock = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** Every day read of [title], by day, the unwritten ones included. */
+    /**
+     * Every day read of [title], by day, the unwritten ones included. The unwritten ones are taken
+     * first: a flush writes a row before it lets go of it, so a row missing from this copy is already
+     * in the database, and one in both is at least as new here.
+     */
     suspend fun forTitle(title: String): List<StatisticRow> {
+        val newer = unwritten.values.filter { it.statistic.title == title }
         val stored = withContext(Dispatchers.IO) {
             runCatching { database().statistics(title) }
                 .onFailure { logcat(LogPriority.WARN, it) { "Could not read reading statistics" } }
                 .getOrDefault(emptyList())
         }
-        val newer = unwritten.values.filter { it.statistic.title == title }
         return overlay(stored.filter { it.statistic.title == title }, newer)
     }
 
-    /** Every day read of every novel, the unwritten ones included. */
+    /** Every day read of every novel, the unwritten ones included (taken first, as in [forTitle]). */
     suspend fun all(): List<StatisticRow> {
+        val newer = unwritten.values.toList()
         val stored = withContext(Dispatchers.IO) {
             runCatching { database().allStatistics() }
                 .onFailure { logcat(LogPriority.WARN, it) { "Could not read reading statistics" } }
                 .getOrDefault(emptyList())
         }
-        return overlay(stored, unwritten.values.toList())
+        return overlay(stored, newer)
     }
 
     /** Remembers [rows] now and writes them at once, off the main thread; the latest per title and day wins. */
