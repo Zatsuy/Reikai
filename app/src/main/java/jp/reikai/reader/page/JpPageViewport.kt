@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
@@ -86,7 +87,10 @@ class JpPageViewport internal constructor(
      *  to the standard reader lands at the percent rather than at a line that reader saw before. */
     private val onTopLine: (chapterId: Long, line: Int?) -> Unit,
     private val onToggleMenu: () -> Unit,
-    private val onStepChapter: (forward: Boolean) -> Unit,
+    /** Steps to the next or previous chapter; the chapter it steps to, or null when there is none that way. */
+    private val onStepChapter: (forward: Boolean) -> Long?,
+    /** A chapter the model was asked to open failed to load (the reader goes on in the one it had). */
+    loadFailures: Flow<Unit>,
     /** The cutout inset in dp, which the page's CSS pixels are. */
     private val cutoutTopDp: () -> Int,
     private val onChapterFits: (chapterId: Long, fits: Boolean) -> Unit,
@@ -202,13 +206,17 @@ class JpPageViewport internal constructor(
 
     /**
      * An edge step asked for and not answered yet, so a second swipe steps no further. Cleared by the
-     * next document, or by the reader moving within this one (there was no chapter to step to).
+     * next document, by the reader moving within this one, and by the step's chapter failing to load.
      */
     private var stepping = false
 
-    /** The next chapter opens on its last page: the reader turned back past this one's first. Cleared
-     *  the same way, so a back swipe on the first chapter never sends a later chapter to its end. */
-    private var landAtEnd = false
+    /**
+     * The chapter a step back is opening, which lands on its last page: the reader turned back past this
+     * one's first. Only that chapter lands there, and only from this step: cleared the same way, and never
+     * set when there was no chapter before (so a back swipe on the first chapter sends no later one to its
+     * end).
+     */
+    private var landAtEnd: Long? = null
 
     @Volatile
     private var served: Pair<String, String>? = null
@@ -312,6 +320,13 @@ class JpPageViewport internal constructor(
                 pushAutoScroll()
             }
             .launchIn(scope)
+        // The step's chapter did not open: the reader is still here, and a page turn past the edge asks again.
+        loadFailures.onEach { endStep() }.launchIn(scope)
+    }
+
+    private fun endStep() {
+        stepping = false
+        landAtEnd = null
     }
 
     override val view: View get() = webView
@@ -363,11 +378,10 @@ class JpPageViewport internal constructor(
      * the chapter when that place is the one upstream last heard of, else at upstream's percent.
      */
     override suspend fun load(chapter: NovelReaderViewModel.LoadedChapter, settings: NovelReaderSettings) {
-        val atEnd = landAtEnd && chapter.chapterId != chapterId
-        landAtEnd = false
+        val atEnd = landAtEnd == chapter.chapterId
+        endStep()
         dropPendingCalls()
         ready = false
-        stepping = false
         fitsReported = null
         endReported = false
         storedPercent = null
@@ -511,16 +525,16 @@ class JpPageViewport internal constructor(
             }
             is JpPageMessage.Position -> {
                 if (!ready) return
-                stepping = false
-                landAtEnd = false
+                endStep()
                 onPosition(id, message.pos, live = message.live)
             }
             is JpPageMessage.Tap -> if (ready) onTap(message)
             is JpPageMessage.Edge -> {
                 if (!ready || stepping) return
+                // No chapter that way (the first one's start, the last one's end): nothing asked, nothing kept.
+                val target = onStepChapter(message.forward) ?: return
                 stepping = true
-                landAtEnd = !message.forward
-                onStepChapter(message.forward)
+                landAtEnd = if (message.forward) null else target
             }
             JpPageMessage.Touch -> listeners.forEach { it.onTouch() }
         }
@@ -633,10 +647,13 @@ class JpPageViewport internal constructor(
 
     override fun evict(chapterId: Long) = Unit
 
+    // A chapter at an edge that failed to load ends a step toward it, so the next page turn asks again.
     override fun setBoundaryFailures(
         previous: NovelReaderViewModel.BoundaryFailure?,
         next: NovelReaderViewModel.BoundaryFailure?,
-    ) = Unit
+    ) {
+        if (stepping && (previous != null || next != null)) endStep()
+    }
 
     // --- Read aloud -------------------------------------------------------------------------------
 

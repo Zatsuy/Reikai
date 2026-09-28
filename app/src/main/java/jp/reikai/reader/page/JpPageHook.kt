@@ -9,7 +9,9 @@ import jp.reikai.di.JpGraph
 import jp.reikai.reader.JpReaderHook
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import mihon.core.metro.GraphProvider
 import reikai.domain.novel.NovelPreferences
 import reikai.domain.novel.model.NovelChapter
@@ -18,6 +20,7 @@ import reikai.novel.content.RenderTarget
 import reikai.novel.font.NovelFontManager
 import reikai.novel.network.NovelImageRequests
 import reikai.presentation.reader.NovelReaderViewModel
+import reikai.presentation.reader.ReaderLoadState
 import reikai.presentation.reader.ReaderViewport
 import java.util.WeakHashMap
 
@@ -104,8 +107,12 @@ object JpPageHook {
                     onTopLine = viewModel::reportTopLine,
                     onToggleMenu = host::toggleMenu,
                     onStepChapter = { forward ->
-                        if (forward) host.engine.nextChapter() else host.engine.previousChapter()
+                        val neighbours = viewModel.chapterNeighbours.value
+                        (if (forward) neighbours.next else neighbours.previous)?.also {
+                            if (forward) host.engine.nextChapter() else host.engine.previousChapter()
+                        }
                     },
+                    loadFailures = viewModel.loadState.filterIsInstance<ReaderLoadState.Failed>().map { },
                     cutoutTopDp = host::displayCutoutTopDp,
                     onChapterFits = viewModel::reportFitsOnScreen,
                     onChapterEndSeen = viewModel::reportChapterEndSeen,
