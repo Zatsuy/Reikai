@@ -480,3 +480,66 @@ Tsundoku's Apache-2.0 notice and say what was modified.
   `Authorization`, the only place a key goes. Not checked: DeepL or an AI service with a real key
   (their error shapes were checked live with bad keys), the phone, a chapter with pictures on the
   device (JVM only), landing after reading on in a translation.
+
+## As built: EPUB export
+
+Fork code in `app/src/main/java/jp/reikai/export/`; strings in
+`jp-yomitan/src/main/res/values/jp_export_strings.xml`. `EpubWriter.kt` keeps Tsundoku's Apache-2.0
+notice and says what was modified (Tsundoku is already credited in `LICENSES/Reader-NOTICE.md`).
+
+- **Menu** (`JpNovelMenu`, one line at the end of `EntryToolbar`'s overflow): "Export as EPUB" when the
+  navigator's top screen is a `NovelScreen` (nothing on a manga's). The tap finds the novel by
+  `sourceId` and `novelUrl`; with no chapter downloaded it says so in a toast and asks for no file,
+  else `CreateDocument("application/epub+zip")` offers `<title>.epub`, takes a persistable permission
+  (as a backup's location does) and queues `NovelEpubJob`.
+- **Job** (`NovelEpubJob`, a `CoroutineWorker`, unique work `jp_epub_export` appended, so two books are
+  never written at once): foreground on upstream's common channel with "Chapter N of M" and Cancel
+  (ids -9401, -9402); then "EPUB saved: <title>" with "N chapters exported, M not downloaded were
+  skipped" (the second half only when something was), and a tap opens the book (`ACTION_VIEW`). An
+  export with nothing in it, a failure or a cancel deletes the picked file.
+- **Chapters** (`NovelEpubExport`): the ones the screen lists, in reading order: the novel's own by
+  `sourceOrder`, a merged novel's whole group as its stitch orders them; user-hidden chapters left out.
+  Each chapter's text from `NovelDownloadManager.getChapterText` (built on first use), through
+  `NovelContentPipeline` with the reader's settings (replacement rules, hide title, block media) and
+  the WebView target, but without the page's own CSS and scripts; a plain-text chapter through
+  `plainTextToHtml`. A chapter with no download is counted as skipped.
+- **Details**: title, author and artist, description and genres after the owner's edits
+  (`withCustomInfo`). Language: the plugin's recorded language, else an app source's, else the loaded
+  plugin's; a multi-language or unknown source by the first downloaded chapter's text (`ja` when it
+  looks Japanese, else `und`). Cover: the owner's own cover file, else the library cover cache, else
+  through Coil as a JPEG (1600 px); the plugins' "no cover" picture is no cover.
+- **Book** (`EpubWriter`, streamed a chapter at a time): `mimetype` first and stored with no extra
+  field, `META-INF/container.xml`, `OEBPS/content.opf` (EPUB 3; `dc:identifier` a name-based
+  `urn:uuid` of source and URL, so every export of a novel has the same one; `dcterms:modified`;
+  EPUB 2 `meta name="cover"` and `guide`), `nav.xhtml` (toc, hidden landmarks; "目次" for Japanese),
+  `toc.ncx`, `styles/book.css`, `cover.xhtml` first in the spine, `chapterNNNN.xhtml`,
+  `images/`. Every page has the book's language as `lang` and `xml:lang`. Chapters are serialised by
+  Jsoup as XML (void elements closed, entities numeric, characters XML forbids dropped); scripts,
+  styles, frames, players, SVG and MathML are dropped, prefixed names no namespace declares (Word's
+  `o:p`, `foo:bar`) unwrapped or dropped, links kept only to the web or within the page. `data:`
+  pictures become `images/<sha256-16>.<ext>`, each written once, typed by their first bytes (JPEG,
+  PNG, GIF, WebP); other formats (AVIF, BMP) go through Android's decoder to JPEG or are left out;
+  pictures on the web are left out. A chapter that opens with a heading of its own (Kakuyomu's part
+  and episode titles) gets no second title. Japanese: `writing-mode: vertical-rl` (with the `-epub-`
+  and `-webkit-` names), `page-progression-direction="rtl"`, `primary-writing-mode`, paragraphs
+  unspaced and emphasis as sesame dots, as the Japanese reader sets them.
+- **Seams:** 52 in 29 files (the `EntryToolbar` line).
+- **Checked:** JVM tests (26, `EpubWriterTest`): the zip header (stored `mimetype` at offset 30, no
+  extra field), container, package details and language, `rtl` and vertical CSS for `ja` and neither
+  for `en`, cover item and spine, every document through a strict namespace-aware parser, `lang` and
+  `xml:lang`, a chapter's text and readings kept and its bad names, entities, control characters,
+  handlers and relative links gone, a title with markup and a line break, pictures written once,
+  remote ones dropped, the converter, navigation and NCX order, a stable identifier, the skip count
+  and progress, the own-heading rule. Breaking the stored `mimetype`, the XML syntax, the `rtl`
+  direction, the stable identifier, the skip count, the prefix unwrap, the remote-picture removal or
+  the heading rule fails them. Tablet (SM-X520, debug build, 2026-09-28, Kakuyomu novel of 33
+  chapters, chapters 1 to 3 downloaded, a test cover set as the novel's own): with nothing
+  downloaded the menu said so; then the picker offered `<title>.epub` in Downloads, the book was
+  there 4 s after Save; with notifications allowed (granted for the test, taken back after) the
+  result read "3 chapters exported, 30 not downloaded were skipped" and its tap offered the installed
+  EPUB readers; ReadEra showed the cover, then chapter 1
+  vertically with the source's own heading once. The pulled file: `mimetype` stored first with no
+  extra field, every document parsed by `xmllint`, `dc:language` `ja`, spine `rtl`, cover first, the
+  same `dc:identifier` on two exports. `epubcheck` is not installed and was not run. Not checked on
+  the device: a chapter with pictures (none in these chapters; JVM only), a merged novel, Cancel, a
+  non-Japanese novel, the phone.
