@@ -1,10 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- FORK: Reikai JP's Yomitan spike (roadmap 2.1) adds cards through AnkiDroid's content provider -->
-    <uses-permission android:name="com.ichi2.anki.permission.READ_WRITE_DATABASE" />
-    <!-- FORK: and must see AnkiDroid to reach that provider -->
-    <queries><package android:name="com.ichi2.anki" /></queries>
-
     <application>
         <!--
           A bare WebView host for instrumented tests, in the debug variant rather than the test APK
@@ -15,8 +10,8 @@
         <activity
             android:name="reikai.presentation.reader.WebViewHostActivity"
             android:exported="false" />
-        <!-- FORK: the Yomitan spike screen; only adb (which holds DUMP) may start it, not other apps -->
-        <activity android:name="jp.reikai.yomitan.spike.YomitanSpikeActivity" android:exported="true" android:permission="android.permission.DUMP" android:launchMode="singleTop" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode" />
+        <!-- FORK: the Yomitan engine check (roadmap 3.1); only adb (which holds DUMP) may start it, not other apps -->
+        <activity android:name="jp.reikai.yomitan.check.EngineCheckActivity" android:exported="true" android:permission="android.permission.DUMP" android:launchMode="singleTop" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode" />
     </application>
 
 </manifest>
