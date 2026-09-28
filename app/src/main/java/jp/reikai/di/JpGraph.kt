@@ -1,6 +1,10 @@
 package jp.reikai.di
 
 import android.content.Context
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteDatabaseType
+import com.eygraber.sqldelight.androidx.driver.AndroidxSqliteDriver
+import com.eygraber.sqldelight.androidx.driver.FileProvider
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
@@ -9,6 +13,8 @@ import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import jp.reikai.JpPreferences
+import jp.reikai.data.JpChapterPositions
+import jp.reikai.data.JpReaderDatabase
 import jp.reikai.lookup.JpLookup
 import jp.reikai.lookup.JpPageOpener
 import jp.reikai.lookup.PreferenceYomitanStorage
@@ -48,6 +54,9 @@ interface JpGraph {
 
     /** Text-to-speech as an audio source: whether a Japanese voice is there (3.5). */
     val ttsAudio: TtsAudio
+
+    /** The Japanese reader's place in each chapter, by character (4.1). */
+    val jpChapterPositions: JpChapterPositions
 }
 
 val Context.jpGraph: JpGraph get() = metroGraph<JpGraph>()
@@ -71,6 +80,20 @@ object JpBindings {
     @Provides
     @SingleIn(AppScope::class)
     fun provideTtsAudio(context: Context): TtsAudio = TtsAudio(context)
+
+    /**
+     * The fork's own reading database (`jp_reader.db`, [JpReaderDatabase]) on the app's bundled SQLite.
+     * Built on its first use, a query off the main thread (JpChapterPositions).
+     */
+    @Provides
+    @SingleIn(AppScope::class)
+    fun provideJpReaderDatabase(context: Context): JpReaderDatabase = JpReaderDatabase(
+        AndroidxSqliteDriver(
+            driver = BundledSQLiteDriver(),
+            databaseType = AndroidxSqliteDatabaseType.FileProvider(context, "jp_reader.db"),
+            schema = JpReaderDatabase.Schema,
+        ),
+    )
 
     /**
      * The Yomitan engine. Constructing it starts nothing: the engine waits for a screen to acquire it
