@@ -67,6 +67,8 @@ and suggest the better option. Performance and smoothness of the app are a pilla
 - **Builds:** `scripts/fork/gw <tasks>` (short summary, full log in `build/fork-logs/`), one Gradle
   build at a time. Cheapest check first: `:app:compileDebugKotlin`, then touched test classes.
 - **Never poll:** long work runs in the background and you wait for its notification.
+- **Leave nothing behind** (D-031, the owner is short of storage everywhere): remove what you put on
+  a device, the computer or GitHub once done with it; `/verify` has the device steps.
 - **Models:** Opus 5.5 is the floor for every agent (decision D-012); lower effort, not a smaller
   model, for easy steps.
 - **Commit each coherent step**: `type(scope): summary` (imperative, lower case, at most 72

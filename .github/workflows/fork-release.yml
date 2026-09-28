@@ -79,7 +79,7 @@ jobs:
         with:
           name: mapping-${{ steps.check.outputs.tag }}
           path: app/build/outputs/mapping/nightly
-          retention-days: 90
+          retention-days: 30
 
       - name: Publish the release
         if: steps.check.outputs.skip != 'true'
@@ -101,7 +101,7 @@ jobs:
 
       - name: Prune old releases
         if: steps.check.outputs.skip != 'true'
-        run: python3 scripts/fork/release.py prune 10
+        run: python3 scripts/fork/release.py prune 3
 
   keepalive:
     # GitHub switches off a public repository's schedules after 60 days without activity. Re-enabling

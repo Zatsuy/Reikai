@@ -38,6 +38,7 @@ the log; *Standing decisions* is the current state.
 | D-028 | **Phase 4 is built as one item in one session** (owner, 2026-09-28: "complete the entirety of Phase 4 in an efficient way"), with subagents doing the reading and building, as Phase 3 was (D-027). 4.5's list is still put to the owner, who picks what gets built. | 2026-09-28 |
 | D-029 | **In the Japanese reader a tap on a word looks it up, and that is configurable** (owner, 2026-09-28). Swipes and the volume keys turn pages, a tap off the text opens the menu; a setting switches taps to turning pages (long-press still looks up). | 2026-09-28 |
 | D-030 | **Tsundoku parity (4.5): build the status bar, short chapters marked read, chapter translation and EPUB export** (owner, 2026-09-28). Not now: read-aloud background options, saved passages (Phase 6's mining log covers them). | 2026-09-28 |
+| D-031 | **Leave nothing behind; the project takes only the space it needs** (owner, 2026-09-28: "I don't have a lot of storage in any of the devices"). When an agent is done with the tablet, the phone, the computer or GitHub it removes what it put there: debug, benchmark and test apps, test folders, recordings, one-off build outputs, scratch files, superseded CI caches. What stays is kept as small as it can be without loss: `scripts/fork/gw` builds one debug APK (arm64, both devices) without Gradle's local build cache and prunes its logs after three days; the session-start hook deletes earlier sessions' scratch folders after a day; releases keep the newest three, their R8 mappings 30 days. The owner's own apps, folders and files are never touched; anything of theirs that looks removable is only pointed out. | 2026-09-28 |
 
 ## Open
 
@@ -48,6 +49,7 @@ item asks with AskUserQuestion and moves the answer to *Standing decisions*.
 
 ## Log
 
+- **2026-09-28** Owner, after Phase 4: present the project well (repository name and description, a README written for readers with screenshots and clips from both devices, lighter looks preferred, vertical text in landscape and horizontal text in portrait; the tablet's sideways scrolling as a clip was their idea); put the newest Reikai JP release, not a debug build, on both devices (the phone had not received Phases 3 and 4); clean every leftover from the devices, this computer and the repository and make it a principle (D-031); then review how the roadmap continues.
 - **2026-09-28** Owner, starting Phase 4: build all of it in one session, efficiently (D-028). Taps in
   the Japanese reader: "look up by default, but make it configurable" (D-029). From the Tsundoku
   list: status bar, short chapters read, chapter translation, EPUB export (D-030).

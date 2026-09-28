@@ -9,9 +9,12 @@ names the branch the fork should follow today, and warns when upstream's work se
 The network calls run in parallel with short timeouts and stay silent when offline.
 """
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -91,8 +94,23 @@ def devices():
     return found
 
 
+def prune_scratch(days=1):
+    """Earlier sessions' scratch folders go once nothing in them changed for a day (decision D-031):
+    they sit in /tmp, which Fedora keeps in RAM, and one session left 650 MB there."""
+    base = Path(f"/tmp/claude-{os.getuid()}") / str(ROOT).replace("/", "-")
+    cutoff = time.time() - days * 86400
+    for session in (p for p in base.glob("*") if p.is_dir()):
+        try:
+            newest = max((f.stat().st_mtime for f in session.rglob("*")), default=session.stat().st_mtime)
+        except OSError:
+            continue
+        if newest < cutoff:
+            shutil.rmtree(session, ignore_errors=True)
+
+
 def main():
-    with ThreadPoolExecutor(3) as pool:
+    with ThreadPoolExecutor(4) as pool:
+        pool.submit(prune_scratch)
         fetched = pool.submit(fetch)
         automation = pool.submit(failed_automation)
         adb = pool.submit(devices)

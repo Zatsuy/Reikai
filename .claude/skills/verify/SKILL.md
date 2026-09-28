@@ -35,6 +35,11 @@ so check there first, then the phone (`SM_A546E`). With both connected every `ad
 - speed and memory: `scripts/fork/perf.py run` (benchmark build, fixed library, compared with the
   saved baseline); a quick look on the debug build is `am start -W` and its `TotalTime`
 - crashes: `adb logcat -d -b crash`
+- done with the device for the session (D-031, the owner's devices are short of space): uninstall
+  every agent package (`pm list packages | grep reikai.jp.`: `.dev`, `.benchmark`, `.dev.test`),
+  delete what you put on shared storage or in `/data/local/tmp` (test folders such as
+  `/sdcard/ReikaiJPBench`, dumps, recordings), set changed settings back (D-023), and say so. Never
+  touch the owner's own apps and folders (`app.reikai.jp`, `/sdcard/Reikai`).
 
 Report what ran and what it showed in a few lines. A failure is reported as a failure, with the
 output, never smoothed over.

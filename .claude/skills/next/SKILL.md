@@ -33,7 +33,9 @@ do. This skill is that loop.
    `/owner-steps`.
 9. **Land.** Tick the item in the roadmap with its commit SHAs and any "You:" steps, add a line to
    `docs/fork/CHANGELOG.md` if the owner will notice the change, commit, and push `origin main`
-   once verification passed.
+   once verification passed. Leave nothing behind (D-031): devices cleaned as `/verify` says,
+   no stray files in the repository, and outputs you made for a one-off check (local `nightly` or
+   `benchmark` builds, spike folders under `build/`) deleted.
 10. **Measure.** `scripts/fork/retro.py --session ${CLAUDE_SESSION_ID} --record --label "<item>"`.
     Fix a crossed class A threshold now if it is small; otherwise leave it for `/retro`.
 11. **Report** in at most eight plain lines: what changed for the owner, how it was verified, what

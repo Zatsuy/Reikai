@@ -6,7 +6,13 @@ Usage: scripts/fork/gw <gradle args...>     e.g. scripts/fork/gw :app:compileDeb
 The full log goes to build/fork-logs/. Prints the outcome, the duration, failed tasks, compiler
 errors, failing tests and Gradle's "What went wrong" section, so a build costs an agent a few lines
 of context instead of thousands. Exit code is Gradle's.
+
+Kept small on disk (decision D-031): Gradle's local build cache is off (it grew to 12 GB in two
+days and only duplicates app/build); a debug APK is built for arm64-v8a only, the ABI of both of the
+owner's devices, and linked to its usual app/build/outputs path (REIKAI_ALL_ABIS=1 builds all five);
+logs older than three days are deleted.
 """
+import os
 import re
 import subprocess
 import sys
@@ -16,6 +22,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MAX_LINES = 40
+DEVICE_ABI = "arm64-v8a"
+LOG_DAYS = 3
+
+
+def link_device_apk():
+    """AGP writes a single-ABI build to intermediates/ only; link it where the split build goes."""
+    src = ROOT / f"app/build/intermediates/apk/debug/app-{DEVICE_ABI}-debug.apk"
+    dst = ROOT / f"app/build/outputs/apk/debug/app-{DEVICE_ABI}-debug.apk"
+    if src.exists():
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.unlink(missing_ok=True)
+        os.link(src, dst)
 
 
 def main():
@@ -24,12 +42,24 @@ def main():
         return 2
     log_dir = ROOT / "build/fork-logs"
     log_dir.mkdir(parents=True, exist_ok=True)
+    cutoff = time.time() - LOG_DAYS * 86400
+    for old in log_dir.glob("gw-*.log"):
+        if old.stat().st_mtime < cutoff:
+            old.unlink(missing_ok=True)
     log_path = log_dir / f"gw-{datetime.now():%Y%m%d-%H%M%S}.log"
-    cmd = ["./gradlew", "--console=plain", *sys.argv[1:]]
+    args = sys.argv[1:]
+    device_apk = (any(re.search(r"(assemble|install)\w*Debug\b", a) for a in args)
+                  and not any("injected.build.abi" in a for a in args)
+                  and not os.environ.get("REIKAI_ALL_ABIS"))
+    if device_apk:
+        args.append(f"-Pandroid.injected.build.abi={DEVICE_ABI}")
+    cmd = ["./gradlew", "--console=plain", "--no-build-cache", *args]
     start = time.monotonic()
     with log_path.open("w") as log:
         code = subprocess.run(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT).returncode
     secs = time.monotonic() - start
+    if device_apk and code == 0:
+        link_device_apk()
     lines = log_path.read_text(errors="replace").splitlines()
 
     errors = [l for l in lines if l.startswith("e: ")]
