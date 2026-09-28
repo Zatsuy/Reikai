@@ -146,7 +146,7 @@ The start position is `charOffset` when known, else `fraction` of the chapter's 
 furigana: "show"|"partial"|"full"|"toggle"|"hide", tapMode: "lookup"|"zones",
 tapZones: [[x0,y0,x1,y1,"menu"|"back"|"forward"], …] (fractions of the viewport, already mirrored
 for vertical text), fontFamily: "<css list>", fontSize: <px>, lineHeight: <number>,
-margins: {top,right,bottom,left} (px), insets: {top,bottom} (px, the system bars),
+margins: {top,right,bottom,left} (px), insets: {top,bottom} (px: the cutout at the top; at the bottom what the app keeps over the page, its status bar or progress readout),
 colors: {background, text, hint}, textIndent: <em>, justify: <bool>, invertSwipe: <bool> }`.
 
 **Page → app**, one `WebMessageListener` named `jpReader` restricted to the chapter origin
@@ -303,3 +303,78 @@ Fork code in `app/src/main/java/jp/reikai/reader/page/` and `jp/reikai/data/`; s
   sentence, chapter and novel in MiscInfo and the cover (533 x 800 JPEG) in Picture; without a
   cover, the card added with Picture empty and no notice; long press on 向 selected 傾向 and "Look
   up" opened it (55 ms, preloaded); lookup off: no engine page, a tap on a word opened the menu.
+
+## As built: 4.4, status bar, short chapters
+
+Fork code in `app/src/main/java/jp/reikai/stats/` (statistics), `jp/reikai/reader/JpStatusBar.kt`
+and `jp/reikai/settings/JpStatisticsScreen.kt`; strings in
+`jp-yomitan/src/main/res/values/jp_stats_strings.xml`.
+
+- **Statistics (ruling 12):** `jp_reader.db` version 2 adds `reading_statistic`: ttu's row field for
+  field (`TtuStatistic`: title, dateKey, charactersRead, readingTime in seconds, min, alt-min, last
+  and max speed, lastStatisticModified; completedBook and completedData carried through, never set
+  here), keyed by title and day as in ttu, plus the novel last read under that title for this app's
+  lists. `JpReadingStatistics` (app-scoped) writes rows off the main thread and lays unwritten ones
+  over what it reads (taking the unwritten ones before reading the database, so a flush between the
+  two cannot hide a day: found in review, it would have let a rotation reset the day). ttu's update rule, export file name and folder name are ported; the JVM test
+  holds them to ttu's own functions through a fixture that
+  `scripts/fork/ttu-statistics/make-fixture.mjs` makes by running them. Found that way: a title's
+  minimum speeds in its file name depend on the order of its days, so the export sorts by day first,
+  as ttu's database returns them.
+- **Tracker** (`JpReadingTracker`, one per reader Activity, fed by the viewport's
+  `Listener.onPosition(PageReport)`): a tick a second while the Activity is resumed
+  (`repeatOnLifecycle`), whole seconds counted and the remainder carried. The reader is active after
+  a page touch, a lookup or the page moving; after 5 minutes without, the 5 minutes are taken back in
+  one update (ttu's `elapsed - idleTime`) and time waits for the next activity. Characters are
+  `charOffset` differences per page report rather than per tick (two page turns in one second are
+  not a jump), forward only past the furthest character reached (back and forward again counts a
+  page once); a move of 2700 or more either way counts nothing and reading goes on from where it
+  landed. Leaving a chapter whose end was on screen, other than by a step back, counts the rest of
+  its last page; the new chapter counts from its landing. A tick reaching back past midnight gives
+  the earlier seconds to the day before (characters stay on the later day; ttu adds them to both).
+  Rows go to the store every 10 s and on pause; a chapter whose source is in incognito counts
+  nothing. The session's totals (the status bar's speed) are kept per reader model, so a rotation
+  keeps them.
+- **Statistics screen:** Settings, Japanese, Reading, "Reading statistics": today, last 7 days and
+  all time (characters, time, characters an hour), the last 14 days as rows with a bar, each novel's
+  totals, and "Export for ttu" (`CreateDocument`, `application/zip`): per title
+  `<ttu-sanitized title>/statistics_1_6_…json` with the days as ttu's JSON, UTF-8 names flagged.
+  ttu imports it from its book manager, "Import Backup".
+- **Status bar (ruling 13):** `JpStatusBar`, one View drawing three prepared strings: clock and
+  battery (⚡ while charging); the chapter, cut with an ellipsis and centred where it fits (Japanese
+  glyph forms for a Japanese novel); `charOffset / chars`, the session's speed and the progress in
+  the Japanese reader, the progress alone in the standard one. The session adds it to
+  `android.R.id.content`, above the reader (it covers upstream's progress readout, the same number)
+  and below the lookup sheet; it hides while the menu is open. The clock ticks on the minute and the
+  battery comes from its sticky broadcast, both only while the bar shows and the reader is started
+  (on the tablet the battery receiver is registered while reading, gone in the background). Colours are the reader
+  theme's (text at 70 %), padding the visible system bars and side cutouts. Settings
+  `jp_reader_status_bar` (on) and `jp_standard_status_bar` (off), switches at the end of the fork's
+  rows under "For this series" for whichever reader is in use. The Japanese page keeps the bar's
+  height in `insets.bottom` (`JpPageViewport.reservedBottomDp`, set before the first layout, so a
+  change re-lays out in place), or with the bar off the height of upstream's readout when that is on
+  (a 16 sp line and its outline). Horizontal scroll mode, whose text scrolls under the bottom, paints
+  that strip in the page colour (`--jp-inset-bottom`). The standard reader keeps no space: there the
+  bar is opt-in and text scrolls under it.
+- **Short chapters (ruling 14):** one seam, in `NovelReaderViewModel.reportFitsOnScreen`, hands every
+  report to `JpReaderHook.chapterFits` with a finisher calling upstream's own
+  `persistProgress(id, 100)`, the path a forward step from a chapter that fits already takes
+  (progress, read, trackers through `NovelChapterFinish`). The session marks the chapter being read
+  (`viewModel.chapter`) once it has fitted for 1.5 s (pictures can make it grow), once per session.
+  Setting `jp_short_chapters_read` (on), shared by both readers. Seams: 50 in 28 files.
+- **Checked:** JVM tests for the port against ttu's code (20 update steps, 3 file-name sets, 9 folder
+  names, the zip), the tracker (ticks, carried time, forward-only, jumps, idle, midnight both ways,
+  chapter changes, incognito, pause, stored days, session carry-over), the summary and the database
+  migration; breaking the alt-min rule or the forward-only mark fails them. Page tests pass. Tablet
+  (SM-X520, Kakuyomu novel, vertical paged, 2026-09-28): ten page turns 16 s apart from chapter 4's
+  start into chapter 5 (page states read with `JpReader.state()` over DevTools): stored 3,969
+  characters (all 2,828 of chapter 4, its last 182 counted on leaving it, plus 1,141 into chapter 5)
+  and 236 s (landing at 14:58:05 to the pause at 15:02:01), speed 60,545 = ceil(3600 × 3969 / 236);
+  the screen showed the same; the exported zip held one file whose name ttu's own function gives for
+  its JSON. Status bar at the bottom with the text columns ending above it (paged; vertical scroll, where
+  the page kept 41 px: the 25 px bar and the 16 px margin), hidden under the open menu; with the bar off, upstream's
+  "0% / 100%" readout and 21 px kept; standard reader: clock, battery, chapter, progress. A chapter of
+  1,448 characters laid out to fit one page (tiny horizontal text set through DevTools) went from
+  unread to read with progress 100 % 1.5 s later. `:app:assembleNightly` (R8) builds. Not checked:
+  an import into ttu itself (the zip follows ttu's `backup-handler.ts`, which skips a title's missing
+  book data and stores its statistics by folder name), and the phone.
