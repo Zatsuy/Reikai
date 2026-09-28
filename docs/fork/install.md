@@ -5,7 +5,7 @@ it once by hand; after that the app offers each new version itself.
 
 ## First install (once)
 
-1. On the tablet or phone, open
+1. On your phone or tablet, open
    [github.com/Zatsuy/Reikai-JP/releases/latest](https://github.com/Zatsuy/Reikai-JP/releases/latest) in
    the browser.
 2. Under **Assets**, tap `reikai-jp-arm64-v8a-r….apk` (right for almost every recent device; the
@@ -26,11 +26,11 @@ and storage > Restore backup**, and pick that file.
 ## Updates (automatic)
 
 A new version is published at most once a day, when the app changed. Each time Reikai JP starts
-fresh (after you swipe it away from recent apps, or the tablet restarts), it looks for one; when it
+fresh (after you swipe it away from recent apps, or the device restarts), it looks for one; when it
 finds one, a **New version available!** screen appears:
 
 1. Tap **Download**, then **Install** when it finishes.
-2. The first time only, Android says the tablet is not allowed to install apps from this source:
+2. The first time only, Android says the device is not allowed to install apps from this source:
    tap **Settings**, turn on the switch (**Allow permission** on Samsung), go back until you see
    Reikai JP's screen again, and tap **Install** once more.
 3. Android asks **Update this app?**: tap **Update**, then **Open** or **Done**.
@@ -43,4 +43,5 @@ To check by hand at any time: **More > About > Check for updates**. The version 
 - *"App not installed" or "conflicts with an existing package":* a Reikai JP signed with a
   different key is already installed. Back up, uninstall it, install again.
 - *No update screen although a newer release exists:* open **More > About > Check for updates**; if
-  that says there is none, an agent can look into it (`/debug`).
+  that says there is none, install the newest release by hand as in *First install* (it updates
+  the app in place and keeps your library).

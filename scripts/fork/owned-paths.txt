@@ -9,6 +9,7 @@ LICENSE
 LICENSES/
 .claude/
 .github/README.md
+.github/CONTRIBUTING.md
 .github/workflows/
 docs/fork/
 scripts/fork/
