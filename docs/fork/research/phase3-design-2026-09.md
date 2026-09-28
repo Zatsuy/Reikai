@@ -197,6 +197,68 @@ answered with `TextToSpeech.synthesizeToFile`, last in the list, so it plays and
 - **Search screen:** Yomitan's `search.html` (needs only the pictures fix and a `query`
   parameter).
 
+**As built (2026-09-28, `jp-yomitan/.../popup/`, `.../text/`, `app/.../jp/reikai/reader/` and `lookup/`):**
+- **The selection bug's cause is not Samsung's classifier:** with `TextClassifier.NO_OP` on the reader's
+  views (a debug-only `<external files>/jp-selection` switch) presses select exactly what they select
+  with Samsung's. Android's `Editor.selectCurrentWord` starts from the character boundary nearest the
+  finger, and in Japanese every word boundary lies between two letters, so a press on the left half of
+  a word's first character or the right half of its last selects one character (the right half of
+  "り" in 繋がり selects the "が" after it). Blink selects one character on any press and leaves the
+  word to smart selection. ICU's dictionary also splits kanji from okurigana (島流|し, 恐れ|て).
+  Firefox, with its own segmenter, selects 手助け, 繋がり, 伯爵.
+- **Fix:** `JpTextClassifier` on each chunk TextView and the WebView (Android 9+) answers Japanese
+  text itself (`JapaneseText.selectWord`): ICU's Japanese word around the character under the finger
+  (a touch listener remembers the press; the TextView's text window is matched against the chunk,
+  `TextWindow`; the WebView's page is asked whether the finger was left of Chromium's one-character
+  selection), extended by the dictionary's longest match when the engine is already running (150 ms
+  cap): okurigana and inflections, and back over a kana ending ICU split from its kanji stem, never
+  shorter than ICU's word. Chromium drops a suggestion that does not contain its own selection, so in
+  the WebView a press on the right half of "り" selects 繋がりが (the lookup still finds 繋がり).
+  Other scripts go to the system classifier. Tablet, native mode, presses on character halves: system
+  繋, が, 島, て, 手; fork 繋がり, 繋がり, 島流し, 恐れて, 手助け. WebView mode: system one character
+  every time; fork 繋がり, 繋がりが, 島流し, て、, 手助け, 手助けし, 魔物 (no dictionary).
+- Japanese glyphs: `setTextLocale(Locale.JAPANESE)` on the chunks and `<html lang="ja">` for a novel
+  whose source language is `ja` or whose chapter has kana (the tablet's en-US locale drew ？ in its
+  Chinese form before).
+- **The popup is `popup.html` driven through browser history**, not `search.html` (its search box and
+  header are too much for a popup) and not Yomitan's cross-frame messages (a host page with Yomitan's
+  frontend and an iframe: two documents, and Yomitan's internals). The display reads a lookup from its
+  URL (`query`, and `full` + `offset`, which Anki's Sentence field falls back to) and the rest
+  (sentence, `url`, `documentTitle`, `pageTheme`) from `history.state`, which DisplayHistory reads on
+  `popstate`; `assets/jp-reikai/popup-host.js` swaps lookups with `history.replaceState` and a
+  `popstate` event. Standalone, the page loads its settings only during its first lookup (after
+  deciding whether any dictionary is enabled), so it starts with an empty lookup and is ready after
+  it; its theme is decided then too, so a lookup in the other theme reloads it. Yomitan's default
+  "site" popup theme then follows the reader's page. **3.6 tripwire fingerprints** this relies on:
+  DisplayHistory's `history.state` `{id, state}` and `_onPopState`; `_onStateChanged` reading
+  `location.search`; `_setTheme` reading `_history._current.state.pageTheme`; ids
+  `#dictionary-entries`, `#no-results`, `#no-dictionaries`, `#close-button`. If they break, the
+  sentence still reaches Anki through `full` and `offset`.
+- A word tapped inside the results opens Yomitan's nested popup inside the sheet with its defaults
+  (`popupNestingMaxDepth` 10); navigating within the sheet instead is Yomitan's
+  `scanning.enablePopupSearch` (off by default), for the settings screen (3.5) to offer.
+- **Speed (tablet, warm engine):** the lookup runs while the toolbar shows (`classifyText` preloads
+  it into the closed sheet) and a press on "Look up" is taken from the selection's own event
+  (`SelectionEvent.ACTION_SMART_SHARE`), 50-70 ms before the action's broadcast arrives. Toolbar tap
+  to the frame showing the results: native mode n=12, min 79, median 98, p95 102, max 131 ms;
+  WebView mode (broadcast path) n=6, 93-155 ms; before the preload 170-230 ms. Cold: "Look up in
+  Reikai JP" with the app stopped takes 1.6 s to the activity's first frame and 1.65-1.8 s more to
+  results (engine 1.05 s, then the popup); a reader's first lookup 3.5 s after its chapter opened was
+  already warm. The sheet parks transparent at full size between lookups (resizing or detaching a
+  WebView costs frames); one popup moves between screens (`MutableContextWrapper`) and closes 60 s
+  after the last one lets it go.
+- **Anki:** on a refusal the sheet offers "Allow Reikai JP to add cards to AnkiDroid" (the runtime
+  permission; "Open settings" once denied for good) and says once per run when AnkiDroid is missing.
+  Tablet: a Lapis card added from the sheet had Sentence "おそらく、逃亡を<b>手助け</b>したのも狼面衆だろう
+  とのことだったが……。" and MiscInfo "第一部 - 第30話：... - 田舎の悪役貴族、...".
+- **Surfaces:** "Look up in Reikai JP" (`LookupActivity`, `PROCESS_TEXT`, a translucent sheet over the
+  other app; its component follows the lookup switch through `JpLookup`); the "Dictionary" launcher
+  shortcut and Yomitan's links to its search page open `DictionaryActivity` (`search.html`, keyboard
+  opened on the search box instead of moving Yomitan's layout); both say when lookup is off and offer
+  to turn it on. The activities are declared in `jp-yomitan`'s manifest (their classes are the app's),
+  so upstream's manifest has no seam; the shortcut is a seam at the top of `app/src/main/shortcuts.xml`
+  because Samsung's launcher shows only an app's first four.
+
 ## 3.5 Settings
 
 A fork "Japanese" entry in Settings (seams: `SettingsMainScreen.kt:~250` item,

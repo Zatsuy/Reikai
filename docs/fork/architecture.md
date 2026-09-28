@@ -152,7 +152,7 @@ run it are in [perf/](perf/README.md).
 
 | Path | Target |
 |---|---|
-| Tap to popup visible (engine warm) | p95 under 150-200 ms (warm: tablet 108, phone 99; first popup after the reader opens: 340-780 ms) |
+| Tap to popup visible (engine warm) | p95 under 150-200 ms (spike warm: tablet 108, phone 99; first popup after the reader opens: 340-780 ms. The 3.4 sheet, toolbar tap to results: tablet p95 102 ms, n=12) |
 | Engine warm-up when a reader opens | off the critical path, under 1 s (missed: 1.4-1.6 s tablet, 2.1-2.5 s phone with three dictionaries) |
 | JMdict import (one-time) | completes without crashing, under 5 min (Jitendex, from a page: 2.4 min tablet, 3.5 min phone) |
 | App cold start | not slower than upstream (engine starts lazily) |
