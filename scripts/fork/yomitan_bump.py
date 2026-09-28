@@ -363,14 +363,21 @@ SENSITIVE = re.compile(
 CALL_SITES = {
     "js/application.js": ["static async main("],
     "js/comm/api.js": ["connectToDatabaseWorker(", "_invoke(", "_pmInvoke("],
-    "js/background/backend.js": ["_onMessageWrapper(", "_onMessage(", "async _onPmConnectToDatabaseWorker("],
     "js/background/request-builder.js": ["async fetchAnonymous("],
     "js/dictionary/dictionary-worker.js": ["_invoke("],
     "js/dictionary/dictionary-database.js": ["async prepare(", "async drawMedia(", "async connectToDatabaseWorker(",
                                              "_onDrawMedia("],
-    # The lookup sheet's popup-host.js swaps lookups through history.state and a popstate event (3.4).
-    "js/display/display-history.js": ["constructor(", "_onPopState(", "_updateStateFromHistory("],
-    "js/display/display.js": ["async _onStateChanged(", "_setTheme(", "_setNoDictionariesVisible("],
+    # The lookup sheet's popup-host.js swaps lookups through history.state and a popstate event, keeps
+    # the page theme and source in the state objects Yomitan writes, follows its back button, reloads
+    # when Yomitan tells every tab of changed settings or dictionaries, and connects the popup's frame
+    # endpoint as a host page would (3.4).
+    "js/display/display-history.js": ["constructor(", "_onPopState(", "_updateStateFromHistory(",
+                                      "_updateHistoryFromCurrent("],
+    "js/display/display.js": ["async _onStateChanged(", "_setTheme(", "_setNoDictionariesVisible(",
+                              "_onContentTextScannerSearchSuccess(", "_updateNavigation("],
+    "js/background/backend.js": ["_onMessageWrapper(", "_onMessage(", "async _onPmConnectToDatabaseWorker(",
+                                 "_sendMessageAllTabsIgnoreResponse(", "_triggerDatabaseUpdated("],
+    "js/comm/frame-endpoint.js": ["signal(", "_onMessage("],
     # The stand-in saves settings exports through the app (blob-download anchors, 3.5).
     "js/pages/settings/backup-controller.js": ["_saveBlob("],
     "js/pages/settings/anki-deck-generator-controller.js": ["_saveBlob("],
@@ -397,7 +404,7 @@ ENTRY_FILES = [
 # Markup the app's hosts find by id or attribute (the lookup sheet 3.4, the settings screen 3.5).
 PAGE_ELEMENTS = {
     "popup.html": ['id="dictionary-entries"', 'id="no-results"', 'id="no-dictionaries"', 'id="close-button"',
-                   'href="/settings.html#dictionaries"'],
+                   'href="/settings.html#dictionaries"', 'id="navigate-previous-button"'],
     "search.html": ['id="dictionary-entries"', 'id="no-results"', 'id="no-dictionaries"',
                     'href="/settings.html#dictionaries"'],
     "settings.html": ["<body hidden>", 'data-modal-action="show,recommended-dictionaries"', 'id="dictionaries"',
