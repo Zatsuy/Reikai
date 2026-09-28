@@ -491,7 +491,8 @@ class JpPageViewport internal constructor(
             val hidden = isIncognito(chapter.sourceId)
             val fonts = fontFiles(current.font)
             withContext(Dispatchers.Default) {
-                val html = webImages.rewrite(JpPageDocument.cleanChapter(chapter.html, baseUrl), baseUrl, chapter.sourceId)
+                val cleaned = JpPageDocument.cleanChapter(chapter.html, baseUrl)
+                val html = webImages.rewrite(cleaned, baseUrl, chapter.sourceId)
                 val init = JpPageDocument.init(
                     chapterId = chapter.chapterId,
                     documentId = documentId,

@@ -18,7 +18,10 @@ class JpReadingStatisticsTest {
     @Test
     fun `a title's stored days are read`() = runTest {
         JpReaderDatabase.Schema.create(driver).await()
-        val day = JpReaderDatabase.StatisticRow(1L, TtuStatistic("本", "2026-09-28", charactersRead = 900, readingTime = 60))
+        val day = JpReaderDatabase.StatisticRow(
+            novelId = 1L,
+            statistic = TtuStatistic("本", "2026-09-28", charactersRead = 900, readingTime = 60),
+        )
         database.saveStatistics(listOf(day))
         JpReadingStatistics { database }.forTitle("本") shouldBe listOf(day)
     }
