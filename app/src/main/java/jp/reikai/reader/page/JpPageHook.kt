@@ -2,11 +2,17 @@ package jp.reikai.reader.page
 
 import android.app.Activity
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.widget.Toast
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
+import eu.kanade.tachiyomi.util.system.toast
 import jp.reikai.di.JpGraph
 import jp.reikai.reader.JpReaderHook
+import jp.reikai.yomitan.R
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterIsInstance
@@ -117,6 +123,7 @@ object JpPageHook {
                     onChapterFits = viewModel::reportFitsOnScreen,
                     onChapterEndSeen = viewModel::reportChapterEndSeen,
                     hideTitle = novelPreferences.readerHideChapterTitle()::get,
+                    onPageLost = { pageLost(host) },
                 ).also { JpReaderHook.pageViewport(host, it) }
             },
         )
@@ -131,6 +138,31 @@ object JpPageHook {
         JpReaderHook.readerSwitch(host, switch.isJapanese)
         return switch
     }
+
+    /** When a reader's page last lost its renderer (elapsed realtime), 0 for never. */
+    private var lastPageLoss = 0L
+
+    /**
+     * [host]'s page lost WebView's renderer: the reader is rebuilt around its live session, which lands
+     * where the reader was. A second loss soon after (a chapter that kills the renderer every time) closes
+     * the reader instead of rebuilding it in a loop. Posted, out of WebView's own callback.
+     */
+    private fun pageLost(host: ReaderActivity) {
+        val now = SystemClock.elapsedRealtime()
+        val again = lastPageLoss != 0L && now - lastPageLoss < PAGE_LOSS_WINDOW_MS
+        lastPageLoss = now
+        Handler(Looper.getMainLooper()).post {
+            if (host.isFinishing || host.isDestroyed) return@post
+            if (again) {
+                host.toast(host.getString(R.string.jp_reader_page_lost), Toast.LENGTH_LONG)
+                host.finish()
+            } else {
+                host.recreate()
+            }
+        }
+    }
+
+    private const val PAGE_LOSS_WINDOW_MS = 60_000L
 
     /** The reader switch of [activity]'s novel, or null for a manga reader or another screen. */
     fun switchOf(activity: Activity): JpReaderSwitch? = synchronized(switches) { switches[activity] }

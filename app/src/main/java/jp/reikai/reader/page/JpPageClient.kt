@@ -1,6 +1,7 @@
 package jp.reikai.reader.page
 
 import android.content.Context
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -35,6 +36,8 @@ internal class JpPageClient(
     private val fonts: () -> Set<String>,
     /** A later hook (4.3: Yomitan's origin in this page) answers first when it knows the request. */
     private val extra: () -> ((WebResourceRequest) -> WebResourceResponse?)?,
+    /** WebView's renderer died; the page is lost and the view must not be used again. */
+    private val onGone: () -> Unit,
 ) : WebViewClient() {
 
     /** On a WebView worker thread, which may block. */
@@ -61,6 +64,16 @@ internal class JpPageClient(
         val url = request.url.toString()
         if (isOwnOrigin(url)) return !staysInDocument(url, documentUrl())
         return upstream.shouldOverrideUrlLoading(view, request)
+    }
+
+    /**
+     * The renderer died (a crash, or the system reclaiming its memory). Unhandled, WebView ends the whole
+     * app with it; handled, the page is rebuilt by the viewport's owner.
+     */
+    override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+        logcat(LogPriority.WARN) { "Japanese reader page lost its renderer (crashed=${detail.didCrash()})" }
+        onGone()
+        return true
     }
 
     private fun serveDocument(id: String): WebResourceResponse {

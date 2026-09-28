@@ -98,6 +98,11 @@ class JpPageViewport internal constructor(
     private val onChapterEndSeen: (chapterId: Long) -> Unit,
     /** Upstream's "hide chapter title": the document then has no heading of its own. */
     private val hideTitle: () -> Boolean,
+    /**
+     * WebView's renderer died (a crash, or the system reclaiming it): this page can never draw again, so
+     * the reader is rebuilt around its live session, which lands where the reader was.
+     */
+    private val onPageLost: () -> Unit,
 ) : ReaderViewport,
     TextViewport,
     ChapterWindow {
@@ -269,6 +274,9 @@ class JpPageViewport internal constructor(
 
     private class PendingCall(val js: String, val onResult: ((String?) -> Unit)?)
 
+    /** The page's renderer is gone: WebView forbids any further use of this view but its destruction. */
+    private var gone = false
+
     private val webView: WebView = WebView(context).apply {
         WebView.setWebContentsDebuggingEnabled(webContentsDebugging(devTools, context.isDebugInspectorBuild()))
         with(settings) {
@@ -308,6 +316,7 @@ class JpPageViewport internal constructor(
             fontManager = fontManager,
             fonts = { servedFonts },
             extra = { requestInterceptor },
+            onGone = ::onRendererGone,
         )
         // Every layout, because the inset is only known once the window has one and moves with the system
         // bars; comparing first keeps an unchanged one from re-laying the page out.
@@ -380,11 +389,27 @@ class JpPageViewport internal constructor(
         documentId = null
         shown = null
         served = null
-        WebViewCompat.removeWebMessageListener(webView, MESSAGE_NAME)
-        webView.stopLoading()
+        if (!gone) {
+            WebViewCompat.removeWebMessageListener(webView, MESSAGE_NAME)
+            webView.stopLoading()
+        }
         // destroy() on an attached WebView is undefined and pins the hierarchy, hence the detach.
         (webView.parent as? ViewGroup)?.removeView(webView)
         webView.destroy()
+    }
+
+    /**
+     * WebView's renderer is gone ([JpPageClient] answered that the app handles it, so the app lives on).
+     * Nothing more goes to this page; calls still owed an answer hear null, and the host rebuilds the
+     * reader with a new page.
+     */
+    private fun onRendererGone() {
+        if (gone) return
+        gone = true
+        ready = false
+        dropPendingCalls()
+        (webView.parent as? ViewGroup)?.removeView(webView)
+        onPageLost()
     }
 
     override fun handleKeyEvent(event: KeyEvent): Boolean {
@@ -489,8 +514,8 @@ class JpPageViewport internal constructor(
                 Built(document, fonts, hidden)
             }
         }
-        // A later load or the viewport's end overtook this one while it was built.
-        if (number != documents || chapterId != chapter.chapterId) return
+        // A later load or the viewport's end overtook this one while it was built, or the page is gone.
+        if (number != documents || chapterId != chapter.chapterId || gone) return
         incognito = built.incognito
         if (!again) openedAtEnd = atEnd
         servedFonts = built.fonts.toSet()
@@ -674,6 +699,10 @@ class JpPageViewport internal constructor(
     }
 
     private fun evaluate(call: PendingCall) {
+        if (gone) {
+            if (awaiting.remove(call)) call.onResult?.invoke(null)
+            return
+        }
         val answer = call.onResult?.let { onResult ->
             ValueCallback<String> { if (awaiting.remove(call)) onResult(it) }
         }
@@ -687,7 +716,7 @@ class JpPageViewport internal constructor(
 
     /** Runs [js] in the document on screen now, if there is a page to run it in; nothing is queued. */
     internal fun runInPage(js: String) {
-        if (chapterId == null) return
+        if (chapterId == null || gone) return
         webView.evaluateJavascript(js, null)
     }
 

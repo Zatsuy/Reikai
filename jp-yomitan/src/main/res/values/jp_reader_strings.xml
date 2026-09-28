@@ -39,4 +39,7 @@
     <string name="jp_reader_intro_body">This reader shows Japanese the way a printed book does: lines run from top to bottom, and pages turn from right to left. You can change this any time in the reader settings.</string>
     <string name="jp_reader_intro_keep">Keep vertical</string>
     <string name="jp_reader_intro_horizontal">Switch to horizontal</string>
+
+    <!-- The page stopped working twice within a minute (WebView's renderer died), so the reader closed. -->
+    <string name="jp_reader_page_lost">The reader stopped working twice in a row, so it was closed. Open the chapter again to go on reading.</string>
 </resources>
