@@ -115,6 +115,19 @@ class TranslationSessionTest {
     }
 
     @Test
+    fun `an original kept for a reopen that another chapter's load overtook is not used later`() = runTest {
+        val session = session()
+        session.show(7L, cache.translate(7L, chapter, engine, "en"), "<p>古い</p>" to null)
+        session.load(8L, false) { "<p>別</p>" to null }
+        var loads = 0
+        session.load(7L, false) {
+            loads++
+            chapter to null
+        }
+        loads shouldBe 1
+    }
+
+    @Test
     fun `reload from source runs the loader even with an original kept`() = runTest {
         val session = session()
         session.show(7L, cache.translate(7L, chapter, engine, "en"), "<p>古い</p>" to null)

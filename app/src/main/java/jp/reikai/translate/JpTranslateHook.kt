@@ -68,6 +68,9 @@ class TranslationSession internal constructor(
         loader: suspend () -> Pair<String, String?>,
     ): Pair<String, String?> {
         val reused = reuse.remove(chapterId)?.takeUnless { fromSource }
+        // An original kept for another chapter's reopen: that reopen did not happen first (upstream's reload
+        // leaves a running load alone), so it goes, and that chapter's next load runs upstream's loader.
+        reuse.keys.removeAll { it != chapterId }
         val original = reused ?: loader()
         val key = shownState.value[chapterId] ?: return original
         originals[chapterId] = original
