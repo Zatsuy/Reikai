@@ -12,38 +12,33 @@ unless a **You:** step is still waiting. Why things are built this way:
    by the agent) and go through its **Welcome!** setup: pick a new storage folder, and restore a
    backup from upstream Reikai if you want your library there. Steps:
    [install guide](install.md). On the phone, install it with the same guide if you like.
-2. Start a **new** Claude Code conversation and type `/next` (one roadmap item per conversation
+2. **Set up word lookup** once Reikai JP offers its next update (Phase 3), on the tablet:
+   1. Settings → Japanese → **Get recommended dictionaries** → tap Download next to **Jitendex**
+      (about 3 minutes; add a frequency or pitch-accent dictionary from the same list if you
+      like), then go back.
+   2. Under AnkiDroid tap **Allow**, then **Allow** in the system dialog.
+   3. Tap **Set up cards for Lapis** and pick the deck your cards should go to.
+   4. *(Optional)* **Import your desktop Yomitan settings**: on the computer, Yomitan → Settings →
+      Backup → Export Settings, copy the file to the tablet, then pick it there.
+   5. *(Optional)* **Local audio file**: copy your `android.db` to the tablet, pick it, wait for the
+      copy, then delete the original. If "Speak words that have no recording" says no Japanese
+      voice is installed, install one in Android's text-to-speech settings.
+   6. Try it: long-press a word in a Japanese chapter → **Look up**.
+   On the phone, repeat 1-3 only after AnkiDroid has synced the Lapis note type there.
+3. *(Once)* In AnkiDroid → Browse, search `Abdicar` and check the note looks as you left it: an
+   agent's stray tap opened it in the editor during a test and backed out without typing. If
+   anything changed, fix the field by hand (AnkiDroid's Undo only reaches its latest actions). *(Optional)* AnkiDroid →
+   Check media removes the few small audio files left from the test cards.
+4. Start a **new** Claude Code conversation and type `/next` (one roadmap item per conversation
    keeps agents fast and cheap).
 
 **What runs without you** (decision D-015): every Monday GitHub merges upstream Reikai's new work
 into the fork, checks it, and pushes it; once a day, when the app changed, a new version is
-published and Reikai JP offers it on its **New version available!** screen when you next open it. When something fails, nothing breaks: it just stops, GitHub may
+published and Reikai JP offers it on its **New version available!** screen when you next open it;
+every Wednesday a new Yomitan release that is a week old and passes the checks is taken in. When something fails, nothing breaks: it just stops, GitHub may
 email you (safe to ignore), and the next agent session you start sees it and fixes it.
 
-## Now: Phase 3, Yomitan engine and the lookup popup
-
-- [ ] **3.1 Engine module**: pinned Yomitan, the browser-extension stand-in, its tripwire, start
-  only when needed. From the spike (findings in [research](research/yomitan-spike-2026-09.md)),
-  required: dictionary pictures (a SharedWorker handshake the app brokers), imports that do not
-  depend on a worker starting a worker, the engine started when a Japanese novel opens and the
-  popup frame ready before the first tap, chapter pages kept off the engine's origin with only the
-  backend reaching Anki, requests to a vanished page settled, and the engine's memory measured on
-  its own to set its budget.
-- [ ] **3.2 Anki**: add cards through AnkiDroid (duplicate check, audio, pictures).
-  **You:** grant the AnkiDroid permission when the app asks; pick your note type (Lapis is
-  already in your collection).
-- [ ] **3.3 Audio**: online sources, the local `android.db` audio collection, phone TTS as backup.
-  **You (optional):** copy a local audio collection to the tablet.
-- [ ] **3.4 The popup**: Yomitan's results in a phone-friendly sheet; a dictionary search screen;
-  "Look up in Reikai JP" from any app's text-selection menu. Required by the spike: Yomitan's own
-  in-page popup opened off screen on the phone in vertical text, so the app places the popup.
-- [ ] **3.5 Settings**: a simple Japanese section plus Yomitan's full settings; import your desktop
-  Yomitan backup. **You (optional):** export your desktop Yomitan settings and dictionaries.
-- [ ] **3.6 Automatic Yomitan updates**: a weekly check vendors a new Yomitan release, runs its
-  tests through our stand-in, and applies it by itself when they pass (a failure waits for the
-  next agent session, D-015).
-
-## Next: Phase 4, Japanese reading mode
+## Now: Phase 4, Japanese reading mode
 
 - [ ] **4.1 The reader**: vertical or horizontal text (your choice), pages or scrolling, furigana
   modes, Japanese fonts and line breaking, position kept when fonts change.
@@ -76,6 +71,60 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   `/sync-upstream` only when the session-start lines report a failed run. Log:
   - 2026-09-27: fork moved onto `upstream/feat/0.4.0` at `668d48c34`.
 - **Retro** (`/retro`, after a large item or when you ask): see [harness.md](harness.md).
+
+## Done: Phase 3, Yomitan engine and the lookup popup (2026-09-28)
+
+Built as one item (D-027); plan and as-built notes in
+[research/phase3-design-2026-09.md](research/phase3-design-2026-09.md).
+
+- [x] **3.1 Engine module.** Yomitan 26.9.8.0 vendored unmodified in the fork module `jp-yomitan/`
+  at its own private address (`https://yomitan.reikai.invalid`), with a production stand-in and
+  tripwire. Starts in 0.92-0.94 s with Jitendex on the tablet (spike 1.4-1.6 s), only while lookup
+  is on and a Japanese reader, the dictionary or a lookup needs it; stops 60 s after the last use.
+  Dictionary pictures draw; imports work from Yomitan's own settings page (Jitendex 147 s tablet,
+  184-197 s phone); chapter pages cannot reach Anki or settings; requests to a vanished page are
+  answered. Engine alone: at most about +160 MB on either device (app growth plus a 76-103 MB
+  WebView renderer); the budget is +200 MB.
+- [x] **3.2 Anki** through AnkiDroid's own provider (no extra app): duplicate check (4-11 ms per
+  popup), audio and pictures stored as media, "view note" opens AnkiDroid's browser.
+- [x] **3.3 Audio**: Yomitan's online sources, a local `android.db` (copied into the app), the
+  device's Japanese voice last.
+- [x] **3.4 The popup**: long-press selects whole Japanese words (the one-kanji selection was
+  Android selecting from the gap nearest the finger, plus Chromium selecting one character in
+  WebView mode); "Look up" first in the selection bar; Yomitan's results in a sheet the app places
+  (warm tap to results on the tablet: median ~53 ms, p95 ~75 ms; phone median 84-87 ms); "Look up
+  in Reikai JP" in every app; a dictionary search screen.
+- [x] **3.5 Settings**: Settings → Japanese (lookup switch, recommended dictionaries, AnkiDroid
+  permission, "Set up cards for Lapis", local audio, text-to-speech, desktop import, all Yomitan
+  settings); phone-friendly Yomitan defaults on a fresh profile only.
+- [x] **3.6 Automatic Yomitan updates**: `fork-yomitan-update.yml` every Wednesday takes a
+  release once it is 7 days old, runs a static tripwire and a headless Chrome smoke test, and
+  pushes only when both pass (about 100 CI minutes a year).
+  **You:** the setup steps in *Your checklist right now*.
+  Ruling: the engine's own address, never upstream's `appassets.androidplatform.net` - upstream's
+  reader serves chapter images there - cost if wrong: none, nothing to migrate yet.
+  Ruling: `android.db` is copied into the app - Android refuses SQLite on the picked file in place
+  - cost if wrong: its size again in storage.
+  Ruling: the sheet opens at the top when it would cover the word - no reader-scrolling seam
+  needed - cost if wrong: the sheet moves between top and bottom.
+  Ruling: the Dictionary shortcut goes on the home screen from Settings → Japanese, not in the
+  long-press menu - Samsung shows only four and dropped Browse - cost if wrong: one more tap.
+  Ruling: Clear WebView data keeps only the engine's IndexedDB - it used to erase every dictionary
+  - cost if wrong: none seen.
+  Ruling: Yomitan's own vitest suites are not run on updates - they test its source with their own
+  mocks, not our stand-in - cost if wrong: a behaviour change with no new API names passes the
+  checks (the 7-day soak and the next agent session catch it).
+  Open, carried on: in WebView mode a selection can include ruby furigana (4.3's taps in the
+  Japanese reader replace this path); Yomitan's audio auto-play does not play in the sheet; the
+  renderer (~90 MB) stays until the app restarts after lookup is switched off; a picture on a card
+  and AnkiDroid sync are not yet proven on a device; the phone was not re-checked after the final
+  fixes.
+  **Done 2026-09-28** in `48293af25`..`1cf0fa426` (3.1), `8808a2002`..`d966a4e75` (3.2, 3.3),
+  `44ea8c179`..`63da3ac04` (3.4), `4157cd648`..`257e8e75f` (3.5), `00f2ddb01`..`e1490630e` (3.6),
+  review and device fixes `a7f9a525b`..`b6acc712a` and `bfd79c7ee`..`b4d3ac922`. Agent's device
+  use (D-023): "stay awake while charging" was on for the tablet and the phone during the checks
+  and is switched back off afterwards. The phone's debug app was uninstalled; the tablet's debug
+  app keeps Jitendex and a Kakuyomu novel for later checks.
 
 ## Done: Phase 2, Yomitan spike: go (2026-09-27)
 
