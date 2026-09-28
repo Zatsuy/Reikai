@@ -96,6 +96,35 @@ Each: what - why - cost if wrong.
     chapters, cover and details to a file the owner picks - chapters not downloaded are skipped
     and the owner is told how many.
 
+## Translation and EPUB export (4.5)
+
+From Tsundoku only the engines' requests and the EPUB writer are borrowed (Tsundoku's queue,
+store and job are tied to its download model; its chapter translator glues ruby readings into
+the text and drops images, its EPUB writer emits HTML, not XHTML, and hard-codes `lang="en"`).
+
+- **Translation** (`jp.reikai.translate`): `ChapterTranslator` parses the chapter the pipeline
+  produced, drops `rt`/`rp`, sends text blocks (`p`, headings, `li`, `blockquote`, text divs) in
+  batches and writes each result back into its element, so pictures stay; the counts must match.
+  Engines: Google's `client=gtx` endpoint (no key; a failure is an error, never the source text
+  passed off as a translation), DeepL (repeated `text`, `api-free` for `:fx` keys, EN-US for
+  English), one OpenAI-compatible engine with presets (OpenAI, Gemini's `/v1beta/openai`,
+  DeepSeek, OpenRouter, Ollama `/v1`). Cache: `filesDir/jp_translations/<chapterId>/<lang>-<engine>-<hash>.html`.
+  Seams: `NovelReaderViewModel.loadChapterHtml` (swap in the translation when that chapter is
+  shown translated) and one line in `ReaderTopBar`'s overflow for the fork's reader menu (which
+  also carries the Japanese/standard reader switch). Keys through `Preference.privateKey`, so
+  backups leave them out.
+  Rulings: target language is the device's (English when it is Japanese) - cost: one setting
+  change; "show translated" lasts while the reader is open - immersion readers peek, not stay -
+  cost: tapping again next time.
+- **EPUB export** (`jp.reikai.export`): a `CoroutineWorker` with a notification on upstream's
+  common channel writes EPUB 3 (well-formed XHTML, the novel's language, a cover page, an
+  identifier stable across exports) to a file picked with `CreateDocument`. Chapters in source
+  order, only downloaded ones, passed through the same content pipeline the reader uses (so
+  replacement rules apply), `data:` pictures turned into files, the cover from the cover cache.
+  Seam: one line in `EntryToolbar`'s overflow. Rulings: a Japanese novel's EPUB is vertical and
+  right-to-left (`page-progression-direction="rtl"`), as printed; a merged novel exports the
+  chapters its screen lists - cost: a reader app that ignores the book's direction shows it anyway.
+
 ## The page contract (jp-reader.js ↔ JpPageViewport)
 
 Assets in `app/src/main/assets/jp-reader/` (fork-owned): `jp-reader.css`, `jp-reader.js`, served
