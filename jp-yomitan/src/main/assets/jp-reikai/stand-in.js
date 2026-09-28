@@ -11,7 +11,7 @@
  * Wire format, both ways: one string per message, `<header JSON>\n<payload>`; the app parses only the
  * header. A response body may follow its header as one binary (ArrayBuffer) message.
  *   page -> app: hello, bye, send, tabsend, resp, connect, pmsg, pdisc, req (storage, tabs, open,
- *                fetch), fabort, nresp, trip, called, log
+ *                fetch, save), fabort, nresp, trip, called, log
  *   app -> page: welcome, msg, reply, onconnect, pmsg, pdisc, fres, nreq
  * The app decides what each document may do from facts the page cannot fake (which WebView, which
  * origin, main frame or not); the `mode` below only shapes this document's local behaviour.
@@ -36,6 +36,11 @@
 
     const post = (header, payload = '') => hub.postMessage(`${JSON.stringify(header)}\n${payload}`);
     const log = (level, text) => post({t: 'log', level}, String(text));
+    const toBase64 = (bytes) => {
+        let text = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) { text += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); }
+        return btoa(text);
+    };
 
     let tabId = -1;
     let frameId = 0;
@@ -584,11 +589,6 @@
     // when this document may use the network, and refuses them otherwise.
     if (mode === 'backend' || mode === 'page') {
         const pageFetch = globalThis.fetch.bind(globalThis);
-        const toBase64 = (bytes) => {
-            let text = '';
-            for (let i = 0; i < bytes.length; i += 0x8000) { text += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); }
-            return btoa(text);
-        };
         const encodeBody = async (body, headers) => {
             if (body === undefined || body === null) { return {}; }
             if (typeof body === 'string') { return {body}; }
@@ -629,6 +629,39 @@
             const response = new Response(nullBody ? null : bytes, {status: header.status, statusText: header.statusText ?? '', headers: header.headers ?? {}});
             Object.defineProperty(response, 'url', {value: header.url ?? url.href});
             return response;
+        };
+    }
+
+    // --- files a settings page saves: the app asks the user where to keep them --------------------
+
+    // Yomitan saves its settings export as a browser download: an anchor with `download` pointing at a
+    // blob URL, clicked by script (backup-controller.js `_saveBlob`). WebView cannot download a blob,
+    // so the blob goes to the app in slices (`save` requests, YomitanSaves.kt), which saves it through
+    // the system's "save as" screen.
+    if (mode === 'page' && config.kind === 'settings' && typeof HTMLAnchorElement === 'function') {
+        const SLICE = 512 * 1024;
+        const isBlobDownload = (anchor) => anchor instanceof HTMLAnchorElement && anchor.hasAttribute('download') && anchor.href.startsWith('blob:');
+        const save = async (anchor) => {
+            const blob = await (await fetch(anchor.href)).blob();
+            const name = anchor.download || 'yomitan-file';
+            const {payload} = await request({t: 'req', op: 'save', step: 'start'}, JSON.stringify({name, type: blob.type, size: blob.size}));
+            const {id} = JSON.parse(payload);
+            for (let at = 0; at < blob.size; at += SLICE) {
+                const bytes = new Uint8Array(await blob.slice(at, at + SLICE).arrayBuffer());
+                await request({t: 'req', op: 'save', step: 'data', id}, toBase64(bytes));
+            }
+            await request({t: 'req', op: 'save', step: 'end', id});
+        };
+        const saveAnchor = (anchor) => { save(anchor).catch((e) => log('error', `saving ${anchor.download}: ${e?.message ?? e}`)); };
+        const nativeDispatch = EventTarget.prototype.dispatchEvent;
+        HTMLAnchorElement.prototype.dispatchEvent = function dispatchEvent(event) {
+            if (event instanceof Event && event.type === 'click' && isBlobDownload(this)) { saveAnchor(this); return false; }
+            return nativeDispatch.call(this, event);
+        };
+        const nativeClick = HTMLElement.prototype.click;
+        HTMLAnchorElement.prototype.click = function click() {
+            if (isBlobDownload(this)) { saveAnchor(this); return; }
+            nativeClick.call(this);
         };
     }
 

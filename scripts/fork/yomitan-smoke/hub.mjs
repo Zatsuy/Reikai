@@ -224,6 +224,12 @@ export class Hub {
                 break;
             }
             case 'fetch': this.fetch(from, mid, payload); break;
+            case 'save':
+                // A file a settings page saves (its settings export) goes to the app's screen
+                // (YomitanSaves.kt); only settings pages may, and the smoke test saves none.
+                this.replyError(from, mid, from.role === 'PAGE' && from.kind === 'settings' ?
+                    'The smoke test saves no files' : 'Reikai JP does not let this page save files');
+                break;
             default: this.replyError(from, mid, `unknown request ${op}`);
         }
     }

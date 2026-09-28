@@ -131,6 +131,10 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
     internal val server = EngineServer(app.assets, config.httpClient, config.localServer)
     private val network = NetworkBridge(config.httpClient, config.localServer, scope)
     private val scripts = YomitanScripts(app.assets, config.debug)
+    private val saves = YomitanSaves(java.io.File(app.cacheDir, "jp-yomitan-saves"), scope)
+
+    /** The screens hosting Yomitan's pages, by their hub view, for what only a screen can do (save a file). */
+    private val listeners = HashMap<Int, YomitanPageListener>()
 
     private val stateFlow = MutableStateFlow<State>(if (config.isLookupEnabled()) State.Stopped else State.Off)
     val state: StateFlow<State> = stateFlow.asStateFlow()
@@ -395,9 +399,16 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
             hub.onMessage(viewId, sourceOrigin.toString(), isMainFrame, proxy, ProxyPort(proxy), data)
         }
         val binding = HubBinding(this, webView, kind, viewId, script)
+        listeners[viewId] = listener
         webView.webViewClient = YomitanWebViewClient(this, { binding }, kind, listener, onGone)
-        webView.webChromeClient = YomitanChromeClient(config.debug)
+        webView.webChromeClient = YomitanChromeClient(config.debug, listener)
         return binding
+    }
+
+    /** A WebView left the hub ([HubBinding.detach]). */
+    internal fun detached(viewId: Int) {
+        listeners.remove(viewId)
+        saves.dropView(viewId)
     }
 
     private suspend fun callBackend(op: String, payload: String): String = withContext(Dispatchers.Main.immediate) {
@@ -440,6 +451,9 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
         override fun openPage(how: String, url: String?) = this@YomitanEngine.openPage(how, url)
 
         override fun fetch(request: FetchRequest, done: (FetchResult) -> Unit) = network.fetch(request, done)
+
+        override fun save(viewId: Int, step: String, id: Int?, payload: String, done: (Result<String>) -> Unit) =
+            saves.step(viewId, step, id, payload, { view, file -> listeners[view]?.onDownload(file) == true }, done)
 
         override fun onBackendReady() {
             if (stateFlow.value != State.Starting) return

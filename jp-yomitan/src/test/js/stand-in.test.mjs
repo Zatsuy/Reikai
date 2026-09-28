@@ -16,7 +16,7 @@ const STAND_IN = readFileSync(new URL('../../main/assets/jp-reikai/stand-in.js',
 const MANIFEST = {version: '26.9.8.0', permissions: ['storage'], options_ui: {page: 'settings.html'}};
 
 /** Loads the stand-in into a new document at `url` of a WebView of `kind`; returns the document and the hub mock. */
-function load({url = `${ORIGIN}/settings.html`, kind = 'settings', isTop = true} = {}) {
+function load({url = `${ORIGIN}/settings.html`, kind = 'settings', isTop = true, extra = {}} = {}) {
     const sent = [];
     const hubTarget = new EventTarget();
     const hub = {
@@ -54,6 +54,7 @@ function load({url = `${ORIGIN}/settings.html`, kind = 'settings', isTop = true}
         btoa, atob, setTimeout, clearTimeout, console,
         fetch: async () => new Response('same-origin'),
         addEventListener: (...args) => windowEvents.addEventListener(...args),
+        ...extra,
     };
     context.globalThis = context;
     context.top = isTop ? context : {};
@@ -132,6 +133,50 @@ test('the first picture starts a page database worker holding the media worker\'
     assert.equal(workers[1].posted[0].message.action, 'connectToDatabaseWorker');
     assert.equal(workers[1].posted[0].transfer[0], port1);
     port1.close();
+});
+
+/** Just enough of the DOM for an anchor Yomitan clicks to download a blob. */
+const anchorDom = () => {
+    class HTMLElement extends EventTarget { click() { this.clicked = true; } }
+    class HTMLAnchorElement extends HTMLElement {
+        constructor() { super(); this.href = ''; this.download = ''; }
+        hasAttribute(name) { return name === 'download' && this.download !== ''; }
+    }
+    return {HTMLElement, HTMLAnchorElement, MouseEvent: Event};
+};
+
+test('a settings page saves a blob download through the app in slices', async () => {
+    const blob = new Blob(['{"options":1}'], {type: 'application/json'});
+    const extra = {...anchorDom(), fetch: async (href) => (href === 'blob:settings' ? new Response(blob) : new Response(''))};
+    const {page, hub} = load({extra});
+    const a = new page.HTMLAnchorElement();
+    a.href = 'blob:settings';
+    a.download = 'yomitan-settings.json';
+
+    assert.equal(a.dispatchEvent(new page.MouseEvent('click')), false);
+    const next = () => new Promise((resolve) => setTimeout(resolve, 0));
+    await next();
+    await next();
+    assert.deepEqual(hub.last().header, {t: 'req', op: 'save', step: 'start', mid: hub.last().header.mid});
+    assert.deepEqual(JSON.parse(hub.last().payload), {name: 'yomitan-settings.json', type: 'application/json', size: 13});
+    answerLast(hub, '{"id":7}');
+    await next();
+    await next();
+    assert.equal(hub.last().header.step, 'data');
+    assert.equal(hub.last().header.id, 7);
+    assert.equal(atob(hub.last().payload), '{"options":1}');
+    answerLast(hub);
+    await next();
+    assert.equal(hub.last().header.step, 'end');
+});
+
+test('an anchor that is not a blob download is clicked as usual', () => {
+    const {page, hub} = load({extra: anchorDom()});
+    const a = new page.HTMLAnchorElement();
+    a.href = `${ORIGIN}/info.html`;
+    a.click();
+    assert.equal(a.clicked, true);
+    assert.equal(hub.headers().some((h) => h.op === 'save'), false);
 });
 
 test('a cross-origin fetch goes to the app and returns its binary answer', async () => {

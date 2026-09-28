@@ -43,6 +43,12 @@ class YomitanHubTest {
             backendReady++
         }
 
+        val saves = mutableListOf<String>()
+        override fun save(viewId: Int, step: String, id: Int?, payload: String, done: (Result<String>) -> Unit) {
+            saves += step
+            done(Result.success(if (step == "start") """{"id":1}""" else ""))
+        }
+
         override fun onTripwire(path: String, called: Boolean, url: String) {}
         override fun log(level: Char, text: String) {}
     }
@@ -207,6 +213,17 @@ class YomitanHubTest {
 
         (doc.port.received.none { "err" in Json.parseToJsonElement(it.substringBefore('\n')).jsonObject }) shouldBe
             allowed
+    }
+
+    @ParameterizedTest(name = "{0} saving a file: allowed {1}")
+    @CsvSource("SETTINGS, true", "SEARCH, false", "POPUP, false")
+    fun `only a settings page may save files`(kind: PageKind, allowed: Boolean) {
+        val doc = Doc(hub.registerView(kind), url = YomitanOrigin.url("settings.html"))
+
+        doc.say("""{"t":"req","op":"save","step":"start","mid":1}""", """{"name":"a.json","type":"","size":2}""")
+
+        (doc.port.last()["err"] == null) shouldBe allowed
+        host.saves.isNotEmpty() shouldBe allowed
     }
 
     @Test

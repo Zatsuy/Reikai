@@ -3,9 +3,11 @@ package jp.reikai.yomitan
 import android.annotation.SuppressLint
 import android.content.res.AssetManager
 import android.graphics.Bitmap
+import android.net.Uri
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.RenderProcessGoneDetail
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -21,6 +23,7 @@ import kotlinx.serialization.json.put
 import logcat.LogPriority
 import logcat.logcat
 import java.io.Closeable
+import java.io.File
 
 /** WebView setup shared by the engine and every screen hosting a Yomitan page. */
 object YomitanWebViews {
@@ -61,8 +64,26 @@ interface YomitanPageListener {
      */
     fun intercept(request: WebResourceRequest): WebResourceResponse? = null
 
+    /**
+     * A file input of the page asks for files (Yomitan's settings: dictionary zips, a settings
+     * backup). Return true and answer [callback] exactly once (null when the user cancels), or false
+     * to refuse, as WebView's own `onShowFileChooser`.
+     */
+    fun onShowFileChooser(callback: ValueCallback<Array<Uri>>, params: WebChromeClient.FileChooserParams): Boolean =
+        false
+
+    /**
+     * The page saved a file (Yomitan's settings export, only from a settings page). The screen moves
+     * [YomitanDownload.file] where the user wants it and deletes it; return false to refuse it (the
+     * engine then deletes it and the page's save fails).
+     */
+    fun onDownload(download: YomitanDownload): Boolean = false
+
     object None : YomitanPageListener
 }
+
+/** A file a Yomitan page saved: [file] is a temporary copy in the app's cache, named [name] by the page. */
+class YomitanDownload(val name: String, val mimeType: String, val file: File)
 
 /**
  * A Yomitan page hosted in a screen's WebView: settings, search, or the popup's results. Holds a use
@@ -122,6 +143,7 @@ internal class HubBinding(
         if (!attached) return
         attached = false
         engine.hub.unregisterView(viewId)
+        engine.detached(viewId)
         script.remove()
         WebViewCompat.removeWebMessageListener(webView, YomitanOrigin.HUB_NAME)
     }
@@ -169,9 +191,15 @@ internal class YomitanWebViewClient(
         // The backend never navigates; Yomitan's own pages move between each other in place.
         if (kind == PageKind.ENGINE) return true
         val url = request.url.toString()
-        // The popup stays on its page: Yomitan's other pages (a link to its settings) open where the
-        // app opens them.
-        if (YomitanOrigin.owns(url) && (kind != PageKind.POPUP || request.url.path == "/popup.html")) return false
+        // The popup stays on its page, and Yomitan's settings open only in the settings screen: a link
+        // to them ("Go to Dictionaries settings") opens where the app opens them.
+        val path = request.url.path
+        val staysHere = when (kind) {
+            PageKind.POPUP -> path == "/popup.html"
+            PageKind.SETTINGS -> true
+            else -> path != "/settings.html"
+        }
+        if (YomitanOrigin.owns(url) && staysHere) return false
         engine.openPage("tab", url)
         return true
     }
@@ -191,8 +219,18 @@ internal class YomitanWebViewClient(
     }
 }
 
-/** Yomitan's console output in logcat (errors always, the rest in debug builds). */
-internal class YomitanChromeClient(private val debug: Boolean) : WebChromeClient() {
+/** Yomitan's console output in logcat (errors always, the rest in debug builds), and its file inputs. */
+internal class YomitanChromeClient(
+    private val debug: Boolean,
+    private val listener: YomitanPageListener,
+) : WebChromeClient() {
+
+    override fun onShowFileChooser(
+        webView: WebView,
+        filePathCallback: ValueCallback<Array<Uri>>,
+        fileChooserParams: FileChooserParams,
+    ): Boolean = listener.onShowFileChooser(filePathCallback, fileChooserParams)
+
     override fun onConsoleMessage(message: ConsoleMessage): Boolean {
         val priority = when (message.messageLevel()) {
             ConsoleMessage.MessageLevel.ERROR -> LogPriority.ERROR

@@ -85,6 +85,13 @@ internal interface HubHost {
     /** Starts a request; [done] runs on the hub's thread. Returns a function that cancels it. */
     fun fetch(request: FetchRequest, done: (FetchResult) -> Unit): () -> Unit
 
+    /**
+     * One step of a file a settings page of the WebView [viewId] saves: `start` (payload
+     * `{name, type, size}`, answered `{"id":..}`), `data` (a base64 slice of save [id]) or `end`.
+     * [done] runs on the hub's thread with the answer's payload, or a failure.
+     */
+    fun save(viewId: Int, step: String, id: Int?, payload: String, done: (Result<String>) -> Unit)
+
     /** The backend finished preparing (it announced `applicationBackendReady`). */
     fun onBackendReady()
 
@@ -392,7 +399,24 @@ internal class YomitanHub(private val host: HubHost) {
                 reply(from, mid, tab?.toString().orEmpty())
             }
             "fetch" -> fetch(from, mid, payload)
+            "save" -> save(from, mid, header, payload)
             else -> replyError(from, mid, "unknown request $op")
+        }
+    }
+
+    /** A file Yomitan's settings page saves (its settings export), in slices; only settings pages may. */
+    private fun save(from: HubDoc, mid: Int, header: JsonObject, payload: String) {
+        val step = header.str("step")
+        if (from.role != DocRole.PAGE || from.kind != PageKind.SETTINGS || step == null) {
+            return replyError(from, mid, "Reikai JP does not let this page save files")
+        }
+        host.save(from.viewId, step, header.int("id"), payload) { result ->
+            if (docs[from.key] !== from) return@save
+            result.fold(
+                onSuccess = { reply(from, mid, it) },
+                onFailure = { replyError(from, mid, it.message ?: "The file could not be saved") },
+            )
+            flushDead()
         }
     }
 
