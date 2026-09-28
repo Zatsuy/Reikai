@@ -256,6 +256,8 @@ dependencies {
     implementation(projects.domain)
     implementation(projects.presentationCore)
     implementation(projects.presentationWidget)
+    // FORK: Reikai JP's Yomitan engine (roadmap 3.1); it also brings androidx.webkit
+    implementation(projects.jpYomitan)
     implementation(projects.telemetry)
 
     // RK: Glance for the unified manga + novel updates home-screen widget (hosted in the app module
@@ -273,8 +275,6 @@ dependencies {
     implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.compose.animationGraphics)
     debugImplementation(libs.androidx.compose.uiTooling)
-    // FORK: the Yomitan spike (jp.reikai, debug only) talks to its WebViews through androidx.webkit
-    debugImplementation(libs.androidx.webkit)
     implementation(libs.androidx.compose.uiToolingPreview)
     implementation(libs.androidx.compose.uiUtil)
 

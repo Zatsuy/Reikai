@@ -1,0 +1,6 @@
+# Yomitan's release is vendored byte for byte (scripts/fork/yomitan_bump.py checks every file's
+# SHA-256), so git must never convert its line endings: the root's "* text eol=lf" would rewrite
+# CRLF byte pairs inside resvg.wasm and the audio files.
+src/main/assets/yomitan/** -text
+src/main/assets/yomitan/**/*.wasm binary
+src/main/assets/yomitan/**/*.mp3 binary

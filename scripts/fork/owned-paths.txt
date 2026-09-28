@@ -17,3 +17,4 @@ app/src/test/java/jp/reikai/
 app/src/androidTest/java/jp/reikai/
 app/src/debug/java/jp/reikai/
 app/src/debug/assets/jp-reikai/
+jp-yomitan/
