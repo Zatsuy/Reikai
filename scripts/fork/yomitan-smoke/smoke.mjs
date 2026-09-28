@@ -14,7 +14,8 @@
  * Google Chrome (GitHub's runners have it), else Playwright's own Chromium
  * (PLAYWRIGHT_BROWSERS_PATH=<dir> node scripts/fork/yomitan-smoke/node_modules/playwright-core/cli.js
  * install chromium-headless-shell). --assets DIR serves another copy of jp-yomitan's assets (a
- * deliberately broken one, to prove the test fails).
+ * deliberately broken one, to prove the test fails). REIKAI_SMOKE_SLOWDOWN=N slows every page's CPU
+ * N times (Chrome's throttling), to prove locally that a slow runner still passes (D-021).
  *
  * test-dictionary.zip is Yomitan's test/data/dictionaries/valid-dictionary1 (GPL-3.0-or-later,
  * Copyright (C) 2023-2026 Yomitan Authors), zipped; see README.md.
@@ -33,6 +34,7 @@ const ASSETS = argAssets > 0 ? process.argv[argAssets + 1] : join(ROOT, 'jp-yomi
 const DICTIONARY = join(HERE, 'test-dictionary.zip');
 const DICTIONARY_URL = `${ORIGIN}/__reikai/check/test-dictionary.zip`;
 const TIMEOUT_MS = 120_000;
+const SLOWDOWN = Number(process.env.REIKAI_SMOKE_SLOWDOWN ?? 1);
 
 const started = Date.now();
 const elapsed = () => `${((Date.now() - started) / 1000).toFixed(1)} s`;
@@ -93,8 +95,15 @@ async function serve(route) {
 
 // --- the app's side: the hub and its host ---------------------------------------------------------
 
+/**
+ * Yomitan's own race, not the stand-in's: the settings page's popup preview sends a setting to its
+ * popup frame before that frame has connected, and drops the rejection (`void popup.setCustomCss`,
+ * js/pages/settings/popup-preview-frame.js). Seen in 4 of 20 runs with pages slowed 6 times
+ * (REIKAI_SMOKE_SLOWDOWN=6), never at normal speed; harmless in the app.
+ */
+const knownRace = (text) => /Failed to invoke action displaySetCustom(?:Outer)?Css: frame state invalid/.test(text);
+
 const tripwire = [];
-const standInErrors = [];
 let backendReady;
 const backendReadyPromise = new Promise((resolve) => { backendReady = resolve; });
 
@@ -111,7 +120,13 @@ const hub = new Hub({
         if (!tripwire.includes(entry)) { tripwire.push(entry); fail(`tripwire: ${entry}`); }
     },
     log: (level, text) => {
-        if (level === 'E') { standInErrors.push(text); fail(`stand-in reported: ${text}`); } else { say(`log ${level} ${text}`); }
+        if (level !== 'E') {
+            say(`log ${level} ${text}`);
+        } else if (knownRace(text)) {
+            say(`ignored Yomitan's own settings-preview race: ${text.split('\n')[0]}`);
+        } else {
+            fail(`stand-in reported: ${text}`);
+        }
     },
 });
 
@@ -185,7 +200,6 @@ class PagePort {
     }
 }
 
-const pageErrors = [];
 
 async function openView(context, kind, path) {
     const page = await context.newPage();
@@ -208,9 +222,12 @@ async function openView(context, kind, path) {
         }
     });
     await page.addInitScript(documentStart(kind));
+    if (SLOWDOWN > 1) {
+        const cdp = await context.newCDPSession(page);
+        await cdp.send('Emulation.setCPUThrottlingRate', {rate: SLOWDOWN});
+    }
     page.on('pageerror', (error) => {
-        pageErrors.push(`${kind}: ${error.message}`);
-        fail(`uncaught error in ${kind}: ${error.stack ?? error.message}`);
+        if (!knownRace(error.message)) { fail(`uncaught error in ${kind}: ${error.stack ?? error.message}`); }
     });
     page.on('console', (message) => {
         if (message.type() === 'error') { say(`console error in ${kind}: ${message.text()}`); }
@@ -263,7 +280,9 @@ try {
 
     const settings = await openView(context, 'settings', 'settings.html');
     await settings.waitForSelector('#dictionary-import-url-button', {state: 'attached'});
-    await waitFor('the settings page to reach the backend', () => settings.evaluate(() => document.documentElement.dataset.loaded === 'true' || document.readyState === 'complete'));
+    // settings-main.js sets data-loaded once every controller is prepared (the import button's
+    // listener included); clicking earlier could do nothing on a slow runner.
+    await waitFor('the settings page to finish preparing', () => settings.evaluate(() => document.documentElement.dataset.loaded === 'true'));
     await settings.evaluate((url) => {
         document.querySelector('#dictionary-import-url-text').value = url;
         document.querySelector('#dictionary-import-url-button').click();

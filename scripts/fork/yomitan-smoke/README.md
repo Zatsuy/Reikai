@@ -56,8 +56,10 @@ run opens `background.html` and waits for the backend's
 `applicationBackendReady`, imports `test-dictionary.zip` through the settings page's "Import from
 URL", looks up 打ち込んだ through the app's `findTerms` path (expects 打ち込む), opens the search
 page for 画像 and waits for its dictionary picture to be drawn by the page's own database worker,
-and fails on any tripwire or stand-in "called" entry, stand-in error or uncaught page error. It
-passes in about 5 seconds.
+and fails on any tripwire or stand-in "called" entry, stand-in error or uncaught page error (one
+known race in Yomitan's own settings preview excepted, see `knownRace` in `smoke.mjs`). It passes
+in about 4 seconds here, and 12 of 12 runs passed with every page slowed 6 times
+(`REIKAI_SMOKE_SLOWDOWN=6`), so a slow runner is no reason for a failure.
 
 `test-dictionary.zip` is Yomitan's own test dictionary `test/data/dictionaries/valid-dictionary1`
 (Copyright (C) 2023-2026 Yomitan Authors, GPL-3.0-or-later, the licence of Reikai JP), zipped
@@ -86,8 +88,9 @@ PLAYWRIGHT_BROWSERS_PATH=build/ms-playwright scripts/fork/yomitan_bump.py update
   extra care: it cannot be rolled back on the owner's devices. Make those changes, then regenerate
   the baseline from the reviewed release and say in the commit what was reviewed:
   `scripts/fork/yomitan_bump.py tripwire --write`. Only an agent does this, never the workflow.
-- **Smoke test.** Treat it as a bug (`/debug`): the log names the step that failed. If the stand-in
-  must change, prove it on a device too (`scripts/fork/yomitan_check.py`).
+- **Smoke test.** Treat it as a bug (`/debug`): the log names the step that failed. Suspect timing?
+  Rerun with `REIKAI_SMOKE_SLOWDOWN=6` a few times rather than on CI. If the stand-in must change,
+  prove it on a device too (`scripts/fork/yomitan_check.py`).
 - **Browser driver.** If Chrome and the pinned `playwright-core` stop talking to each other, raise
   the version in `package.json` and run `npm install --prefix scripts/fork/yomitan-smoke` to
   refresh `package-lock.json`.
