@@ -75,6 +75,12 @@ class JpPreferences(private val preferenceStore: PreferenceStore) {
     /** A chapter that fits on one screen or page is marked read when it opens, in either reader. */
     fun shortChaptersRead() = preferenceStore.getBoolean("jp_short_chapters_read", true)
 
+    /**
+     * The last EPUB exported (4.5), whose file this app keeps the right to open, so its notification can
+     * open it; the one before is let go of. App state, which backups leave out.
+     */
+    fun exportedBook() = preferenceStore.getString(Preference.appStateKey("jp_export_last_book"), "")
+
     // Chapter translation (4.5, phase 4 ruling 15). Keys are private preferences, which backups leave out.
 
     /** `google` (the default, no key), `deepl` or `ai` (a service with an OpenAI-compatible API). */

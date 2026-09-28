@@ -44,7 +44,8 @@ object JpNovelMenu {
             val novelId = pendingId
             pendingId = null
             if (uri == null || novelId == null) return@rememberLauncherForActivityResult
-            // Kept across a restart of the app, as a backup's location is, so the job can still write.
+            // Kept across a restart of the app, as a backup's location is, so the job can still write; the
+            // job lets it go again, except for the last book exported (NovelEpubJob.keep).
             runCatching {
                 context.contentResolver.takePersistableUriPermission(
                     uri,

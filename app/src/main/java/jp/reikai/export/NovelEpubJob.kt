@@ -60,6 +60,7 @@ class NovelEpubJob(context: Context, params: WorkerParameters) : CoroutineWorker
         val uri = inputData.getString(KEY_URI)?.toUri() ?: return Result.failure()
         setForegroundSafely()
         var shownAt = 0L
+        var kept = false
         return try {
             val counts = applicationContext.jpGraph.novelEpubExport.write(novelId, uri) { done, total ->
                 val now = SystemClock.elapsedRealtime()
@@ -75,6 +76,8 @@ class NovelEpubJob(context: Context, params: WorkerParameters) : CoroutineWorker
                     applicationContext.getString(JpR.string.jp_export_nothing_downloaded),
                 )
             } else {
+                keep(uri)
+                kept = true
                 result(applicationContext.getString(JpR.string.jp_export_done_title, title), summary(counts), uri)
             }
             Result.success()
@@ -91,6 +94,29 @@ class NovelEpubJob(context: Context, params: WorkerParameters) : CoroutineWorker
             Result.failure()
         } finally {
             applicationContext.cancelNotification(ID_PROGRESS)
+            if (!kept) release(uri)
+        }
+    }
+
+    /**
+     * The finished book keeps the right to open it that the menu took for this job (so its notification
+     * opens it, even after the app was closed); the book exported before it lets go of its own, so the
+     * app holds one such right at a time rather than one per export.
+     */
+    private fun keep(book: Uri) {
+        val last = applicationContext.jpGraph.jpPreferences.exportedBook()
+        val previous = last.get().takeIf { it.isNotEmpty() && it != book.toString() }
+        last.set(book.toString())
+        previous?.toUri()?.let(::release)
+    }
+
+    /** Lets go of the right to [book] kept across restarts; nothing when it was never taken. */
+    private fun release(book: Uri) {
+        runCatching {
+            applicationContext.contentResolver.releasePersistableUriPermission(
+                book,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
         }
     }
 
