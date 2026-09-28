@@ -47,8 +47,11 @@ sealed interface JpPageMessage {
     /** Laid out and landed, fonts loaded. */
     data class Ready(val pos: JpPagePosition) : JpPageMessage
 
-    /** After a page turn, a settled scroll or a re-layout. */
-    data class Position(val pos: JpPagePosition) : JpPageMessage
+    /**
+     * After a page turn, a settled scroll or a re-layout; [live] for a place passed on the way (auto-scroll
+     * reports once a second while it runs), which is kept without being written at once.
+     */
+    data class Position(val pos: JpPagePosition, val live: Boolean = false) : JpPageMessage
 
     /** A tap that was not a lookup or a furigana reveal, at fractions of the page. */
     data class Tap(val x: Float, val y: Float, val action: String?) : JpPageMessage
@@ -73,7 +76,7 @@ sealed interface JpPageMessage {
             if (message.string("doc") != document) return null
             return when (message.string("t")) {
                 "ready" -> message.position()?.let(::Ready)
-                "pos" -> message.position()?.let(::Position)
+                "pos" -> message.position()?.let { Position(it, live = message.boolean("live") == true) }
                 "tap" -> Tap(
                     x = message.double("x")?.toFloat()?.coerceIn(0f, 1f) ?: return null,
                     y = message.double("y")?.toFloat()?.coerceIn(0f, 1f) ?: return null,

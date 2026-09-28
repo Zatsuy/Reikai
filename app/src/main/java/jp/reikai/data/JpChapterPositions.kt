@@ -58,11 +58,15 @@ class JpChapterPositions(private val database: () -> JpReaderDatabase) {
         return stored
     }
 
-    /** Remembers [position] now and writes it shortly after; the latest per chapter wins. */
-    fun put(position: JpReaderDatabase.ChapterPosition) {
+    /**
+     * Remembers [position] now and writes it shortly after; the latest per chapter wins. Without [write]
+     * (a place passed on the way, auto-scroll's once a second) it is only kept, and written with the next
+     * place that is.
+     */
+    fun put(position: JpReaderDatabase.ChapterPosition, write: Boolean = true) {
         synchronized(recent) { recent[position.chapterId] = position }
         unwritten[position.chapterId] = position
-        wake.trySend(Unit)
+        if (write) wake.trySend(Unit)
     }
 
     /** Writes every place not written yet. */

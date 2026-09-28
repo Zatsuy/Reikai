@@ -78,6 +78,9 @@ class JpPageViewport internal constructor(
     devTools: Boolean,
     /** Whether a volume key is the reader's right now: the setting, and the menu being down. */
     private val volumeKeysActive: () -> Boolean,
+    /** A place passed on the way (auto-scroll), which upstream saves debounced. */
+    private val onProgressChanged: (chapterId: Long, percent: Int) -> Unit,
+    /** A place the reader settled on (a page turn, a stopped scroll, an edge, the end), saved at once. */
     private val onProgressSettled: (chapterId: Long, percent: Int) -> Unit,
     /** Upstream's line at the top of the screen, which this reader has none of: told null, so a switch back
      *  to the standard reader lands at the percent rather than at a line that reader saw before. */
@@ -190,6 +193,9 @@ class JpPageViewport internal constructor(
     private var incognito = false
     private var fitsReported: Boolean? = null
     private var endReported = false
+
+    /** The percent of the place last stored for the document, so a live place is written only when it moves. */
+    private var storedPercent: Int? = null
 
     /** The document on screen was opened on its last page by a step back. */
     private var openedAtEnd = false
@@ -364,6 +370,7 @@ class JpPageViewport internal constructor(
         stepping = false
         fitsReported = null
         endReported = false
+        storedPercent = null
         chapterId = chapter.chapterId
         documentSettings = settings
         val number = ++documents
@@ -506,7 +513,7 @@ class JpPageViewport internal constructor(
                 if (!ready) return
                 stepping = false
                 landAtEnd = false
-                onPosition(id, message.pos)
+                onPosition(id, message.pos, live = message.live)
             }
             is JpPageMessage.Tap -> if (ready) onTap(message)
             is JpPageMessage.Edge -> {
@@ -519,10 +526,12 @@ class JpPageViewport internal constructor(
         }
     }
 
-    private fun onPosition(id: Long, pos: JpPagePosition) {
+    private fun onPosition(id: Long, pos: JpPagePosition, live: Boolean = false) {
         val percent = pos.percent
         onTopLine(id, null)
-        onProgressSettled(id, percent)
+        // Auto-scroll reports once a second: upstream's debounced save, as its own scroll reader's is, rather
+        // than a database write each time.
+        if (live) onProgressChanged(id, percent) else onProgressSettled(id, percent)
         if (fitsReported != pos.fits) {
             fitsReported = pos.fits
             onChapterFits(id, pos.fits)
@@ -543,9 +552,13 @@ class JpPageViewport internal constructor(
             }
         }
         if (!incognito && !translated && pos.chars > 0) {
+            // A live place is kept, and written only when its percent moves (upstream's rule), or with the
+            // next settled one.
             positions.put(
                 JpReaderDatabase.ChapterPosition(id, pos.anchor, pos.chars, percent, System.currentTimeMillis()),
+                write = !live || percent != storedPercent,
             )
+            storedPercent = percent
         }
         if (listeners.isNotEmpty()) {
             val report = PageReport(id, pos, openedAtEnd, incognito, translated)

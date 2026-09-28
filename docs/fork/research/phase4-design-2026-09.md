@@ -157,7 +157,7 @@ message naming another document (a late one from the document just replaced) or 
 | `t` | fields | when |
 |---|---|---|
 | `ready` | `pos` | laid out and landed (fonts loaded) |
-| `pos` | `pos` | after every page turn or scroll settle, and after a re-layout |
+| `pos` | `pos`, `live` (only when true) | after every page turn or scroll settle, and after a re-layout; `live` for auto-scroll's once-a-second report while it runs (a place passed on the way, which the app keeps without writing it at once) |
 | `tap` | `x`, `y` (0..1), `action` (`menu`/`back`/`forward`/`none`) | a tap that is not a lookup and not a furigana reveal |
 | `edge` | `forward` (bool) | a page turn asked past the first or last page |
 | `touch` | - | any touch start (idle timer, engine warm-up) |
@@ -214,9 +214,10 @@ Fork code in `app/src/main/java/jp/reikai/reader/page/` and `jp/reikai/data/`; s
   `addWebMessageListener("jpReader")`, main frame of the chapter origin only; a message must name
   the document the viewport last began to load (`doc`, set before the document is built), so one from
   the document it replaces is dropped, and `pos` before that document's `ready` is ignored.
-- **Upstream's callbacks:** every `pos` goes to `saveProgress` as a whole percent (0 when the
-  chapter fits on one page, 100 once its end is on screen, else the character share capped at 99,
-  as upstream's scroll reports), `reportTopLine(null)` (so a switch back lands at the percent),
+- **Upstream's callbacks:** every settled `pos` goes to `saveProgress` (written at once) and every
+  `live` one to `reportProgress` (upstream's debounced save, written when the percent moves) as a
+  whole percent (0 when the chapter fits on one page, 100 once its end is on screen, else the
+  character share capped at 99, as upstream's scroll reports), `reportTopLine(null)` (so a switch back lands at the percent),
   `reportFitsOnScreen` on change, `reportChapterEndSeen` once. `edge` steps the chapter through the
   engine (one step until the reader moves again); a step back opens the previous chapter on its last
   page. `tap`: with "Tap on text: Look up" it opens the menu; with "Turn pages" upstream's tap zones
@@ -226,8 +227,9 @@ Fork code in `app/src/main/java/jp/reikai/reader/page/` and `jp/reikai/data/`; s
   updated_at)`; 4.4 adds version 2). `char_offset` holds the page's anchor rather than its first
   character (seen on the tablet: two rotations slipped the reader back a page). A chapter lands at the stored character when the stored
   `percent` equals the percent upstream opens it at, else at upstream's percent (so a place the
-  standard reader, a mark-as-read or another device moved since is not trusted). Incognito stores
-  nothing.
+  standard reader, a mark-as-read or another device moved since is not trusted). A `live` place is
+  kept in memory at once and written only when its percent moves or with the next settled one.
+  Incognito stores nothing.
 - **Which reader** (`JpReaderModes`, decided once per reading session, keyed by the novel the
   session opened): the novel's choice in `viewer_flags` bits `0x300` (`JpReaderChoice`, written by
   `SetJpReaderChoice`), else Japanese for a source whose language is `ja`, standard for another

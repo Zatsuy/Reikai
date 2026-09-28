@@ -35,6 +35,14 @@ class JpPageMessageTest {
     }
 
     @Test
+    fun `an auto-scroll report is a live place, any other a settled one`() {
+        val live = parse("""{"doc":"7-1","t":"pos","live":true,"pos":{"charOffset":0,"chars":10}}""")
+        (live as JpPageMessage.Position).live shouldBe true
+        val settled = parse("""{"doc":"7-1","t":"pos","pos":{"charOffset":0,"chars":10}}""")
+        (settled as JpPageMessage.Position).live shouldBe false
+    }
+
+    @Test
     fun `a position out of range is held to the chapter`() {
         val message = parse(
             """{"doc":"7-1","t":"pos","pos":{"charOffset":900,"chars":500,"fraction":7,"anchor":-3}}""",

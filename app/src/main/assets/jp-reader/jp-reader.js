@@ -712,6 +712,7 @@
 
   var posPending = false;
   var lastPosted = '';
+  var lastPostedLive = false;
 
   /* Posts pos after the frame that shows the change, computed then (lazily). */
   function schedulePos() {
@@ -725,13 +726,21 @@
     });
   }
 
-  function postPos(always) {
+  /*
+   * live: a place passed on the way (auto-scroll's reports while it runs), which the app keeps without
+   * writing it at once; any other pos is a place the reader settled on. A settle is posted even when a
+   * live pos already said the same place.
+   */
+  function postPos(always, live) {
     if (!ready) return;
     var state = settleState();
     var key = JSON.stringify(state);
-    if (!always && key === lastPosted) return;
+    if (!always && key === lastPosted && (live || !lastPostedLive)) return;
     lastPosted = key;
-    post({ t: 'pos', pos: state });
+    lastPostedLive = !!live;
+    var msg = { t: 'pos', pos: state };
+    if (live) msg.live = true;
+    post(msg);
   }
 
   /*
@@ -891,7 +900,7 @@
     auto.last = now;
     if (now - auto.reported > 1000) {
       auto.reported = now;
-      postPos(false);
+      postPos(false, true);
     }
     auto.raf = requestAnimationFrame(autoStep);
   }
@@ -927,7 +936,8 @@
     var at = scrollProgress();
     if (expectedScroll === null || Math.abs(at - expectedScroll) > 1) intendedDirty = true;
     expectedScroll = null;
-    postPos(false);
+    // A pause between auto-scroll's steps is no place the reader stopped at.
+    postPos(false, auto.raf !== 0);
   }
 
   /* Something other than a page turn scrolled the body (focus, find, a selection): back to the page. */

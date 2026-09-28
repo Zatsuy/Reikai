@@ -99,6 +99,7 @@ object JpPageHook {
                     isIncognito = { sourceId -> graph.getIncognitoState.await(sourceId?.let(SourceKey::Novel)) },
                     devTools = novelPreferences.readerWebViewDevTools().get(),
                     volumeKeysActive = { viewModel.settings.value.useVolumeButtons && !host.isMenuVisible },
+                    onProgressChanged = viewModel::reportProgress,
                     onProgressSettled = viewModel::saveProgress,
                     onTopLine = viewModel::reportTopLine,
                     onToggleMenu = host::toggleMenu,

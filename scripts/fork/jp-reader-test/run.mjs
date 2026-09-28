@@ -593,6 +593,17 @@ async function scrollTests(context, vp) {
             check(ran > 30, `auto-scroll at 3 px a frame moved ${ran} px forward in 600 ms (${JSON.stringify(before)} to ${JSON.stringify(after)})`);
             await settle(page, 100);
             same(await axis(page), after, 'autoScroll(0) stops');
+            // Its once-a-second reports while it runs are live (kept, not written at once); its stop settles.
+            await page.evaluate((n) => JpReader.seekChar(n), Math.round(ready.pos.chars / 4));
+            await settle(page, 300);
+            from = await mark(page);
+            await page.evaluate(() => JpReader.autoScroll(1));
+            await page.waitForTimeout(2600);
+            await page.evaluate(() => JpReader.autoScroll(0));
+            await settle(page, 300);
+            const places = (await messagesSince(page, from)).filter((m) => m.t === 'pos');
+            same([places.some((m) => m.live === true), places.length > 0 && places[places.length - 1].live],
+                [true, undefined], `auto-scroll's reports are live and its stop is not: ${JSON.stringify(places.map((m) => m.live))}`);
             // From nearly two screens before the end, so the end is reached while it runs.
             await page.evaluate((n) => JpReader.seekChar(n), ready.pos.chars - 30);
             await settle(page, 300);
@@ -975,7 +986,7 @@ function checkShapes() {
         const keys = Object.keys(m).filter((k) => k !== 'doc').sort().join(',');
         if (m.t === 'ready' || m.t === 'pos') {
             const p = m.pos || {};
-            const ok = keys === 'pos,t' && Object.keys(p).sort().join(',') === [...POS].sort().join(',') &&
+            const ok = (keys === 'pos,t' || (keys === 'live,pos,t' && m.live === true)) && Object.keys(p).sort().join(',') === [...POS].sort().join(',') &&
                 Number.isInteger(p.charOffset) && Number.isInteger(p.chars) && p.charOffset >= 0 && p.charOffset <= p.chars &&
                 Number.isInteger(p.anchor) && p.anchor >= 0 && p.anchor <= p.chars &&
                 p.fraction >= 0 && p.fraction <= 1 && Number.isInteger(p.page) && Number.isInteger(p.pages) &&
