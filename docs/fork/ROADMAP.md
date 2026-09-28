@@ -121,9 +121,11 @@ Built as one item (D-027); plan and as-built notes in
   fixes.
   **Done 2026-09-28** in `48293af25`..`1cf0fa426` (3.1), `8808a2002`..`d966a4e75` (3.2, 3.3),
   `44ea8c179`..`63da3ac04` (3.4), `4157cd648`..`257e8e75f` (3.5), `00f2ddb01`..`e1490630e` (3.6),
-  review and device fixes `a7f9a525b`..`b6acc712a` and `bfd79c7ee`..`b4d3ac922`. Agent's device
-  use (D-023): "stay awake while charging" was on for the tablet and the phone during the checks
-  and is switched back off afterwards. The phone's debug app was uninstalled; the tablet's debug
+  review and device fixes `a7f9a525b`..`b6acc712a`, `bfd79c7ee`..`b4d3ac922` and `41eb1a5be`..`d85c1aed9`. Agent's device
+  use (D-023): "stay awake while charging" was on for the tablet and the phone during the checks;
+  the phone's is back off. The tablet's is left **on** at the owner's request (2026-09-28, away
+  from home and wanting the tablet awake for the next session): the next agent that uses the
+  tablet switches it off (`settings put global stay_on_while_plugged_in 0`) when it is done. The phone's debug app was uninstalled; the tablet's debug
   app keeps Jitendex and a Kakuyomu novel for later checks.
 
 ## Done: Phase 2, Yomitan spike: go (2026-09-27)
