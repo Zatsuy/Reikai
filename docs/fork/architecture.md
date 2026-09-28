@@ -165,14 +165,16 @@ Built in Phase 4; details, the page contract and as-built notes in
 - **Seams:** the viewport choice in `NovelReaderProvider.attach`, the WebView form of the chapter
   in `NovelChapterTextLoader`, one chapter at a time in `NovelReaderViewModel`, a settings row in
   `NovelReaderSettingsPages`, the menu line in `ReaderTopBar`, short chapters marked read in
-  `reportFitsOnScreen`, and the translation swap in `loadChapterHtml`.
+  `reportFitsOnScreen`, and the translation swap in `loadChapterHtml`; outside the reader, "Export
+  as EPUB" in `EntryToolbar`'s menu (`jp.reikai.export`, a background worker writing EPUB 3).
+  Chapter translation (`jp.reikai.translate`) serves both readers through the `loadChapterHtml` seam.
 
 ### 6. Local books, learning extras, manga lookup (later phases)
 
 - **Local EPUB/TXT:** one more source adapter behind upstream's `NovelSource` seam.
 - **Learning extras:** a mining log with a jump back to the passage; known-word and frequency
   colouring from Yomitan's tokenizer plus AnkiDroid card state (Yomitan itself declined in-page
-  highlighting); i+1 sentences; TTS sentence audio; reading statistics.
+  highlighting); i+1 sentences; TTS sentence audio (reading statistics arrived in Phase 4).
 - **Manga:** an overlay on `ReaderPageImageView` (the one view both manga viewers share); first
   `.mokuro` import, then a region the reader draws read by manga-ocr (Apache-2.0) downloaded on
   demand, then automatic detection (PaddleOCR manga models). Never the redistributed Google Lens

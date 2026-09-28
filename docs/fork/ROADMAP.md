@@ -69,7 +69,8 @@ notes: [research/phase4-design-2026-09.md](research/phase4-design-2026-09.md).
 
 ## Ideas, not scheduled
 
-- ttu-compatible progress sync; audiobook read-along; machine translation of sentences.
+- ttu-compatible progress sync; audiobook read-along; translating a single sentence from the
+  lookup popup (whole chapters can be translated since Phase 4).
 
 ## Recurring
 
