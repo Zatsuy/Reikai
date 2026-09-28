@@ -41,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cafe.adriel.voyager.navigator.LocalNavigator
 import dev.icerock.moko.resources.StringResource
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.more.settings.Preference
@@ -57,7 +58,7 @@ import jp.reikai.yomitan.audio.TtsAudio
 
 /**
  * Settings, Japanese (roadmap 3.5): the lookup switch (D-025), dictionaries, AnkiDroid and card
- * set-up, word audio, and Yomitan's own settings. Everything a Japanese learner sets up once, in the
+ * set-up, word audio, Yomitan's own settings, and the reading statistics (4.4). Everything a Japanese learner sets up once, in the
  * order they need it: get dictionaries, connect AnkiDroid, set up cards, then optional audio and a
  * desktop Yomitan backup. Yomitan's own pages (its settings) open in [YomitanSettingsActivity].
  *
@@ -175,7 +176,9 @@ object SettingsJapaneseScreen : SearchableSettings {
             )
         }
 
+        val navigator = LocalNavigator.current
         val actions = Actions(
+            openStatistics = { navigator?.push(JpStatisticsScreen()) },
             allowAnki = {
                 if (deniedForGood) context.open(appDetails(context)) else permission.launch(AnkiAccess.PERMISSION)
             },
@@ -190,6 +193,7 @@ object SettingsJapaneseScreen : SearchableSettings {
 
     /** What the rows do; the defaults (settings search) do nothing. */
     private class Actions(
+        val openStatistics: () -> Unit = {},
         val allowAnki: () -> Unit = {},
         val deniedForGood: Boolean = false,
         val setUpLapis: (Cards.OfferLapis) -> Unit = {},
@@ -303,7 +307,18 @@ object SettingsJapaneseScreen : SearchableSettings {
                 ) { yomitan() },
             ),
         )
-        return listOf(lookupGroup, dictionaryGroup, ankiGroup, audioGroup, yomitanGroup)
+        // Not a lookup setting: open whether lookup is on or not.
+        val readingGroup = Preference.PreferenceGroup(
+            title = stringResource(R.string.jp_settings_reading_group),
+            preferenceItems = listOf(
+                row(
+                    title = stringResource(R.string.jp_settings_statistics),
+                    subtitle = stringResource(R.string.jp_settings_statistics_summary),
+                    onClick = actions.openStatistics,
+                ),
+            ),
+        )
+        return listOf(lookupGroup, dictionaryGroup, ankiGroup, audioGroup, yomitanGroup, readingGroup)
     }
 
     @Composable

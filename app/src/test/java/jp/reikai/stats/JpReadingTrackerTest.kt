@@ -13,8 +13,10 @@ class JpReadingTrackerTest {
     private val flushed = mutableListOf<List<TtuStatistic>>()
     private val tracker = JpReadingTracker(now = { clock }, zone = { zone }, onFlush = { flushed += it })
 
-    private fun at(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int): Long =
-        LocalDateTime.of(year, month, day, hour, minute, second).atZone(ZoneOffset.ofHours(9)).toInstant().toEpochMilli()
+    private fun at(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int): Long {
+        val time = LocalDateTime.of(year, month, day, hour, minute, second)
+        return time.atZone(zone).toInstant().toEpochMilli()
+    }
 
     /** Resumed, begun on an empty title, landed on chapter 1 at [offset]. */
     private fun reading(offset: Int = 0, chars: Int = 20_000) {

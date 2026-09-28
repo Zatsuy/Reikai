@@ -23,7 +23,11 @@ class TtuStatisticsTest {
 
     @ParameterizedTest(name = "step {index}")
     @MethodSource("updates")
-    fun `each tick updates a row as ttu's updateStatistic does`(before: TtuStatistic, step: JsonObject, after: TtuStatistic) {
+    fun `each tick updates a row as ttu's updateStatistic does`(
+        before: TtuStatistic,
+        step: JsonObject,
+        after: TtuStatistic,
+    ) {
         before.updated(
             timeDiff = step.long("timeDiff"),
             characterDiff = step.long("characterDiff"),

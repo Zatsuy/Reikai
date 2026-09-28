@@ -14,4 +14,32 @@
     <string name="jp_status_characters">%1$s / %2$s</string>
     <string name="jp_status_speed">%1$s/h</string>
     <string name="jp_status_progress">%1$d%%</string>
+
+    <!-- Settings, Japanese -->
+    <string name="jp_settings_reading_group">Reading</string>
+    <string name="jp_settings_statistics">Reading statistics</string>
+    <string name="jp_settings_statistics_summary">Characters read and reading time in the Japanese reader, and an export for ttu</string>
+
+    <!-- The statistics screen -->
+    <string name="jp_stats_title">Reading statistics</string>
+    <string name="jp_stats_today">Today</string>
+    <string name="jp_stats_week">Last 7 days</string>
+    <string name="jp_stats_all_time">All time</string>
+    <string name="jp_stats_characters">%1$s characters</string>
+    <string name="jp_stats_speed">%1$s characters an hour</string>
+    <string name="jp_stats_days">Day by day</string>
+    <string name="jp_stats_novels">Novels</string>
+    <string name="jp_stats_novel_line">%1$s characters · %2$s · %3$s an hour · last read %4$s</string>
+    <string name="jp_stats_empty">Nothing counted yet. Characters and time are counted while you read in the Japanese reader.</string>
+    <string name="jp_stats_how">Counted as ttu counts: the characters you page past, and time while you touch or turn the page at least every 5 minutes. A jump of 2,700 characters or more is not counted as reading. Nothing is counted in incognito.</string>
+    <string name="jp_stats_export">Export for ttu</string>
+    <string name="jp_stats_export_summary">A zip file for ttu (ッツ Ebook Reader): in ttu\'s book manager, Import Backup</string>
+    <plurals name="jp_stats_export_done">
+        <item quantity="one">Exported the statistics of %1$d novel</item>
+        <item quantity="other">Exported the statistics of %1$d novels</item>
+    </plurals>
+    <string name="jp_stats_export_failed">Could not export: %1$s</string>
+    <string name="jp_stats_hours_minutes">%1$d h %2$d min</string>
+    <string name="jp_stats_minutes_seconds">%1$d min %2$d s</string>
+    <string name="jp_stats_seconds">%1$d s</string>
 </resources>
