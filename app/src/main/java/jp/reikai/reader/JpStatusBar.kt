@@ -48,10 +48,13 @@ import kotlin.math.max
  * The status bar of a novel reader (4.5, phase 4 ruling 13, after Tsundoku's): a thin bar at the bottom
  * with the clock and battery on the left, the chapter in the middle and the progress on the right; in the
  * Japanese reader also the chapter's characters before the page of its total (ttu's count) and this
- * session's reading speed. In the page's own colours, over the page and under nothing else of the reader:
- * it covers upstream's progress readout (the same number) and hides while the menu is open. On by default
- * in the Japanese reader, off in the standard one ([JpPreferences.readerStatusBar],
- * [JpPreferences.standardStatusBar]).
+ * session's reading speed. In the page's own colours, over the page and under nothing else of the reader,
+ * hidden while the menu is open. In the Japanese reader it is a solid band the page keeps free of text,
+ * which covers upstream's progress readout (the same number). The standard reader keeps no such room, so
+ * there it is see-through, its text outlined in the page colour as upstream's readout is, and leaves the
+ * middle to that readout when it is shown: the last line and whatever upstream draws at the bottom stay
+ * visible under it. On by default in the Japanese reader, off in the standard one
+ * ([JpPreferences.readerStatusBar], [JpPreferences.standardStatusBar]).
  *
  * Cheap by design: one View drawing three prepared strings, redrawn only when one changes; the clock
  * ticks once a minute, the battery comes from its sticky broadcast, and nothing runs while it is hidden
@@ -76,6 +79,7 @@ internal class JpStatusBar(
     private var percent = 0
     private var characters: Pair<Int, Int>? = null
     private var speed = 0L
+    private var readoutShown = false
 
     /** The bar's text row in dp, which the Japanese page keeps clear of text. */
     val heightDp: Int get() = ceil(bar.contentHeight / host.resources.displayMetrics.density).toInt()
@@ -126,6 +130,9 @@ internal class JpStatusBar(
             .distinctUntilChanged()
             .onEach { (which, menu, visible) ->
                 japanese = which == true
+                // Only the Japanese page keeps the bar's room free of text.
+                bar.seeThrough = which == false
+                bar.titleShown = !bar.seeThrough || !readoutShown
                 show(which != null && !menu && visible)
             }
             .launchIn(host.lifecycleScope)
@@ -135,6 +142,8 @@ internal class JpStatusBar(
             updateRight()
         }.launchIn(host.lifecycleScope)
         viewModel.settings.onEach { settings ->
+            readoutShown = settings.showProgressPercentage
+            bar.titleShown = !bar.seeThrough || !readoutShown
             val resolved = settings.resolvedForSystemTheme(host.isNightMode())
             val text = readerTextColorInt(resolved.textColor)
             bar.setColors(
@@ -242,6 +251,13 @@ internal class JpStatusBar(
             textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, TEXT_SP, resources.displayMetrics)
         }
 
+        /** The outline of the text when the bar is see-through, in the page's colour. */
+        private val outline = TextPaint(paint).apply {
+            style = Paint.Style.STROKE
+            strokeJoin = Paint.Join.ROUND
+            strokeWidth = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, OUTLINE_DP, resources.displayMetrics)
+        }
+
         /** Read once: the text size never changes, and reading them allocates. */
         private val metrics = paint.fontMetrics
         private val gapPx = dp(12f)
@@ -255,6 +271,22 @@ internal class JpStatusBar(
         private var leftWidth = 0f
         private var rightWidth = 0f
         private var titleWidth = 0f
+
+        /** No band behind the text: the page shows through, and the text is outlined instead. */
+        var seeThrough = false
+            set(value) {
+                if (field == value) return
+                field = value
+                invalidate()
+            }
+
+        /** Whether the chapter's title is drawn in the middle. */
+        var titleShown = true
+            set(value) {
+                if (field == value) return
+                field = value
+                invalidate()
+            }
 
         /** The text row with its margins, without the insets below it. */
         val contentHeight: Float
@@ -270,6 +302,7 @@ internal class JpStatusBar(
         fun setTextLocale(locale: Locale) {
             if (paint.textLocale == locale) return
             paint.textLocale = locale
+            outline.textLocale = locale
             leftWidth = paint.measureText(left)
             rightWidth = paint.measureText(right)
             fitTitle()
@@ -279,6 +312,7 @@ internal class JpStatusBar(
             if (this.background == background && paint.color == text) return
             this.background = background
             paint.color = text
+            outline.color = background
             invalidate()
         }
 
@@ -320,17 +354,22 @@ internal class JpStatusBar(
         }
 
         override fun onDraw(canvas: Canvas) {
-            canvas.drawColor(background)
+            if (!seeThrough) canvas.drawColor(background)
             val baseline = paddingTop + verticalPx - metrics.ascent
-            canvas.drawText(left, paddingLeft + sidePx, baseline, paint)
-            canvas.drawText(right, width - paddingRight - sidePx - rightWidth, baseline, paint)
-            if (shownTitle.isNotEmpty()) {
+            draw(canvas, left, paddingLeft + sidePx, baseline)
+            draw(canvas, right, width - paddingRight - sidePx - rightWidth, baseline)
+            if (titleShown && shownTitle.isNotEmpty()) {
                 val start = paddingLeft + sidePx + leftWidth + gapPx
                 val end = width - paddingRight - sidePx - rightWidth - gapPx
                 val centred = (width - titleWidth) / 2
                 val x = centred.coerceIn(start, max(start, end - titleWidth))
-                canvas.drawText(shownTitle, 0, shownTitle.length, x, baseline, paint)
+                draw(canvas, shownTitle, x, baseline)
             }
+        }
+
+        private fun draw(canvas: Canvas, text: CharSequence, x: Float, baseline: Float) {
+            if (seeThrough) canvas.drawText(text, 0, text.length, x, baseline, outline)
+            canvas.drawText(text, 0, text.length, x, baseline, paint)
         }
 
         private fun dp(value: Float) = value * resources.displayMetrics.density
@@ -340,6 +379,7 @@ internal class JpStatusBar(
         const val MINUTE_MS = 60_000L
         const val TEXT_SP = 12f
         const val TEXT_ALPHA = 0xB3
+        const val OUTLINE_DP = 3f
         const val GAP = "   "
     }
 }
