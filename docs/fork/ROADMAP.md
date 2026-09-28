@@ -40,6 +40,10 @@ email you (safe to ignore), and the next agent session you start sees it and fix
 
 ## Now: Phase 4, Japanese reading mode
 
+*In progress (2026-09-28, one session, D-028):* 4.1-4.4 and 4.5's status bar and short chapters are
+built and checked on the tablet; translation, EPUB export and the review follow. Plan and as-built
+notes: [research/phase4-design-2026-09.md](research/phase4-design-2026-09.md).
+
 - [ ] **4.1 The reader**: vertical or horizontal text (your choice), pages or scrolling, furigana
   modes, Japanese fonts and line breaking, position kept when fonts change.
 - [ ] **4.2 Default for Japanese, never forced**: opens automatically for Japanese novels in

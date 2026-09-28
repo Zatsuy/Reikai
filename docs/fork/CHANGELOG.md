@@ -5,6 +5,38 @@ Changes you will notice in the app, newest first. Upstream Reikai's own changes 
 
 ## Unreleased
 
+### Japanese: a reader made for Japanese novels
+- Japanese novels now open in a new **Japanese reader** that shows the text like a printed book:
+  vertical lines read right to left, in a Mincho font, with Japanese line breaking, furigana above
+  the kanji, short numbers set upright and emphasis dots beside the text. The first time, a short
+  message offers horizontal text instead.
+- **Pages or scrolling**, in either direction: swipe (or use the volume keys, when **Volume keys**
+  is on in the reader settings) to turn pages; in scrolling mode vertical text scrolls sideways and
+  horizontal text scrolls down, to the end of the chapter. Paging or scrolling past the end opens
+  the next chapter (chapters no longer join into one long page in this reader).
+- Reader settings → **For this series** → **Japanese reader**: Reading (Pages or Scrolling), Text
+  direction, Furigana (Show, Dimmed, Hidden, Tap to toggle, Never), Japanese font (Mincho, Gothic
+  or a font you added), Tap on text. Text size, line spacing, margins and colours are the ones the
+  standard reader uses. Your place is kept to the character when you change any of them or rotate
+  the screen; some standard-reader settings (the rendering mode, bionic reading, joined chapters)
+  do nothing in the Japanese reader.
+- **Switch to standard reader** in the reader's menu (⋮) goes back to the normal reader for that
+  novel, and **Switch to Japanese reader** comes back; each novel remembers its choice. Novels from
+  Japanese sources open in the Japanese reader unless you switched them.
+- **Tap a word to look it up** (tapping anywhere in a word, or on its furigana, finds the whole
+  word); tap outside the text for the menu. **Tap on text → Turn pages** makes taps turn pages
+  instead, and a long-press still looks up.
+- Cards now carry the book's **cover** in Lapis's Picture field, from both readers. If you already
+  ran **Set up cards for Lapis**, run it once more to add the cover.
+- **Reading statistics** (Settings → Japanese): characters read, reading time and speed for today,
+  the last 7 days and all time, per day and per novel, counted the way ttu counts them;
+  **Export for ttu** saves a file ttu can import.
+- A **status bar** at the bottom of the Japanese reader shows the time, battery, chapter, progress,
+  characters read in the chapter and your reading speed (switch it in the reader settings; it is
+  off in the standard reader unless you switch it on).
+- A chapter that fits on one screen is marked read as soon as it opens (switch in the reader
+  settings).
+
 ### Japanese: look up words with Yomitan
 - New **Settings → Japanese**. Word lookup runs the real Yomitan (the same code as the browser
   extension) inside the app. It is on by default; switch it off there and it never starts, so it
