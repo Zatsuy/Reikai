@@ -1,11 +1,11 @@
 name: Yomitan update
 
 # Keeps Reikai JP's Yomitan current with nobody's attention (decision D-015). Every Wednesday it asks
-# GitHub for Yomitan's latest promoted release; once one newer than the vendored version has been
-# out for 7 days, it vendors it (SHA-256 checked against GitHub's digest), runs the static tripwire
-# and the headless-Chrome smoke test, and pushes `chore(yomitan): update to <tag>` to main, which the
-# daily App release workflow then ships. When a check fails the run fails and pushes nothing: the
-# next agent session sees it in its session-start lines and follows
+# GitHub for Yomitan's promoted releases and takes the newest one newer than the vendored version
+# that has been out for 7 days: it vendors it (SHA-256 checked against GitHub's digest), runs the
+# static tripwire and the headless-Chrome smoke test, and pushes `chore(yomitan): update to <tag>`
+# to main, which the daily App release workflow then ships. When a check fails the run fails and
+# pushes nothing: the next agent session sees it in its session-start lines and follows
 # scripts/fork/yomitan-smoke/README.md. Most weeks only the check runs, well under a minute.
 # Pushes with GitHub's Actions token: the update changes no workflow file, and a push made with that
 # token starts no other workflow, so the assets-only commit costs no Fork CI build (D-021).
@@ -32,42 +32,56 @@ jobs:
     permissions:
       contents: write
       actions: write
-    env:
-      GH_TOKEN: ${{ github.token }}
+    # The token reaches only the steps that need it, never npm or the browser: the checkout keeps no
+    # credentials, and only the keepalive, the release check and the push are given it.
     steps:
       # GitHub switches off a public repository's schedules after 60 days without activity; re-enabling
       # this workflow on each run resets that clock, as in fork-upstream-sync.yml. A step, not a job of
       # its own, because most runs end after the check and every job is billed a whole minute.
       - name: Keep the schedule alive
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/fork-yomitan-update.yml/enable"
 
       - name: Clone repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Is there a new Yomitan release?
         id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -o pipefail
           python3 scripts/fork/yomitan_bump.py check | tee -a "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
 
+      - name: Vendor and tripwire
+        if: steps.check.outputs.update == 'true'
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          set -o pipefail
+          python3 scripts/fork/yomitan_bump.py update "$TAG" --no-smoke 2>&1 | tee "$RUNNER_TEMP/yomitan-update.log"
+
       # The runner's own Node and Google Chrome; only the pinned browser driver is installed.
       - name: Install the smoke test's browser driver
         if: steps.check.outputs.update == 'true'
-        run: npm ci --prefix scripts/fork/yomitan-smoke --no-audit --no-fund
+        run: npm ci --prefix scripts/fork/yomitan-smoke --ignore-scripts --no-audit --no-fund
 
-      - name: Vendor, tripwire, smoke test
+      - name: Smoke test
         if: steps.check.outputs.update == 'true'
-        env:
-          TAG: ${{ steps.check.outputs.latest }}
         run: |
           set -o pipefail
-          python3 scripts/fork/yomitan_bump.py update "$TAG" 2>&1 | tee "$RUNNER_TEMP/yomitan-update.log"
+          python3 scripts/fork/yomitan_bump.py smoke 2>&1 | tee -a "$RUNNER_TEMP/yomitan-update.log"
 
       - name: Report the failure
         if: failure() && steps.check.outputs.update == 'true'
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
         run: |
           {
-            echo "### The update to ${{ steps.check.outputs.latest }} stopped; nothing was pushed"
+            echo "### The update to $TAG stopped; nothing was pushed"
             echo "An agent reviews it: scripts/fork/yomitan-smoke/README.md. The last lines:"
             echo '```'
             tail -n 60 "$RUNNER_TEMP/yomitan-update.log" 2>/dev/null || echo "(no log)"
@@ -77,18 +91,25 @@ jobs:
       - name: Push to main
         if: steps.check.outputs.update == 'true'
         env:
-          TAG: ${{ steps.check.outputs.latest }}
+          TAG: ${{ steps.check.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add jp-yomitan/src/main/assets/yomitan jp-yomitan/yomitan-release.json
+          # -f: the vendored tree is the release byte for byte, even a file some .gitignore rule matches.
+          git add -f jp-yomitan/src/main/assets/yomitan jp-yomitan/yomitan-release.json
           if git diff --cached --quiet; then
             echo "Yomitan $TAG is already vendored; nothing to push." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           git commit -q -m "chore(yomitan): update to $TAG" \
             -m "The weekly Yomitan update vendored release $TAG after its 7-day wait. The tripwire found no change in what the stand-in relies on, and the headless Chrome smoke test passed."
-          if git push origin HEAD:main 2> "$RUNNER_TEMP/push.err"; then
+          # What is pushed is what was checked: the commit, checked out afresh, matches the record.
+          git worktree add -q --detach "$RUNNER_TEMP/committed" HEAD
+          python3 scripts/fork/yomitan_bump.py verify --root "$RUNNER_TEMP/committed"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          if git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push origin HEAD:main 2> "$RUNNER_TEMP/push.err"; then
             echo "Pushed \`chore(yomitan): update to $TAG\` to main." >> "$GITHUB_STEP_SUMMARY"
           elif grep -q -E 'non-fast-forward|fetch first|\[rejected\]' "$RUNNER_TEMP/push.err"; then
             # main moved during the run; next week's run tries again from the new main.
