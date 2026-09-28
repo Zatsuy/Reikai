@@ -34,12 +34,14 @@ class AnkiCardSetupTest {
         dictionaries: String = "[]",
         formats: String = DEFAULT_FORMATS,
         enable: Boolean = false,
+        hotkeys: String = "[]",
     ) =
         Json.parseToJsonElement(
             """
             {"profileCurrent": $profileCurrent, "profiles": [
               {"options": {"anki": {"enable": false, "cardFormats": []}, "dictionaries": []}},
-              {"options": {"anki": {"enable": $enable, "cardFormats": $formats}, "dictionaries": $dictionaries}}
+              {"options": {"anki": {"enable": $enable, "cardFormats": $formats}, "dictionaries": $dictionaries,
+                "inputs": {"hotkeys": $hotkeys}}}
             ]}
             """.trimIndent(),
         )
@@ -132,6 +134,49 @@ class AnkiCardSetupTest {
 
         val formats = targets.value("anki.cardFormats").jsonArray.map { it.jsonObject }
         formats.map { it["model"]!!.jsonPrimitive.content }.shouldContainExactly("Lapis", "Kanji note")
+    }
+
+    @Test
+    fun `the add and view note hotkeys follow their card formats, and those of dropped formats go`() {
+        val targets = AnkiCardSetup.lapisTargets(
+            options(
+                profileCurrent = 1,
+                formats = """[
+                    {"name":"Kanji","type":"kanji","deck":"","model":"","fields":{}},
+                    {"name":"Kanji note","type":"kanji","deck":"Kanji","model":"Kanji note","fields":{}},
+                    {"name":"Expression","type":"term","deck":"","model":"","fields":{}}
+                ]""",
+                hotkeys = """[
+                    {"action":"addNote","argument":"0","key":"KeyE"},
+                    {"action":"addNote","argument":"1","key":"KeyR"},
+                    {"action":"addNote","argument":"2","key":"KeyK"},
+                    {"action":"viewNotes","argument":"2","key":"KeyV"},
+                    {"action":"nextEntry","argument":"2","key":"PageDown"}
+                ]""",
+            ),
+            "Mining",
+            lapis,
+            emptyList(),
+        )
+
+        targets.value("anki.cardFormats").jsonArray.map { it.jsonObject["model"]!!.jsonPrimitive.content }
+            .shouldContainExactly("Kanji note", "Lapis")
+        targets.value("inputs.hotkeys").jsonArray.map {
+            "${it.jsonObject["action"]!!.jsonPrimitive.content} ${it.jsonObject["argument"]!!.jsonPrimitive.content}"
+        }.shouldContainExactly("addNote 0", "addNote 1", "viewNotes 1", "nextEntry 2")
+    }
+
+    @Test
+    fun `hotkeys that still point at their card formats are left alone`() {
+        val targets = AnkiCardSetup.lapisTargets(
+            options(profileCurrent = 1, hotkeys = """[{"action":"addNote","argument":"0","key":"KeyE"}]"""),
+            "Mining",
+            lapis,
+            emptyList(),
+        )
+
+        targets.map { it.jsonObject["path"]!!.jsonPrimitive.content }
+            .shouldContainExactly("anki.enable", "anki.cardFormats")
     }
 
     @Test

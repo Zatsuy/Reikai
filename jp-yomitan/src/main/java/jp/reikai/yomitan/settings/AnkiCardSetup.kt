@@ -61,7 +61,8 @@ object AnkiCardSetup {
      * `modifySettings` targets for the current profile: Anki on, and its first word card format (a
      * new one if it has none) set to [lapis] into [deck] with Lapis's markers. Its other card formats
      * without a note type go (Yomitan's defaults "Reading" and "Kanji" would each put an Add button on
-     * every entry that only fails); those with one stay. MainDefinition holds one dictionary's
+     * every entry that only fails); those with one stay, and the keyboard's add and view note hotkeys
+     * follow them ([cardFormatHotkeys]). MainDefinition holds one dictionary's
      * definitions (Lapis's `{single-glossary-...}`), preferring Jitendex, then JMdict, then the first
      * enabled word dictionary; with none it falls back to Yomitan's first definition.
      */
@@ -95,12 +96,14 @@ object AnkiCardSetup {
                 "fields" to fields,
             ),
         )
-        val kept = formats.filterIndexed { i, it -> i == at || !it.str("model").isNullOrEmpty() }
+        val keptAt = formats.indices.filter { i -> i == at || !formats[i].str("model").isNullOrEmpty() }
+        val kept = keptAt.map { formats[it] }
         val newFormats = if (at >= 0) {
             JsonArray(kept.map { if (it === formats[at]) format(it) else it })
         } else {
             JsonArray(kept + format(null))
         }
+        val hotkeys = profile?.obj("inputs")?.get("hotkeys") as? JsonArray
         fun target(path: String, value: JsonElement) = buildJsonObject {
             put("action", "set")
             put("path", path)
@@ -108,11 +111,29 @@ object AnkiCardSetup {
             put("scope", "profile")
             put("optionsContext", buildJsonObject { put("index", index) })
         }
+        val newHotkeys = hotkeys?.let { cardFormatHotkeys(it, keptAt) }
         return buildJsonArray {
             add(target("anki.enable", JsonPrimitive(true)))
             add(target("anki.cardFormats", newFormats))
+            if (newHotkeys != null && newHotkeys != hotkeys) add(target("inputs.hotkeys", newHotkeys))
         }
     }
+
+    /**
+     * [hotkeys] (`inputs.hotkeys`) once only the card formats at [keptAt] (old indices, in order) are
+     * left: Yomitan's add and view note hotkeys name a card format by its index (`argument`), so each
+     * follows its format to its new index, and one whose format went is dropped (it would otherwise
+     * act on whichever format takes that index later). Every other hotkey stays as it is.
+     */
+    internal fun cardFormatHotkeys(hotkeys: JsonArray, keptAt: List<Int>): JsonArray = JsonArray(
+        hotkeys.mapNotNull { hotkey ->
+            val o = hotkey as? JsonObject ?: return@mapNotNull hotkey
+            if (o.str("action") !in CARD_FORMAT_ACTIONS) return@mapNotNull hotkey
+            val old = o.str("argument")?.toIntOrNull() ?: return@mapNotNull hotkey
+            val new = keptAt.indexOf(old).takeIf { it >= 0 } ?: return@mapNotNull null
+            JsonObject(o + ("argument" to JsonPrimitive(new.toString())))
+        },
+    )
 
     /**
      * Each of the note type's [fields] with its marker from Lapis's README; a field the README leaves
@@ -165,6 +186,9 @@ object AnkiCardSetup {
     }
 
     private fun JsonObject.str(key: String) = (this[key] as? JsonPrimitive)?.contentOrNull
+
+    /** Yomitan's hotkey actions whose argument is a card format's index (`display-anki.js`). */
+    private val CARD_FORMAT_ACTIONS = setOf("addNote", "viewNotes")
 
     /** Yomitan's default word card format (`options-schema.json`), for a profile that has none. */
     private val NEW_FORMAT = buildJsonObject {
