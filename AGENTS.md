@@ -80,6 +80,7 @@ and suggest the better option. Performance and smoothness of the app are a pilla
 ## Map
 
 `app/` the Android app (fork code under `app/src/main/java/jp/reikai/`); `domain/`, `data/`,
-`core/`, `source-*` upstream modules; `docs/fork/` fork docs; `scripts/fork/` fork tooling;
+`core/`, `source-*` upstream modules; `jp-yomitan/` the Yomitan engine module (vendored Yomitan,
+changed only by `scripts/fork/yomitan_bump.py`; stand-in, Anki and audio bridges); `docs/fork/` fork docs; `scripts/fork/` fork tooling;
 `../refs/` read-only reference clones (mihon, lnreader, lnreader-plugins, tsundoku, chimahon,
 yomihon, hoshidicts, yomitan, ttu-ebook-reader, Hoshi-Reader).

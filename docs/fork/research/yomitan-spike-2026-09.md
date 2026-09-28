@@ -1,5 +1,11 @@
 # Research: the Yomitan spike (roadmap 2.1), September 2026
 
+**Since then (Phase 3, 2026-09-28):** the spike's code and `scripts/fork/yomitan_spike.py` were
+replaced by the fork module `jp-yomitan/` and `scripts/fork/yomitan_check.py` (a debug engine
+check screen); the spike's files stay in git history at `1f0c067b9`. The findings below stand;
+the fixes proposed in items 4 and 5 were built differently, and what was built and measured is in
+[phase3-design-2026-09.md](phase3-design-2026-09.md).
+
 **Question:** can Yomitan's own, unmodified code run inside Reikai JP fast enough to be the lookup
 engine? **Answer from the devices: it runs, and a warm lookup is fast.** Against the budgets in
 [architecture.md](../architecture.md): tap to popup and the dictionary import met theirs; engine
@@ -115,6 +121,8 @@ note types named Lapis, and the bridge is the same code on both.
 - **Engine memory:** reading with a popup cost about +350 MB on the tablet and +210-240 MB on the
   phone in total, part of it any WebView reader's cost (upstream's WebView reader also doubles the
   app's memory, [perf](../perf/README.md)). Measure the engine alone in 3.1, without the spike's
-  full-screen driver page, and set the budget there.
+  full-screen driver page, and set the budget there. **Closed in Phase 3:** the engine alone adds
+  at most about +160 MB (app plus renderer) on either device; the budget, under +200 MB, and the
+  figures are in [architecture.md](../architecture.md#performance-budgets).
 - **Imports:** Jitendex in 2.5-3.5 min, done in the background with progress; the three test
   dictionaries take 320 MB.

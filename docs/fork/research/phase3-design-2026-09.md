@@ -110,6 +110,24 @@ Spike facts: [yomitan-spike-2026-09.md](yomitan-spike-2026-09.md). Citations are
   `app_webview/` (`SettingsAdvancedScreen.kt:316-317`), erasing every dictionary. Needs a seam
   that keeps the engine origin. Whether WebView grants `navigator.storage.persist()` is unverified.
 
+**As built (2026-09-27/28, `jp-yomitan/src/main/java/jp/reikai/yomitan/`; the spike's code gave way
+to a debug check screen, `app/src/debug/.../yomitan/check/`, driven by `scripts/fork/yomitan_check.py`):**
+- Origin `https://yomitan.reikai.invalid` as proposed (`YomitanOrigin`), Yomitan 26.9.8.0 vendored
+  unzipped. Roles as above, decided in `YomitanHub` from WebView's `sourceOrigin`, `isMainFrame`
+  and the sending WebView's `PageKind`. Engine pages other than `popup.html` are served with
+  `frame-ancestors 'self'` (in a browser the popup is Yomitan's one web-accessible page), so no web
+  page can frame settings. The "Clear WebView data" risk is settled in 3.5.
+- Pictures and imports work as proposed. Jitendex from its URL through Yomitan's settings page:
+  147 s tablet, 184-197 s phone (spike, from a page: 145 s, 213 s). Engine start with Jitendex,
+  tablet: 920-942 ms (spike 1.4-1.6 s), 1.05 s seen later. Lookups (`termsFind`, 300 of 16
+  characters, tablet): p95 20 ms (spike 37.6).
+- **Memory** (`yomitan_check.py mem`, PSS): engine alone, tablet app 209-217 → 278-289 MB plus a
+  76-79 MB renderer, phone 240-256 → 264-287 MB plus 98-103 MB; reading with the sheet open, tablet
+  native reader 452 + 119 MB, phone WebView reader 447 + 141 MB. After the engine stops WebView
+  keeps its renderer (~93 MB) until the app restarts, so D-025's "no memory" holds from an app
+  start with lookup off. Budget, in `architecture.md`: the engine alone under +200 MB in total
+  (app growth plus renderer) on both devices.
+
 ## 3.2 Anki (raw AnkiDroid provider, no library)
 
 AnkiDroid's API library is LGPL on JitPack and lacks search, card info and deck-scoped duplicate

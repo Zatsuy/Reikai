@@ -22,7 +22,7 @@ app compiled against its own profile, as a device is a day after an update.
 | `library_jank_pct` | share of janky frames flinging the library down and up, 3 passes | scrolling smoothness |
 | `chapter_open_first` | the first chapter open after a start, when the reader's code loads | reader startup |
 | `chapter_open` | later opens: reader launch to the chapter's text drawn (system "Fully drawn") | chapter loading and layout |
-| `reader_pss_mb` | memory (PSS, MB) with the novel reader open | reader memory, later the Yomitan engine |
+| `reader_pss_mb` | memory (PSS, MB) of the app's process with the novel reader open | reader memory |
 | `reader_jank_pct` | share of janky frames flinging through a chapter, 3 passes | reading smoothness |
 
 Times are in ms. Lower is better everywhere.
@@ -36,6 +36,13 @@ Limits, so no one compares what was never measured:
 - **The fork stands in for upstream.** The budget "not slower than upstream" is checked against this
   baseline, the fork at the commit below, which is upstream plus a few seams.
 - **A made-up library**, sized like a well-used one, not the owner's own.
+- **Not the Yomitan engine.** `perf.py` reads the app's own process, never the WebView renderer
+  where most of the engine's memory sits; the engine is measured on the debug build with
+  `scripts/fork/yomitan_check.py` (`mem`, `cmd` with `bench`), against the budget in
+  [architecture.md](../architecture.md#performance-budgets). The benchmark copy has lookup on (the
+  default) and Japanese novels, so since Phase 3 the engine may start 2 s after a chapter settles,
+  inside the 3 s before `reader_pss_mb` is read, and add its app-side share to it; not yet
+  measured, so compare a post-Phase 3 run with the baseline with that in mind.
 
 ## Baseline
 

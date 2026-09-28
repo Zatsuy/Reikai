@@ -95,9 +95,11 @@ $78 with 22 research subagents. The next retro compares against it.
 ## Continuous integration
 
 The fork runs only its own workflows (decision D-013):
-- `fork-ci.yml`: harness fixtures, seams, format, DI ownership, migrations, compile and unit tests
-  on pull requests and code pushes to `main` (not on the sync's own merges, already checked). No
-  secrets, publishes nothing. Pushes to `main` save the Gradle cache so later builds start warm.
+- `fork-ci.yml`: harness fixtures, seams, format, DI ownership, migrations, the Yomitan stand-in's
+  Node tests (`node --test jp-yomitan/src/test/js/*.test.mjs`) and the bump script's Python tests
+  (`scripts/fork/test_yomitan_bump.py`), compile and unit tests of every module (`jp-yomitan`
+  included) on pull requests and code pushes to `main` (not on the sync's own merges, already
+  checked). No secrets, publishes nothing. Pushes to `main` save the Gradle cache so later builds start warm.
 - `fork-upstream-sync.yml`: every Monday, merges upstream, runs the same checks and pushes to
   `main` with the `SYNC_DEPLOY_KEY` deploy key. A failure pushes nothing. A keepalive job stops
   GitHub switching the schedule off after 60 quiet days.
