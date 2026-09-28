@@ -1,0 +1,10 @@
+{
+  "name": "reikai-jp-yomitan-smoke",
+  "private": true,
+  "description": "Reikai JP: the Yomitan update smoke test (scripts/fork/yomitan_bump.py smoke).",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "1.63.0"
+  }
+}
