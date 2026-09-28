@@ -64,10 +64,22 @@ URL", looks up 打ち込んだ through the app's `findTerms` path (expects 打�
 page for 画像 and waits for its dictionary picture to be drawn by the page's own database worker,
 then switches Anki on and asks Yomitan for AnkiConnect's version: Yomitan's own POST goes through
 the stand-in and the hub to a canned AnkiConnect, and the answer comes back as a binary
-(ArrayBuffer) message, the path a device uses for Anki and audio. It fails on any tripwire or stand-in "called" entry, stand-in error or uncaught page error (one
-known race in Yomitan's own settings preview excepted, see `knownRace` in `smoke.mjs`). It passes
-in about 4 seconds here, and 12 of 12 runs passed with every page slowed 6 times
-(`REIKAI_SMOKE_SLOWDOWN=6`), so a slow runner is no reason for a failure.
+(ArrayBuffer) message, the path a device uses for Anki and audio. The Japanese reader (4.3) runs
+too: a chapter page at `https://chapter.reikai.invalid`, built as the app builds it (the page script
+from `app/src/main/assets/jp-reader/`, `fixtures.mjs` of its tests, the app's Content-Security-Policy
+read from `JpPageDocument.kt`), with the stand-in in content mode and `jp-reikai/reader-scan.js`. It
+opens before the engine, so a tap on a word first waits and is searched once the engine says it is
+ready; then finger taps through `jp-reader.js` must find 打ち込んだ (ruby 打 with its okurigana
+outside), 画像 (a ruby base) and 読む with Yomitan's sentence and offset, rects under the finger,
+`vertical-rl` and the word selected, nothing for 朝, the highlight gone after `clear()`, and a margin
+tap left to the page. Last, the lookup sheet's page (`popup.html` with `popup-host.js`, the app's
+phone defaults) adds a card whose Picture field is `{screenshot}`: with a cover the canned
+AnkiConnect must receive that picture and the card, without one the card with an empty field. It
+fails on any tripwire or stand-in "called" entry, stand-in error, uncaught page error or policy
+violation in the chapter page (one known race in Yomitan's own settings preview excepted, see
+`knownRace` in `smoke.mjs`). It passes
+in about 12 seconds here; with every page slowed 6 times (`REIKAI_SMOKE_SLOWDOWN=6`) 12 of 12 runs
+passed before the reader's checks and 8 of 8 with them, so a slow runner is no reason for a failure.
 
 `test-dictionary.zip` is Yomitan's own test dictionary `test/data/dictionaries/valid-dictionary1`
 (Copyright (C) 2023-2026 Yomitan Authors, GPL-3.0-or-later, the licence of Reikai JP), zipped

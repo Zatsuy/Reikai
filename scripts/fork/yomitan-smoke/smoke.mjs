@@ -10,6 +10,13 @@
  * search page, reaches a canned AnkiConnect through the app's network path (binary reply), and
  * fails on any tripwire entry, stand-in error or uncaught page error.
  *
+ * The Japanese reader (roadmap 4.3): a chapter page at the chapter origin, built as JpPageViewport
+ * builds it (app/src/main/assets/jp-reader, the app's Content-Security-Policy read from
+ * JpPageDocument.kt), with the stand-in in content mode and Yomitan's scanner (jp-reikai/reader-scan.js):
+ * taps through jp-reader.js find words, sentences and the highlight in vertical text with ruby, and a
+ * card added from the lookup sheet's page (popup.html with popup-host.js) gets the book's cover
+ * through Anki's {screenshot}, or an empty field without one.
+ *
  * Run: scripts/fork/yomitan_bump.py smoke (or node scripts/fork/yomitan-smoke/smoke.mjs), after
  * `npm ci --prefix scripts/fork/yomitan-smoke`. Chrome: $REIKAI_CHROME if set, else the installed
  * Google Chrome (GitHub's runners have it), else Playwright's own Chromium
@@ -27,6 +34,7 @@ import {fileURLToPath} from 'node:url';
 import {join, normalize, sep} from 'node:path';
 import {chromium} from 'playwright-core';
 import {Hub, ORIGIN} from './hub.mjs';
+import {chapterDocument} from '../jp-reader-test/fixtures.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = join(HERE, '../../..');
@@ -36,6 +44,8 @@ const DICTIONARY = join(HERE, 'test-dictionary.zip');
 const DICTIONARY_URL = `${ORIGIN}/__reikai/check/test-dictionary.zip`;
 const TIMEOUT_MS = 120_000;
 const SLOWDOWN = Number(process.env.REIKAI_SMOKE_SLOWDOWN ?? 1);
+const CHAPTER_ORIGIN = 'https://chapter.reikai.invalid';
+const READER_ASSETS = join(ROOT, 'app/src/main/assets/jp-reader');
 
 const started = Date.now();
 const elapsed = () => `${((Date.now() - started) / 1000).toFixed(1)} s`;
@@ -60,6 +70,7 @@ const MIME = {
 
 async function serve(route) {
     const url = new URL(route.request().url());
+    if (url.origin === CHAPTER_ORIGIN) { return serveChapter(route, url); }
     if (url.origin !== ORIGIN) {
         // The smoke test is offline; Yomitan's cross-origin requests go through the hub's fetch.
         say(`blocked a request to ${url.origin}`);
@@ -94,6 +105,56 @@ async function serve(route) {
     });
 }
 
+// --- the chapter origin, as JpPageClient serves it ---------------------------------------------------
+
+/**
+ * JpPageDocument.CONTENT_SECURITY_POLICY, read from the Kotlin source so the two never drift: the
+ * chapter page runs only its own script and Yomitan's.
+ */
+async function chapterPolicy() {
+    const kotlin = await readFile(join(ROOT, 'app/src/main/java/jp/reikai/reader/page/JpPageDocument.kt'), 'utf8');
+    const constants = Object.fromEntries([...kotlin.matchAll(/const val (\w+) = "([^"$]*)"/g)].map((m) => [m[1], m[2]]));
+    const list = /CONTENT_SECURITY_POLICY: String = listOf\(([\s\S]*?)\)\.joinToString\("; "\)/.exec(kotlin);
+    if (!list || !constants.IMAGE_ORIGIN || !constants.YOMITAN_ORIGIN) { throw new Error('JpPageDocument.kt: its Content-Security-Policy is no longer where this test reads it'); }
+    return [...list[1].matchAll(/"([^"]*)"/g)]
+        .map((m) => m[1].replace(/\$(\w+)/g, (_, name) => constants[name] ?? `$${name}`))
+        .join('; ');
+}
+const CHAPTER_CSP = await chapterPolicy();
+if (!CHAPTER_CSP.includes(`script-src 'self' ${ORIGIN}`)) { throw new Error(`unexpected chapter policy: ${CHAPTER_CSP}`); }
+
+/** Sentences over the test dictionary's words, vertical text with ruby (打 with its okurigana outside). */
+const CHAPTER = {
+    id: 1,
+    html: [
+        '<h1 class="jp-title">第一章</h1>',
+        '<p>朝の光が窓から差し込み、机の上の古い本を静かに照らしていた。</p>',
+        '<p>彼は古い<ruby>画像<rt>がぞう</rt></ruby>を見て、<ruby>打<rt>う</rt></ruby>ち込んだ。それから本を読む。</p>',
+    ].join('\n'),
+};
+const CHAPTER_URL = `${CHAPTER_ORIGIN}/chapter/1-1`;
+const CHAPTER_SETTINGS = {
+    writing: 'vertical', layout: 'paged', furigana: 'show', tapMode: 'lookup', tapZones: [[0, 0, 1, 1, 'menu']],
+    fontFamily: 'serif', fontSize: 22, lineHeight: 1.8, margins: {top: 24, right: 24, bottom: 24, left: 24},
+    insets: {top: 0, bottom: 0}, colors: {background: '#ffffff', text: '#000000', hint: '#888888'},
+    textIndent: 1, justify: true, invertSwipe: false,
+};
+/** The document JpPageDocument builds, with Yomitan's scanner loaded after the page script (4.3). */
+const CHAPTER_HTML = chapterDocument(CHAPTER, {charOffset: 0, fraction: 0, settings: CHAPTER_SETTINGS})
+    .replace('</body>', `<script type="module" src="${ORIGIN}/__reikai/reader-scan.js"></script></body>`);
+
+async function serveChapter(route, url) {
+    const path = url.pathname;
+    if (path === new URL(CHAPTER_URL).pathname) {
+        return route.fulfill({status: 200, body: CHAPTER_HTML, contentType: 'text/html; charset=utf-8',
+            headers: {'Content-Security-Policy': CHAPTER_CSP, 'Cache-Control': 'no-store'}});
+    }
+    const name = path.startsWith('/jp-reader/') ? path.slice('/jp-reader/'.length) : '';
+    const body = /^[\w.-]+$/.test(name) ? await readFile(join(READER_ASSETS, name)).catch(() => null) : null;
+    if (body === null) { return route.fulfill({status: 404, body: ''}); }
+    return route.fulfill({status: 200, body, contentType: name.endsWith('.css') ? 'text/css' : 'text/javascript'});
+}
+
 // --- the app's side: the hub and its host ---------------------------------------------------------
 
 /**
@@ -109,20 +170,47 @@ let ankiVersionAsked = false;
 let backendReady;
 const backendReadyPromise = new Promise((resolve) => { backendReady = resolve; });
 
+/** What the canned AnkiConnect was given: media files and notes, in order. */
+const anki = {media: [], notes: []};
+/**
+ * A canned AnkiConnect (the app answers it from AnkiDroid): a deck, a Lapis-like note type, nothing
+ * added yet. Yomitan asks with API version 2, which AnkiConnect answers with the bare result.
+ */
+function ankiConnect(action, params) {
+    switch (action) {
+        case 'version': return 6;
+        case 'deckNames': return ['Reikai'];
+        case 'modelNames': return ['Lapis'];
+        case 'modelFieldNames': return ['Expression', 'Sentence', 'Picture', 'MiscInfo'];
+        case 'canAddNotes': return (params.notes ?? []).map(() => true);
+        case 'canAddNotesWithErrorDetail': return (params.notes ?? []).map(() => ({canAdd: true}));
+        case 'findNotes': case 'findCards': return [];
+        case 'notesInfo': case 'cardsInfo': return [];
+        case 'storeMediaFile': anki.media.push({filename: params.filename, data: params.data}); return params.filename;
+        case 'addNote': anki.notes.push(params.note); return 1000 + anki.notes.length;
+        case 'multi': return (params.actions ?? []).map((a) => ankiConnect(a.action, a.params ?? {}));
+        default: say(`canned AnkiConnect: ${action} answered with null`); return null;
+    }
+}
+
+/** The lookup sheet's picture for Anki's {screenshot} (the book's cover), by popup tab; the app's YomitanPopup. */
+const covers = new Map();
+
 const hub = new Hub({
     storage: new Map(),
     openPage: (how, url) => { say(`Yomitan asked to open (${how}) ${url}`); return null; },
     fetch: (request) => {
-        const anki = request.url.startsWith('http://127.0.0.1:8765') && request.method === 'POST' ? JSON.parse(request.body ?? '{}') : null;
-        if (anki?.action === 'version') {
-            // A canned AnkiConnect, to prove the app's network path: Yomitan's POST in, a binary reply
-            // out. Yomitan asks with API version 2, which AnkiConnect answers with the bare result.
-            ankiVersionAsked = anki.version === 2;
-            return {status: 200, statusText: 'OK', headers: {'content-type': 'application/json'}, body: Buffer.from('6')};
+        const call = request.url.startsWith('http://127.0.0.1:8765') && request.method === 'POST' ? JSON.parse(request.body ?? '{}') : null;
+        if (call !== null) {
+            // Yomitan's POST in, a binary reply out: the device's path for Anki and audio.
+            if (call.action === 'version') { ankiVersionAsked = call.version === 2; }
+            const result = ankiConnect(call.action, call.params ?? {});
+            return {status: 200, statusText: 'OK', headers: {'content-type': 'application/json'}, body: Buffer.from(JSON.stringify(result))};
         }
-        say(`Yomitan fetched ${request.method} ${request.url}${anki ? ` (${anki.action})` : ''} (offline here)`);
+        say(`Yomitan fetched ${request.method} ${request.url} (offline here)`);
         return {failed: 'offline in the smoke test'};
     },
+    capture: (tabId) => covers.get(tabId) ?? null,
     onBackendReady: () => backendReady(),
     onTripwire: (path, called, url) => {
         const entry = `${called ? 'called ' : ''}${path} (${url.replace(ORIGIN, '')})`;
@@ -142,12 +230,14 @@ const hub = new Hub({
 // --- one browser page per WebView -----------------------------------------------------------------
 
 const STAND_IN = await readFile(join(ASSETS, 'jp-reikai/stand-in.js'), 'utf8');
+const POPUP_HOST = await readFile(join(ASSETS, 'jp-reikai/popup-host.js'), 'utf8');
 const MANIFEST = JSON.parse(await readFile(join(ASSETS, 'yomitan/manifest.json'), 'utf8'));
 
-/** What WebView gives a page of the engine origin before any of its scripts: no SharedWorker, the
- * web message listener's object (addWebMessageListener), then the stand-in (addDocumentStartJavaScript). */
-const documentStart = (kind) => `(() => {
-    if (location.origin !== ${JSON.stringify(ORIGIN)}) { return; }
+/** What WebView gives a page of the engine origin (or a reader's chapter origin) before any of its
+ * scripts: no SharedWorker, the web message listener's object (addWebMessageListener), then the
+ * stand-in (addDocumentStartJavaScript). */
+const documentStart = (kind, origins = [ORIGIN]) => `(() => {
+    if (!${JSON.stringify(origins)}.includes(location.origin)) { return; }
     delete globalThis.SharedWorker;
     const post = globalThis.__reikaiPost;
     const doc = Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -217,8 +307,14 @@ class PagePort {
 }
 
 
-async function openView(context, kind, path) {
+/**
+ * One WebView: a page with the hub's document start. `options`: origins the stand-in is injected into
+ * (the engine's by default), `init` a script after it (another listener's object, a host), `bindings`
+ * the functions that script posts to.
+ */
+async function openView(context, kind, path, {origins, init = '', bindings = {}} = {}) {
     const page = await context.newPage();
+    for (const [name, fn] of Object.entries(bindings)) { await page.exposeBinding(name, fn); }
     const viewId = hub.registerView(kind);
     /** Per document: the next sequence number, and messages that arrived ahead of it. */
     const order = new Map();
@@ -237,7 +333,7 @@ async function openView(context, kind, path) {
             hub.onMessage(viewId, new URL(frame.url()).origin, isMainFrame, doc, port, text);
         }
     });
-    await page.addInitScript(documentStart(kind));
+    await page.addInitScript(documentStart(kind, origins) + init);
     if (SLOWDOWN > 1) {
         const cdp = await context.newCDPSession(page);
         await cdp.send('Emulation.setCPUThrottlingRate', {rate: SLOWDOWN});
@@ -249,7 +345,8 @@ async function openView(context, kind, path) {
         if (message.type() === 'error') { say(`console error in ${kind}: ${message.text()}`); }
     });
     page.on('close', () => hub.forgetView(viewId));
-    await page.goto(`${ORIGIN}/${path}`);
+    page.viewId = viewId;
+    await page.goto(path.startsWith('https://') ? path : `${ORIGIN}/${path}`);
     return page;
 }
 
@@ -264,6 +361,134 @@ async function waitFor(what, fn, ms = 60_000) {
         await new Promise((resolve) => setTimeout(resolve, 250));
     }
 }
+
+// --- the Japanese reader's page and the lookup sheet's page (4.3) -----------------------------------
+
+/** What the chapter page's listeners get (the app's jpReader and reikaiReader), and policy violations. */
+const fromReader = [];
+const READER_INIT = `
+(() => {
+    if (location.origin !== ${JSON.stringify(CHAPTER_ORIGIN)}) { return; }
+    const listener = (name) => ({
+        postMessage: (text) => { void globalThis.__readerPost(name, String(text)); },
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+    });
+    globalThis.jpReader = listener('jpReader');
+    globalThis.reikaiReader = listener('reikaiReader');
+    document.addEventListener('securitypolicyviolation', (e) => {
+        void globalThis.__readerPost('csp', JSON.stringify({t: 'csp', what: e.violatedDirective + ' ' + e.blockedURI}));
+    });
+})();`;
+const readerBindings = {
+    __readerPost: (_source, channel, text) => {
+        const message = JSON.parse(text);
+        fromReader.push({channel, message});
+        if (channel === 'csp') { fail(`the chapter page's policy blocked ${message.what}`); }
+    },
+};
+const readerSince = (at, channel) => fromReader.slice(at).filter((m) => m.channel === channel).map((m) => m.message);
+const readerMessage = (at, channel, types, ms = 20_000) => waitFor(`the reader's ${channel} ${types}`,
+    () => readerSince(at, channel).find((m) => types.split('|').includes(m.t)), ms);
+
+/** The middle of `text`'s character `index` in the chapter, in client px (a finger's point). */
+const charPoint = (page, text, index = 0) => page.evaluate(([wanted, i]) => {
+    const walker = document.createTreeWalker(document.getElementById('jp-chapter'), NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+        const at = node.data.indexOf(wanted);
+        if (at < 0) { continue; }
+        const range = document.createRange();
+        range.setStart(node, at + i);
+        range.setEnd(node, at + i + 1);
+        const r = range.getBoundingClientRect();
+        return {x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2};
+    }
+    return null;
+}, [text, index]);
+
+/** The page's selection as text without ruby readings, or null when nothing is selected. */
+const selectedText = (page) => page.evaluate(() => {
+    const selection = getSelection();
+    if (selection === null || selection.rangeCount === 0 || selection.isCollapsed) { return null; }
+    const copy = selection.getRangeAt(0).cloneContents();
+    copy.querySelectorAll('rt, rp').forEach((e) => e.remove());
+    return copy.textContent;
+});
+
+const same = (actual, expected, what) => {
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) { fail(`${what}: ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`); return false; }
+    return true;
+};
+
+/** A finger's tap on `text` through jp-reader.js; resolves with the scanner's answer and the point. */
+async function tapWord(page, text, index = 0) {
+    const point = await charPoint(page, text, index);
+    const at = fromReader.length;
+    await page.touchscreen.tap(point.x, point.y);
+    const message = await readerMessage(at, 'reikaiReader', 'found|empty|error');
+    // What follows a tap in the browser (its mouse events) must leave the highlight alone.
+    await page.waitForTimeout(300);
+    const taps = readerSince(at, 'jpReader').filter((m) => m.t === 'tap');
+    if (taps.length > 0) { fail(`a tap on ${text} that looked up also went to the app as a tap: ${JSON.stringify(taps)}`); }
+    return {message, point};
+}
+
+/** A tap on `text` finds `query` in `sentence`, highlighted, with its rects under the finger. */
+async function expectWord(page, text, index, query, sentence, offset) {
+    const {message, point} = await tapWord(page, text, index);
+    if (!same(message.t, 'found', `a tap on ${text}[${index}]`)) { return message; }
+    same([message.type, message.query, message.sentence, message.writingMode], ['terms', query, {text: sentence, offset}, 'vertical-rl'],
+        `a tap on ${text}[${index}]: type, query, sentence and writing mode`);
+    const under = message.rects.some((r) => point.x >= r.left - 1 && point.x <= r.right + 1 && point.y >= r.top - 1 && point.y <= r.bottom + 1);
+    if (!under) { fail(`a tap on ${text}[${index}]: the word's rects ${JSON.stringify(message.rects)} miss the finger at ${JSON.stringify(point)}`); }
+    same(await selectedText(page), query, `the highlight after a tap on ${text}[${index}]`);
+    return message;
+}
+
+/** The lookup sheet's page (popup.html with popup-host.js), as YomitanPopup loads it. */
+const fromPopup = [];
+const POPUP_INIT = `
+(() => {
+    if (location.origin !== ${JSON.stringify(ORIGIN)} || globalThis.top !== globalThis) { return; }
+    globalThis.reikaiPopup = {
+        postMessage: (text) => { void globalThis.__popupPost(String(text)); },
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+    };
+})();
+${POPUP_HOST}
+();`;
+const popupBindings = {__popupPost: (_source, text) => { fromPopup.push(JSON.parse(text)); }};
+
+/** PopupUrls.page and PopupUrls.state (PopupLookup.kt) for a lookup the reader's scanner found. */
+function popupLookup(found, documentTitle) {
+    const params = new URLSearchParams({type: 'terms', query: found.query});
+    if (found.sentence.text.length > found.query.length) {
+        params.set('full', found.sentence.text);
+        params.set('offset', String(found.sentence.offset));
+    }
+    params.set('wildcards', 'off');
+    return [`/popup.html?${params}`, {focusEntry: 0, url: CHAPTER_URL, documentTitle, pageTheme: 'light', sentence: found.sentence}];
+}
+
+/** Shows a lookup in the popup page and presses its first "add" button; resolves with the note added. */
+async function addCard(popup, found, token, documentTitle) {
+    const [url, state] = popupLookup(found, documentTitle);
+    await popup.evaluate(([u, st, t]) => globalThis.__reikaiPopup.show(u, st, t), [url, state, token]);
+    await waitFor(`the popup to show ${found.query}`, () => fromPopup.find((m) => m.t === 'shown' && m.token === token), 20_000);
+    const notes = anki.notes.length;
+    await waitFor(`an enabled "add" button for ${found.query}`, () => popup.evaluate(() => {
+        const button = document.querySelector('#dictionary-entries .entry .action-button[data-action=save-note]');
+        if (button === null || button.disabled || button.hidden) { return false; }
+        button.click();
+        return true;
+    }), 20_000);
+    await waitFor(`the note for ${found.query} at AnkiConnect`, () => anki.notes.length > notes, 20_000);
+    return anki.notes[anki.notes.length - 1];
+}
+
+/** A picture for Anki's {screenshot}: a 1x1 PNG standing for the book's cover. */
+const COVER_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 // --- the run --------------------------------------------------------------------------------------
 
@@ -290,9 +515,30 @@ try {
     const workers = [];
     context.on('page', (page) => page.on('worker', (worker) => workers.push(new URL(worker.url()).pathname)));
 
+    // The Japanese reader's chapter page opens before the engine runs (the engine starts in a reader
+    // once the page is still): a tap on a word then waits, and is searched once the engine is ready.
+    const readerContext = await browser.newContext({
+        viewport: {width: 412, height: 915}, deviceScaleFactor: 2, hasTouch: true, isMobile: true, locale: 'ja-JP',
+    });
+    await readerContext.route('**/*', serve);
+    const reader = await openView(readerContext, 'reader', CHAPTER_URL, {origins: [CHAPTER_ORIGIN], init: READER_INIT, bindings: readerBindings});
+    await readerMessage(0, 'jpReader', 'ready');
+    await waitFor('the reader\'s scanner to load', () => reader.evaluate(() => typeof globalThis.JpReader?.onTextTap === 'function' &&
+        typeof globalThis.__reikaiReader?.clear === 'function'), 20_000);
+    let at = fromReader.length;
+    const early = await charPoint(reader, '打');
+    await reader.touchscreen.tap(early.x, early.y);
+    await readerMessage(at, 'reikaiReader', 'wait');
+    same(readerSince(at, 'jpReader').filter((m) => m.t === 'tap'), [], 'a tap on a word before the engine runs goes to the app as a tap');
+    say('reader: a tap on a word before the engine runs waits for it');
+
     await openView(context, 'engine', 'background.html');
     await Promise.race([backendReadyPromise, new Promise((_, reject) => setTimeout(() => reject(new Error('the backend never announced applicationBackendReady')), 30_000))]);
     say('the backend is ready');
+    // The chapter page hears the engine's "ready", connects and searches the tap it kept (no dictionary yet).
+    await readerMessage(at, 'reikaiReader', 'ready');
+    same((await readerMessage(at, 'reikaiReader', 'found|empty|error')).t, 'empty', 'the kept tap, searched before any dictionary');
+    say('reader: the scanner connected when the engine was ready and searched the kept tap');
 
     const settings = await openView(context, 'settings', 'settings.html');
     await settings.waitForSelector('#dictionary-import-url-button', {state: 'attached'});
@@ -357,6 +603,69 @@ try {
     } else {
         say('AnkiConnect version 6 came back through the stand-in and a binary reply');
     }
+
+    // --- the Japanese reader (4.3): taps look words up in vertical text with ruby ---------------------
+    const sentence = '彼は古い画像を見て、打ち込んだ。';
+    const first = await expectWord(reader, '打', 0, '打ち込んだ', sentence, 10);
+    say(`reader: 打 found ${first.query} in 「${first.sentence.text}」 at ${first.sentence.offset}, ${first.writingMode}, highlighted`);
+    // Yomitan looks up from the character under the finger, as on a desktop: 画 finds 画像 (像 alone would not).
+    const failed = failures.length;
+    await expectWord(reader, '打', 0, '打ち込んだ', sentence, 10);
+    await expectWord(reader, '画像', 0, '画像', sentence, 4);
+    const second = await expectWord(reader, '読む', 0, '読む', 'それから本を読む。', 6);
+    if (failures.length === failed) { say('reader: a second tap on the same word, a ruby base (画像) and a later sentence (読む) found as expected'); }
+    const miss = await tapWord(reader, '朝', 0);
+    same([miss.message.t, await selectedText(reader)], ['empty', null], 'a tap on a word the dictionary lacks: nothing found, no highlight');
+    await expectWord(reader, '打', 0, '打ち込んだ', sentence, 10);
+    await reader.evaluate(() => globalThis.__reikaiReader.clear());
+    same(await selectedText(reader), null, 'the highlight after clear()');
+    at = fromReader.length;
+    await reader.touchscreen.tap(206, 6);
+    same((await readerMessage(at, 'jpReader', 'tap')).action, 'menu', 'a tap in the margin');
+    await reader.waitForTimeout(300);
+    same(readerSince(at, 'reikaiReader'), [], 'the scanner after a tap in the margin');
+    say('reader: nothing found for 朝, clear() removed the highlight, a margin tap went to the app');
+    // A tap on the reading itself (jp-reader.js sends those to the app as taps): what Yomitan makes of it.
+    const reading = await charPoint(reader, 'がぞう', 1);
+    at = fromReader.length;
+    await reader.evaluate(([x, y]) => globalThis.JpReader.onTextTap(x, y), [reading.x, reading.y]);
+    const onReading = await readerMessage(at, 'reikaiReader', 'found|empty|error');
+    say(`reader: on the reading がぞう Yomitan answers ${onReading.t}${onReading.query ? ` ${onReading.query}` : ''} (information only)`);
+    await reader.evaluate(() => globalThis.__reikaiReader.clear());
+
+    // --- Anki's {screenshot} is the book's cover (4.3) -------------------------------------------------
+    const options = (await api('optionsGetFull')).result;
+    // The app's phone defaults (MobileDefaults.kt): no popup nested in the results, so no Yomitan
+    // Frontend in the popup page, and popup-host.js answers the backend before {screenshot}.
+    Object.assign(options.profiles[0].options.scanning, {enablePopupSearch: true, popupNestingMaxDepth: 0});
+    options.profiles[0].options.anki.cardFormats = [{
+        name: 'Lapis', icon: 'big-circle', deck: 'Reikai', model: 'Lapis', type: 'term',
+        fields: {
+            Expression: {value: '{expression}', overwriteMode: 'coalesce'},
+            Sentence: {value: '{cloze-prefix}<b>{cloze-body}</b>{cloze-suffix}', overwriteMode: 'coalesce'},
+            Picture: {value: '{screenshot}', overwriteMode: 'coalesce'},
+            MiscInfo: {value: '{document-title}', overwriteMode: 'coalesce'},
+        },
+    }];
+    await api('setAllSettings', {value: options, source: 'reikai-smoke'});
+    const popup = await openView(context, 'popup', 'popup.html?reikai-load=1&reikai-theme=light', {init: POPUP_INIT, bindings: popupBindings});
+    await waitFor('the popup page to be ready', () => fromPopup.find((m) => m.t === 'ready' && m.load === 1), 20_000);
+    const bookTitle = '第一章 - 試験の本';
+    covers.set(popup.viewId, `data:image/png;base64,${COVER_BASE64}`);
+    const withCover = await addCard(popup, first, 1, bookTitle);
+    const picture = anki.media.find((m) => /^yomitan_browser_screenshot_.*\.png$/.test(m.filename));
+    if (same(picture?.data, COVER_BASE64, 'the picture stored for {screenshot}') &&
+        same([withCover.fields.Expression, withCover.fields.Sentence, withCover.fields.Picture, withCover.fields.MiscInfo],
+            ['打ち込む', '彼は古い画像を見て、<b>打ち込んだ</b>。', `<img src="${picture.filename}" />`, bookTitle], 'the card added with a cover')) {
+        say(`anki: the card for ${withCover.fields.Expression} has the sentence, the title and the cover (${picture.filename})`);
+    }
+    covers.delete(popup.viewId);
+    const mediaBefore = anki.media.length;
+    const withoutCover = await addCard(popup, second, 2, bookTitle);
+    if (same([withoutCover.fields.Expression, withoutCover.fields.Picture, anki.media.length], ['読む', '', mediaBefore], 'the card added without a cover')) {
+        say('anki: without a cover the card is still added, its picture field empty');
+    }
+    await readerContext.close();
     await context.close();
     exitCode = failures.length === 0 ? 0 : 1;
 } catch (e) {
@@ -370,6 +679,6 @@ if (failures.length > 0) {
     console.log(`[smoke ${elapsed()}] FAILED (${failures.length}):\n  ${failures.join('\n  ')}`);
     exitCode = 1;
 } else {
-    console.log(`[smoke ${elapsed()}] passed: Yomitan ${MANIFEST.version} prepared, imported, looked up, drew a picture and reached AnkiConnect, with an empty tripwire`);
+    console.log(`[smoke ${elapsed()}] passed: Yomitan ${MANIFEST.version} prepared, imported, looked up, drew a picture, reached AnkiConnect, looked words up in the Japanese reader and put the cover on a card, with an empty tripwire`);
 }
 process.exit(exitCode);

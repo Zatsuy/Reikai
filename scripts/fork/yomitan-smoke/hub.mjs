@@ -9,7 +9,8 @@
  * this copy behaves like the real hub.
  *
  * `host`: {storage: Map, openPage(how, url), fetch(request) -> Promise<{status,...}|{failed}>,
- * onBackendReady(), onTripwire(path, called, url), log(level, text)}.
+ * capture(tabId, {format, quality}) -> data URL or null, onBackendReady(), onTripwire(path, called, url),
+ * log(level, text)}.
  */
 
 export const ORIGIN = 'https://yomitan.reikai.invalid';
@@ -224,6 +225,21 @@ export class Hub {
                 break;
             }
             case 'fetch': this.fetch(from, mid, payload); break;
+            case 'capture': {
+                // Anki's {screenshot}: the picture of the lookup shown in that tab (the book's cover),
+                // asked by the engine only.
+                let body = null;
+                try { body = JSON.parse(payload); } catch { /* none */ }
+                const picture = from.role === 'BACKEND' && typeof body?.tabId === 'number' ?
+                    this.host.capture?.(body.tabId, {format: body.format, quality: body.quality}) : null;
+                if (typeof picture === 'string') {
+                    this.reply(from, mid, picture);
+                } else {
+                    this.replyError(from, mid, from.role === 'BACKEND' ? 'Reikai JP has no picture for this lookup' :
+                        'Reikai JP does not let this page use capture');
+                }
+                break;
+            }
             case 'save':
                 // A file a settings page saves (its settings export) goes to the app's screen
                 // (YomitanSaves.kt); only settings pages may, and the smoke test saves none.

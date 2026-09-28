@@ -11,7 +11,7 @@
  * Wire format, both ways: one string per message, `<header JSON>\n<payload>`; the app parses only the
  * header. A response body may follow its header as one binary (ArrayBuffer) message.
  *   page -> app: hello, bye, send, tabsend, resp, connect, pmsg, pdisc, req (storage, tabs, open,
- *                fetch, save), fabort, nresp, trip, called, log
+ *                fetch, save, capture), fabort, nresp, trip, called, log
  *   app -> page: welcome, msg, reply, onconnect, pmsg, pdisc, fres, nreq
  * The app decides what each document may do from facts the page cannot fake (which WebView, which
  * origin, main frame or not); the `mode` below only shapes this document's local behaviour.
@@ -330,8 +330,24 @@
     const tabFrom = ({id, url}) => ({id, url, index: 0, windowId: 1, active: true, incognito: false});
     const listTabs = () => request({t: 'req', op: 'tabs'}).then(({payload}) => JSON.parse(payload).map(tabFrom));
 
+    /**
+     * The tab whose picture the backend asks for next. Before chrome.tabs.captureVisibleTab (which names
+     * a window, not a tab) Yomitan's backend tells the tab showing the lookup to hide its popups
+     * (backend.js _getScreenshot); the app answers with that lookup's picture (the book's cover).
+     * @type {?number}
+     */
+    let captureTab = null;
+    const capture = (...args) => {
+        const options = args.find((a) => a && typeof a === 'object') ?? {};
+        const picture = request({t: 'req', op: 'capture'}, JSON.stringify({tabId: captureTab, format: options.format, quality: options.quality}))
+            .then(({payload}) => String(payload));
+        return withCallback(picture, args);
+    };
+
     const tabs = {
         sendMessage: (targetTab, message, ...rest) => {
+            if (mode === 'backend' && message?.action === 'frontendSetAllVisibleOverride') { captureTab = targetTab; }
+            if (mode === 'backend' && message?.action === 'frontendClearAllVisibleOverride') { captureTab = null; }
             const callback = rest.find((a) => typeof a === 'function');
             const options = rest.find((a) => a && typeof a === 'object') ?? {};
             const header = {t: 'tabsend', tabId: targetTab};
@@ -354,7 +370,7 @@
         },
         remove: noop('chrome.tabs.remove'),
         getZoom: answer(1),
-        captureVisibleTab: answer(undefined, 'chrome.tabs.captureVisibleTab'),
+        captureVisibleTab: capture,
         connect,
         onZoomChange: makeEvent(),
     };
@@ -442,13 +458,13 @@
     const DATABASE_WORKER = '/js/dictionary/dictionary-database-worker-main.js';
     const MEDIA_WORKER = '/js/display/media-drawing-worker.js';
 
-    /** A worker that is never started: accepts everything, does nothing. */
+    /** A worker that is never started: accepts everything, does nothing (`path` reports a use). */
     const inertWorker = (path) => {
         const target = new EventTarget();
         return Object.assign(target, {
             onmessage: null,
             onerror: null,
-            postMessage: () => called(path),
+            postMessage: () => { if (path !== null) { called(path); } },
             terminate: () => undefined,
         });
     };
@@ -515,8 +531,10 @@
             const target = new URL(String(url), location.href);
             if (target.origin !== location.origin) {
                 // A chapter page (Phase 4): Yomitan's scripts ask for engine-origin workers, which a
-                // page of another origin can never start.
-                return inertWorker(`Worker ${target.pathname}`);
+                // page of another origin can never start. Application.main always starts the media
+                // worker, which only draws dictionary pictures, and the reader's scanner draws none.
+                const expected = mode === 'content' && target.origin === ORIGIN && target.pathname === MEDIA_WORKER;
+                return inertWorker(expected ? null : `Worker ${target.pathname}`);
             }
             if (target.origin === ORIGIN) {
                 if (mode === 'backend' && target.pathname === DATABASE_WORKER) {

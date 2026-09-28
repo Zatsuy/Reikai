@@ -376,13 +376,30 @@ CALL_SITES = {
     "js/display/display.js": ["async _onStateChanged(", "_setTheme(", "_setNoDictionariesVisible(",
                               "_onContentTextScannerSearchSuccess(", "_updateNavigation("],
     "js/background/backend.js": ["_onMessageWrapper(", "_onMessage(", "async _onPmConnectToDatabaseWorker(",
-                                 "_sendMessageAllTabsIgnoreResponse(", "_triggerDatabaseUpdated("],
+                                 "_sendMessageAllTabsIgnoreResponse(", "_triggerDatabaseUpdated(",
+                                 "async _getScreenshot(", "async _injectAnkiNoteScreenshot(", "_onApiBroadcastTab(",
+                                 "_onApiRequestBackendReadySignal("],
     "js/comm/frame-endpoint.js": ["signal(", "_onMessage("],
     # The stand-in saves settings exports through the app (blob-download anchors, 3.5).
     "js/pages/settings/backup-controller.js": ["_saveBlob("],
     "js/pages/settings/anki-deck-generator-controller.js": ["_saveBlob("],
     # The Japanese settings open this list for "Get recommended dictionaries" (3.5).
     "js/pages/settings/dictionary-import-controller.js": ["async _renderRecommendedDictionaries("],
+    # The Japanese reader's reader-scan.js runs Yomitan's scanner without its Frontend: it builds a
+    # TextScanner, applies the settings as Frontend does, searches a tapped point through search() and
+    # reads the word, its rects and writing mode, and the sentence (4.3).
+    "js/language/text-scanner.js": ["constructor(", "setOptions(", "clearSelection(", "getCurrentTextSource(",
+                                    "setCurrentTextSource(", "async search(", "async _search(",
+                                    "async _findTermDictionaryEntries(", "async _findKanjiDictionaryEntries("],
+    "js/dom/text-source-generator.js": ["getRangeFromPoint(", "extractSentence(", "_getRangeFromPointInternal("],
+    "js/dom/text-source-range.js": ["get range(", "cleanup(", "text(", "getRects(", "getWritingMode(", "select(",
+                                    "deselect(", "hasSameStart("],
+    "js/app/frontend.js": ["async _updateOptionsInternal(", "async _getSearchContext(", "_showContent(",
+                           "async _onApiSetAllVisibleOverride(", "async _onApiClearAllVisibleOverride("],
+    # Anki's {screenshot} is the lookup's cover (4.3): the backend asks the tab the lookup came from (the
+    # popup's own) to hide its popups, which popup-host.js answers unless a Frontend there says it is
+    # ready, then captures a window, which the stand-in asks of the app (backend.js above).
+    "js/display/display-anki.js": ["_getNoteContext(", "async _createNote("],
 }
 # Small files the stand-in's worker handling depends on as a whole.
 WHOLE_FILES = [
@@ -397,6 +414,8 @@ WHOLE_FILES = [
 ENTRY_FILES = [
     "background.html", "manifest.json", "popup.html", "search.html", "settings.html",
     "js/app/content-script-main.js", "js/app/content-script-wrapper.js",
+    "js/application.js", "js/dom/text-source-element.js", "js/dom/text-source-generator.js",
+    "js/language/text-scanner.js",
     "js/dictionary/dictionary-database-worker-main.js", "js/dictionary/dictionary-worker-main.js",
     "js/display/media-drawing-worker.js", "lib/z-worker.js", "lib/zip.js",
 ]

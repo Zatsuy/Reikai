@@ -25,6 +25,11 @@
  * - Yomitan's popup waits for the page that hosts it to connect (`frame-endpoint.js`) and until then
  *   logs "Invalid action" for every other window message (its card template renderer's): this
  *   connects as that page would.
+ * - Before Anki's {screenshot} (backend.js _getScreenshot) Yomitan's backend asks the tab the lookup
+ *   came from, here this popup's own, to hide its popups, and waits for the answer: this answers as a
+ *   page's Frontend would (nothing to hide), unless Yomitan runs a Frontend in this page itself (for
+ *   popups nested in the results, which says so with `frontendReady`), which then answers. The app then
+ *   gives the lookup's picture, the book's cover.
  * - It tells the app (web message listener `reikaiPopup`) when it is ready, when a lookup is on
  *   screen (first result, or a notice), whether Yomitan's history has a previous lookup to go back to,
  *   and when Yomitan's own close button is pressed. "ready", "stale" and "nav" carry the load number,
@@ -119,9 +124,17 @@
         },
     };
 
-    const onExtensionMessage = (message) => {
+    /** Whether Yomitan's own Frontend runs in this page (nested popups): it answers for its popups. */
+    let hasFrontend = false;
+    const onExtensionMessage = (message, _sender, sendResponse) => {
         const action = message?.action;
-        if (action === 'applicationOptionsUpdated' || action === 'applicationDatabaseUpdated') {
+        if (action === 'frontendReady' && message.params?.frameId === 0) {
+            hasFrontend = true;
+        } else if (action === 'frontendSetAllVisibleOverride' && !hasFrontend) {
+            sendResponse({result: crypto.randomUUID()});
+        } else if (action === 'frontendClearAllVisibleOverride' && !hasFrontend) {
+            sendResponse({result: true});
+        } else if (action === 'applicationOptionsUpdated' || action === 'applicationDatabaseUpdated') {
             post({t: 'stale', load});
         } else if (action === 'frameEndpointReady' && typeof message.params?.secret === 'string') {
             const connect = {action: 'frameEndpointConnect', params: {secret: message.params.secret, token: crypto.randomUUID(), hostFrameId: 0}};
