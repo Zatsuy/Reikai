@@ -368,6 +368,14 @@ CALL_SITES = {
     "js/dictionary/dictionary-worker.js": ["_invoke("],
     "js/dictionary/dictionary-database.js": ["async prepare(", "async drawMedia(", "async connectToDatabaseWorker(",
                                              "_onDrawMedia("],
+    # The lookup sheet's popup-host.js swaps lookups through history.state and a popstate event (3.4).
+    "js/display/display-history.js": ["constructor(", "_onPopState(", "_updateStateFromHistory("],
+    "js/display/display.js": ["async _onStateChanged(", "_setTheme(", "_setNoDictionariesVisible("],
+    # The stand-in saves settings exports through the app (blob-download anchors, 3.5).
+    "js/pages/settings/backup-controller.js": ["_saveBlob("],
+    "js/pages/settings/anki-deck-generator-controller.js": ["_saveBlob("],
+    # The Japanese settings open this list for "Get recommended dictionaries" (3.5).
+    "js/pages/settings/dictionary-import-controller.js": ["async _renderRecommendedDictionaries("],
 }
 # Small files the stand-in's worker handling depends on as a whole.
 WHOLE_FILES = [
@@ -385,6 +393,18 @@ ENTRY_FILES = [
     "js/dictionary/dictionary-database-worker-main.js", "js/dictionary/dictionary-worker-main.js",
     "js/display/media-drawing-worker.js", "lib/z-worker.js", "lib/zip.js",
 ]
+
+# Markup the app's hosts find by id or attribute (the lookup sheet 3.4, the settings screen 3.5).
+PAGE_ELEMENTS = {
+    "popup.html": ['id="dictionary-entries"', 'id="no-results"', 'id="no-dictionaries"', 'id="close-button"',
+                   'href="/settings.html#dictionaries"'],
+    "search.html": ['id="dictionary-entries"', 'id="no-results"', 'id="no-dictionaries"',
+                    'href="/settings.html#dictionaries"'],
+    "settings.html": ["<body hidden>", 'data-modal-action="show,recommended-dictionaries"', 'id="dictionaries"',
+                      'id="anki"', 'id="backup"', 'id="settings-import-button"'],
+    "templates-modals.html": ['id="recommended-dictionaries-modal"'],
+    "templates-settings.html": ['data-action="import-recommended-dictionary"'],
+}
 
 
 def js_sources(tree):
@@ -440,7 +460,20 @@ def surfaces(tree=ASSETS):
     found["call-sites"] = sorted(sites)
 
     found["entry-files"] = sorted(path for path in ENTRY_FILES if (tree / path).is_file())
+    found["page-elements"] = page_elements(tree)
     return found
+
+
+def page_elements(tree):
+    """Each marker of PAGE_ELEMENTS with how often its page has it (MISSING when it is gone)."""
+    items = []
+    for page, markers in PAGE_ELEMENTS.items():
+        path = tree / page
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
+        for marker in markers:
+            count = text.count(marker)
+            items.append(f"{page} {marker} " + (f"x{count}" if count else "MISSING"))
+    return sorted(items)
 
 
 def manifest_items(path):

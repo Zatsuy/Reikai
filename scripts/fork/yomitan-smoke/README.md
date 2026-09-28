@@ -44,7 +44,10 @@ licences, every line with a sensitive pattern (workers, `serviceWorker`, `Shared
 database worker handshake, zip.js's worker set-up, the backend's ready signal, every `fetch`,
 XHR and IndexedDB call), fingerprints of the functions the stand-in imitates or depends on
 (`Application.main`, `API._pmInvoke`, `RequestBuilder.fetchAnonymous`, the database's `prepare`
-and `drawMedia`, the small worker entry files), and the entry files the app loads by name. Any
+and `drawMedia`, the small worker entry files, the display history and theme the lookup sheet drives,
+the settings exports the stand-in saves), the entry files the app loads by name, and the page
+markup the app's hosts find by id (the popup's notices and close button, the settings sections and
+the recommended-dictionaries list). Any
 item added or removed fails the update with a `-`/`+` list per surface. Blind spot: a behaviour
 change behind unchanged names and code outside those functions.
 

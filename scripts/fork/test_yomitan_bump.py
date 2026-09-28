@@ -239,6 +239,14 @@ class TripwireTest(unittest.TestCase):
                                         "        // a new remark\n        const x = 'serviceWorker' in navigator;\n    }\n}\n")
         self.assertEqual(bump.tripwire(self.tree, self.baseline), [])
 
+    def test_a_page_losing_an_element_the_app_finds_is_listed(self):
+        self.write("popup.html", '<div id="dictionary-entries"></div><div id="no-results"></div>')
+        bump.write_baseline(self.tree, self.baseline, self.release)
+        self.write("popup.html", '<div id="dictionary-entries"></div>')
+        report = bump.tripwire(self.tree, self.baseline)
+        self.assertIn('  - popup.html id="no-results" x1', report)
+        self.assertIn('  + popup.html id="no-results" MISSING', report)
+
     def test_a_missing_baseline_fails(self):
         self.baseline.unlink()
         self.assertEqual(len(bump.tripwire(self.tree, self.baseline)), 1)

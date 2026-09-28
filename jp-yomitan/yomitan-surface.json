@@ -345,8 +345,17 @@
    "js/dictionary/dictionary-database.js async prepare( bbf58109fbb8ead8",
    "js/dictionary/dictionary-worker-main.js (whole file) 9922e9fe02ad992f",
    "js/dictionary/dictionary-worker.js _invoke( 7a1fd0f7595382f9",
+   "js/display/display-history.js _onPopState( 2479c17061396b0a",
+   "js/display/display-history.js _updateStateFromHistory( a873c0722a48a2b3",
+   "js/display/display-history.js constructor( fb27212bac3d8ada",
+   "js/display/display.js _setNoDictionariesVisible( 4bd60de6d8c30172",
+   "js/display/display.js _setTheme( c0c303cae8c14518",
+   "js/display/display.js async _onStateChanged( 1e04850b25b60115",
    "js/display/media-drawing-worker.js (whole file) 2a41b6501ac2910a",
-   "js/extension/web-extension.js (whole file) 30d66bf88bc9bb17"
+   "js/extension/web-extension.js (whole file) 30d66bf88bc9bb17",
+   "js/pages/settings/anki-deck-generator-controller.js _saveBlob( b459dec64d36b764",
+   "js/pages/settings/backup-controller.js _saveBlob( b459dec64d36b764",
+   "js/pages/settings/dictionary-import-controller.js async _renderRecommendedDictionaries( eeb288ca5a0b8e7b"
   ],
   "entry-files": [
    "background.html",
@@ -361,6 +370,25 @@
    "popup.html",
    "search.html",
    "settings.html"
+  ],
+  "page-elements": [
+   "popup.html href=\"/settings.html#dictionaries\" x1",
+   "popup.html id=\"close-button\" x1",
+   "popup.html id=\"dictionary-entries\" x1",
+   "popup.html id=\"no-dictionaries\" x1",
+   "popup.html id=\"no-results\" x1",
+   "search.html href=\"/settings.html#dictionaries\" x1",
+   "search.html id=\"dictionary-entries\" x1",
+   "search.html id=\"no-dictionaries\" x1",
+   "search.html id=\"no-results\" x1",
+   "settings.html <body hidden> x1",
+   "settings.html data-modal-action=\"show,recommended-dictionaries\" x1",
+   "settings.html id=\"anki\" x1",
+   "settings.html id=\"backup\" x1",
+   "settings.html id=\"dictionaries\" x1",
+   "settings.html id=\"settings-import-button\" x1",
+   "templates-modals.html id=\"recommended-dictionaries-modal\" x1",
+   "templates-settings.html data-action=\"import-recommended-dictionary\" x1"
   ]
  }
 }
