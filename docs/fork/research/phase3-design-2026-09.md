@@ -339,6 +339,38 @@ answered with `TextToSpeech.synthesizeToFile`, last in the list, so it plays and
   seconds (opening the chapter counts), so neither lands in a fling.
 - **Timing after these fixes** (tablet, native mode, warm, toolbar tap to painted results, n=12):
   min 32, median 52, p95 76, max 76 ms. A lookup after the popup reloaded: 376-396 ms.
+
+**Second review round (2026-09-28, `41eb1a5be`..`f6dbec94a`):**
+- The home-screen shortcut's id is `jp_dictionary_home`: a "Dictionary" pinned from the long-press
+  list of an earlier build stays as a disabled manifest shortcut with the old id, which a pin
+  request may not touch (it threw). A refused or failed pin now says so.
+- **Warm-up** waits for two quiet seconds but never more than ten: the reader's auto-scroll and
+  read-aloud scroll the page too (tablet: auto-scroll from the chapter's start, engine started
+  about 10 s in; after stopping it, 引き受ける selected with the dictionary). Selection uses the
+  dictionary whenever the engine is running and this reader has seen it built (its warm-up or a
+  lookup), not only after its own warm-up; a reader opened while another screen's engine runs
+  still waits for its own warm-up or lookup, since the classifier's thread never builds the engine.
+- A lookup before the sheet's first layout measures the content view the overlay fills (tablet: a
+  word low on the page looked up 2.2 s after the chapter opened, before the warm-up, opened the
+  sheet at the top). A drag that closes the sheet keeps its next height apart from the close
+  animation, which a lookup during it cancels (tablet: a "Look up in Reikai JP" arriving during the
+  close animation after a drag-close, so the activity was still there, opened at full height, not
+  the dragged tenth).
+- A parked popup loads again 1.5 s after the last settings or dictionary change instead of at each
+  (the settings page reports every control); "nav" carries its load number like "ready" and "stale".
+  A word picked from the parsed sentence (Yomitan's query parser writes no page into its history
+  state) also gets the reader's page and title for Anki.
+- "Look up in Reikai JP" stays while the app's system settings opened from its sheet ("Open
+  settings" after a refused Anki permission) are in front, so back from them finds the sheet.
+- **Ruling: pages Yomitan opens join the task of the screen whose page asked** (`JpPageOpener`
+  starts them from that WebView's activity, `YomitanPageOpener.open(request, from)`): over the
+  reader in the app's task, within the home-screen dictionary's task, over the app a "Look up in
+  Reikai JP" came from, so back returns there. Only a launcher start makes the dictionary a task of
+  its own (its affinity); web links open the browser as its own task, and a page Yomitan's backend
+  asks for (none in normal use) opens as a new task as before. Before, the popup's links opened the
+  dictionary as a second Recents entry, and Yomitan's settings opened from the home-screen
+  dictionary brought Reikai's task, open reader and all, forward. Cost if wrong: a dictionary
+  opened from the reader is not a Recents entry of its own to switch back to.
 - **Still open:** in WebView mode Chromium's text for the classifier includes ruby furigana, so a
   press on 着 in 決着《ケリ》 selected ケリをつける (`rt { user-select: none }` keeps furigana out of
   the selection but left a press on 着 without a toolbar; needs its own look). Yomitan's audio
@@ -383,7 +415,9 @@ dictionaries are re-imported from their zips (a Dexie export of 300 MB is too he
   word card format gets Lapis (deck, model, fields; Anki on) with Lapis's README markers, and its
   other formats without a note type are dropped (Yomitan's default "Reading" and "Kanji" each put an
   Add button on every entry that failed with "model was not found"); formats with a note type stay.
-  MainDefinition is `{single-glossary-<kebab title>}` of Jitendex, else JMdict, else the first enabled
+  Yomitan's add and view note hotkeys (`inputs.hotkeys`, `argument` = card format index) follow
+  their formats to the new index; those of dropped formats go (Yomitan's own "delete card format"
+  leaves them, to act on whichever format takes the index later). MainDefinition is `{single-glossary-<kebab title>}` of Jitendex, else JMdict, else the first enabled
   word dictionary (`{glossary-first}` with none). Offered only when no card format has a note type
   (whether or not Anki is switched on: an imported note type counts) and AnkiDroid has one named
   Lapis. Cost if wrong: other profiles keep no card format. The kebab case once used the JVM's
@@ -408,6 +442,9 @@ dictionaries are re-imported from their zips (a Dexie export of 300 MB is too he
   flag makes it once: settings that existed when the flag was first read (the owner's tablet) are
   never touched, nor anything changed or imported later. A test checks the values against the
   vendored schema, so an update renaming them fails there. Tablet: a fresh profile got all four.
+  They stay due (`jp_yomitan_mobile_defaults_due`) until set: a refused `modifySettings` is tried
+  again at the next start, and a start that ended before the backend was ready (Yomitan may already
+  have stored its defaults) still counts as new settings at the next one.
 - **After the device review:** a settings export waiting for "save as" survives the screen being
   recreated (and a second export while the picker is open is refused), the local audio row can stop a
   copy in progress (a 4.2 GB copy stopped at 0.96 GB left no file behind), and the screen no longer
