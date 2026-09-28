@@ -182,9 +182,9 @@ after a `pos` for the place it was asked from.
 | `state()` | the current `pos` |
 
 **Hooks for lookup (4.3):** `JpReader.onTextTap = (x, y) => boolean` (client px), set by the
-lookup script; `jp-reader.js` calls it for a tap on a character when `tapMode` is `lookup`
-and posts `tap` only when it returns false or is unset. `JpReader.charRangeAt(x, y)` answers
-whether a point is on a character.
+lookup script; `jp-reader.js` calls it for a tap on a character when `tapMode` is `lookup` (for a
+tap on a shown reading, at the first character of its word) and posts `tap` only when it returns
+false or is unset. `JpReader.charRangeAt(x, y)` answers whether a point is on a character.
 
 **Character counting** is ttu's exactly: text of text nodes outside `rt` and outside
 `[hidden]`/`[aria-hidden]` subtrees, with
@@ -259,3 +259,47 @@ Fork code in `app/src/main/java/jp/reikai/reader/page/` and `jp/reikai/data/`; s
   message parsing and the percent rule, the document's shape and cleaning, the database, and the
   session registry (77 tests). Not yet seen on a device: the page in the reader, landing, paging and
   scrolling in both directions, switching, the intro dialog, read-aloud and fonts.
+
+## As built: 4.3 (tap to look up)
+
+- **Scanner in the page:** with lookup on, the document loads `jp-yomitan/.../jp-reikai/reader-scan.js`
+  as a module from Yomitan's origin after `jp-reader.js`. It runs Yomitan's `Application.main`, a
+  `TextSourceGenerator` and a `TextScanner` with Yomitan's scanning and sentence settings applied as
+  Frontend applies them, never enabled (its own listeners never run), and searches through the
+  public `search()`. A tap inside a word searches from the word's start: the browser's Japanese
+  segmenter's word, or a kanji stem when the tapped piece is okurigana or a lone kanji the
+  segmenter split off (`JapaneseText.selectWord`'s rule), else the tapped character. The word is
+  selected (Yomitan's "select matched text"), which is the highlight; programmatic, so no handles or
+  toolbar. Messages to the app through `reikaiReader` (chapter origin, main frame): `ready`, `wait`,
+  `found {type, query, sentence {text, offset}, rects, writingMode, ms}`, `empty`, `error`; from
+  the app `__reikaiReader.clear()`, `setContext({url, title})`, `start()`. A tap before the engine
+  runs posts `wait`, is kept 10 s, and is searched when the backend's `applicationBackendReady`
+  reaches the page.
+- **App side:** `JpPageLookup` (per page viewport) joins the page to the hub
+  (`YomitanEngine.attachContent`: the stand-in in content mode for the chapter origin, a READER hub
+  view, no WebViewClient takeover; Yomitan's files through the viewport's `requestInterceptor`)
+  only while lookup is on, and the viewport adds the script tag only then. `found` goes to
+  `JpReaderSession`'s sheet with the word's screen rows (CSS px times density) for its placement;
+  the sheet's close clears the highlight; `wait` starts the engine at once. The Japanese page also
+  gets the fork's text classifier, so a long press selects the word and offers "Look up"; the
+  press-before check is vertical-aware (above the selected character in vertical text).
+- **Cover on cards:** Yomitan's `{screenshot}` asks the tab the lookup came from (the popup's own)
+  to hide its popups, which `popup-host.js` answers unless a Frontend in the popup says
+  `frontendReady`, then calls `captureVisibleTab`, which the backend stand-in turns into a hub
+  `capture` request naming that tab (backend only). The hub asks the popup's page listener for the
+  lookup's `LookupPicture`: `NovelCoverPicture`, the novel's cover through Coil (custom cover, cover
+  cache, source) as a JPEG of at most 800 px, none for the plugins' "no cover" placeholder URLs.
+  Without a picture the card is added with the field empty and `popup-host.js` closes Yomitan's
+  notice about it. "Set up cards for Lapis" maps Picture to `{screenshot}`; a profile set up before
+  gets it by running the setup again.
+- **Checked:** smoke test (headless Chromium: chapter page as the app builds it, taps, whole words
+  from inside words and readings, the highlight, a card with and without a cover), page tests, JVM
+  tests (hub capture rights, message parsing, the document's script tag, Lapis fields). Tablet
+  (SM-X520, Jitendex, vertical paged, 2026-09-28): taps on 15 words' second characters found the
+  whole words; tap to painted results n=14 min 74, median 120, p95 and max 166 ms (the scanner's
+  search plus the popup's own); a first tap 1.3 s after opening the reader, engine not started:
+  988 ms to painted results; the sheet at the bottom for a word high on the page, at the top for one
+  low on it; highlight cleared on close; a Lapis card in AnkiDroid with the bold word in its
+  sentence, chapter and novel in MiscInfo and the cover (533 x 800 JPEG) in Picture; without a
+  cover, the card added with Picture empty and no notice; long press on 向 selected 傾向 and "Look
+  up" opened it (55 ms, preloaded); lookup off: no engine page, a tap on a word opened the menu.
