@@ -433,14 +433,14 @@ async function tapWord(page, text, index = 0) {
     return {message, point};
 }
 
-/** A tap on `text` finds `query` in `sentence`, highlighted, with its rects under the finger. */
-async function expectWord(page, text, index, query, sentence, offset) {
+/** A tap on `text` finds `query` in `sentence`, highlighted, with its rects under the finger (unless a reading was tapped). */
+async function expectWord(page, text, index, query, sentence, offset, {underFinger = true} = {}) {
     const {message, point} = await tapWord(page, text, index);
     if (!same(message.t, 'found', `a tap on ${text}[${index}]`)) { return message; }
     same([message.type, message.query, message.sentence, message.writingMode], ['terms', query, {text: sentence, offset}, 'vertical-rl'],
         `a tap on ${text}[${index}]: type, query, sentence and writing mode`);
     const under = message.rects.some((r) => point.x >= r.left - 1 && point.x <= r.right + 1 && point.y >= r.top - 1 && point.y <= r.bottom + 1);
-    if (!under) { fail(`a tap on ${text}[${index}]: the word's rects ${JSON.stringify(message.rects)} miss the finger at ${JSON.stringify(point)}`); }
+    if (!under && underFinger) { fail(`a tap on ${text}[${index}]: the word's rects ${JSON.stringify(message.rects)} miss the finger at ${JSON.stringify(point)}`); }
     same(await selectedText(page), query, `the highlight after a tap on ${text}[${index}]`);
     return message;
 }
@@ -608,12 +608,18 @@ try {
     const sentence = '彼は古い画像を見て、打ち込んだ。';
     const first = await expectWord(reader, '打', 0, '打ち込んだ', sentence, 10);
     say(`reader: 打 found ${first.query} in 「${first.sentence.text}」 at ${first.sentence.offset}, ${first.writingMode}, highlighted`);
-    // Yomitan looks up from the character under the finger, as on a desktop: 画 finds 画像 (像 alone would not).
     const failed = failures.length;
     await expectWord(reader, '打', 0, '打ち込んだ', sentence, 10);
     await expectWord(reader, '画像', 0, '画像', sentence, 4);
     const second = await expectWord(reader, '読む', 0, '読む', 'それから本を読む。', 6);
-    if (failures.length === failed) { say('reader: a second tap on the same word, a ruby base (画像) and a later sentence (読む) found as expected'); }
+    // A tap inside a word finds the whole word: 像 is the segmenter's 画像, and 込, which it splits
+    // off 打ち, joins the stem the dictionary's 打ち込んだ covers it from.
+    await expectWord(reader, '画像', 1, '画像', sentence, 4);
+    await expectWord(reader, '込んだ', 0, '打ち込んだ', sentence, 10);
+    await expectWord(reader, '読む', 1, '読む', 'それから本を読む。', 6);
+    if (failures.length === failed) {
+        say('reader: again on the same word, a ruby base (画像), a later sentence (読む), and inside words (像, 込, む) found whole words');
+    }
     const miss = await tapWord(reader, '朝', 0);
     same([miss.message.t, await selectedText(reader)], ['empty', null], 'a tap on a word the dictionary lacks: nothing found, no highlight');
     await expectWord(reader, '打', 0, '打ち込んだ', sentence, 10);
@@ -625,12 +631,9 @@ try {
     await reader.waitForTimeout(300);
     same(readerSince(at, 'reikaiReader'), [], 'the scanner after a tap in the margin');
     say('reader: nothing found for 朝, clear() removed the highlight, a margin tap went to the app');
-    // A tap on the reading itself (jp-reader.js sends those to the app as taps): what Yomitan makes of it.
-    const reading = await charPoint(reader, 'がぞう', 1);
-    at = fromReader.length;
-    await reader.evaluate(([x, y]) => globalThis.JpReader.onTextTap(x, y), [reading.x, reading.y]);
-    const onReading = await readerMessage(at, 'reikaiReader', 'found|empty|error');
-    say(`reader: on the reading がぞう Yomitan answers ${onReading.t}${onReading.query ? ` ${onReading.query}` : ''} (information only)`);
+    // A tap on a shown reading looks its word up (jp-reader.js hands on its first character).
+    const onReading = await expectWord(reader, 'がぞう', 1, '画像', sentence, 4, {underFinger: false});
+    if (onReading.query === '画像') { say('reader: a tap on the reading がぞう found 画像'); }
     await reader.evaluate(() => globalThis.__reikaiReader.clear());
 
     // --- Anki's {screenshot} is the book's cover (4.3) -------------------------------------------------

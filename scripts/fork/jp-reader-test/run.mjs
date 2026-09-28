@@ -766,6 +766,30 @@ async function tapTests(context, vp) {
         await close(page);
     });
 
+    await test(`${vp.name} a tap on a shown reading looks its word up from the word's first character`, async () => {
+        const {page} = await open(context, 'medium');
+        await page.evaluate(() => {
+            window.__lookups = [];
+            JpReader.onTextTap = (x, y) => { window.__lookups.push([x, y]); return true; };
+            JpReader.seekChar(__t.rubyIndex(0));
+        });
+        await settle(page);
+        const reading = await page.evaluate(() => {
+            const r = document.querySelectorAll('#jp-chapter ruby')[0].querySelector('rt').getBoundingClientRect();
+            return {x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2, base: __t.rubyPoint(0)};
+        });
+        check(reading.base, 'the first ruby is on screen after seeking to it');
+        const from = await mark(page);
+        await page.touchscreen.tap(reading.x, reading.y);
+        await settle(page, 150);
+        const lookups = await page.evaluate(() => window.__lookups);
+        same(lookups.length, 1, 'onTextTap called once for a tap on a reading');
+        check(lookups.length === 1 && reading.base && Math.abs(lookups[0][0] - reading.base.x) <= 1 && Math.abs(lookups[0][1] - reading.base.y) <= 1,
+            `onTextTap gets the word's first character: ${JSON.stringify(lookups[0])}, base ${JSON.stringify(reading.base)}`);
+        same((await messagesSince(page, from)).filter((m) => m.t === 'tap').length, 0, 'no tap message for a reading looked up');
+        await close(page);
+    });
+
     for (const writing of ['vertical', 'horizontal']) {
         await test(`${vp.name} ${writing} swipes turn pages (and invertSwipe flips them)`, async () => {
             const {page, settings} = await open(context, 'medium', {settings: {writing}});

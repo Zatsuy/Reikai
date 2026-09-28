@@ -386,14 +386,16 @@ CALL_SITES = {
     # The Japanese settings open this list for "Get recommended dictionaries" (3.5).
     "js/pages/settings/dictionary-import-controller.js": ["async _renderRecommendedDictionaries("],
     # The Japanese reader's reader-scan.js runs Yomitan's scanner without its Frontend: it builds a
-    # TextScanner, applies the settings as Frontend does, searches a tapped point through search() and
-    # reads the word, its rects and writing mode, and the sentence (4.3).
+    # TextScanner, applies the settings as Frontend does, searches a tapped point (or its word's start)
+    # through search() and reads the word, its rects and writing mode, and the sentence (4.3).
     "js/language/text-scanner.js": ["constructor(", "setOptions(", "clearSelection(", "getCurrentTextSource(",
                                     "setCurrentTextSource(", "async search(", "async _search(",
                                     "async _findTermDictionaryEntries(", "async _findKanjiDictionaryEntries("],
     "js/dom/text-source-generator.js": ["getRangeFromPoint(", "extractSentence(", "_getRangeFromPointInternal("],
-    "js/dom/text-source-range.js": ["get range(", "cleanup(", "text(", "getRects(", "getWritingMode(", "select(",
-                                    "deselect(", "hasSameStart("],
+    "js/dom/text-source-range.js": ["get range(", "clone(", "cleanup(", "text(", "setEndOffset(", "setStartOffset(",
+                                    "getRects(", "getWritingMode(", "select(", "deselect(", "hasSameStart("],
+    # A tap inside a word searches from the word's start, counted as Yomitan scans (readings skipped).
+    "js/dom/dom-text-scanner.js": ["static getElementSeekInfo("],
     "js/app/frontend.js": ["async _updateOptionsInternal(", "async _getSearchContext(", "_showContent(",
                            "async _onApiSetAllVisibleOverride(", "async _onApiClearAllVisibleOverride("],
     # Anki's {screenshot} is the lookup's cover (4.3): the backend asks the tab the lookup came from (the

@@ -14,10 +14,16 @@
  * again whenever Yomitan says its settings changed. The scanner is never enabled, so its own mouse and
  * touch listeners never run: jp-reader.js decides what a touch is (a tap on a character, furigana to
  * reveal, a margin, a swipe, a long press) and calls JpReader.onTextTap(x, y) for a tap on a
- * character. This searches at that point through the scanner's public search(), so Yomitan finds the
- * longest word from that character (ruby readings skipped, okurigana followed through <ruby>), cuts
- * the sentence by its own rules and selects the word (its "select matched text" setting): the
- * highlight.
+ * character (for a tap on a shown reading, at its word's first character). This searches there
+ * through the scanner's public search(), so Yomitan finds the longest word (ruby readings skipped,
+ * okurigana followed through <ruby>), cuts the sentence by its own rules and selects the word (its
+ * "select matched text" setting): the highlight.
+ *
+ * A tap inside a word looks up the whole word, as a long-press does in the other readers
+ * (JapaneseText.selectWord): the search starts where the word the browser's Japanese segmenter finds
+ * there begins, or, for a lone kanji or kana it split off a stem with a kanji in it ("打ち|込"), where
+ * that stem begins, when the dictionary's word from there covers it; otherwise at the tapped
+ * character itself, as Yomitan does on a desktop.
  *
  * To the app, through the web message listener `reikaiReader` (chapter origin, main frame), JSON:
  *   {t: 'ready'}   Yomitan answered and its settings are applied
@@ -59,6 +65,15 @@ let scanner = null;
 let application = null;
 /** What getRangeFromPoint needs of Yomitan's settings (TextScanner keeps its own copy private). */
 const pointOptions = {deepContentScan: false, normalizeCssZoom: true, language: null, browser: null};
+let layoutAwareScan = false;
+
+/** How far around the tapped character a word is looked for. */
+const WORD_REACH = 16;
+const segmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('ja', {granularity: 'word'}) : null;
+/** Kanji, kana and the marks inside words (JapaneseText.isWordChar). */
+const WORD_CHAR = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}々〆〇ーｰヵヶ]/u;
+const KANA = /[\p{Script=Hiragana}\p{Script=Katakana}]/u;
+const KANJI = /\p{Script=Han}/u;
 
 /** Whether Yomitan answered and its settings are applied. */
 let ready = false;
@@ -71,6 +86,12 @@ let queued = null;
 let busy = false;
 /** Whether the running search has told the app its outcome. */
 let answered = false;
+/**
+ * While a search from a word's start is tried: the length its word must exceed to be taken (it must
+ * reach the tapped character, or past a split-off piece); null for the last try, which is always taken.
+ * @type {?number}
+ */
+let mustExceed = null;
 
 const round = (value) => Math.round(value * 100) / 100;
 
@@ -98,11 +119,56 @@ async function applyOptions() {
     pointOptions.deepContentScan = scanning.deepDomScan;
     pointOptions.normalizeCssZoom = scanning.normalizeCssZoom;
     pointOptions.language = general.language;
+    layoutAwareScan = scanning.layoutAwareScan;
+}
+
+/**
+ * Where to search from for a tap at `source` (collapsed before the tapped character): tries of
+ * `{back, exceed}`, `back` characters before the tapped one, taken when the word found is longer than
+ * `exceed`; the last try is the tapped character itself.
+ */
+function searchStarts(source) {
+    const tries = [];
+    if (segmenter !== null) {
+        const around = source.clone();
+        const before = around.setStartOffset(WORD_REACH, layoutAwareScan);
+        around.setEndOffset(WORD_REACH, true, layoutAwareScan);
+        const chars = [...around.text()];
+        if (before < chars.length && WORD_CHAR.test(chars[before])) {
+            let runStart = before;
+            while (runStart > 0 && WORD_CHAR.test(chars[runStart - 1])) { --runStart; }
+            let runEnd = before + 1;
+            while (runEnd < chars.length && WORD_CHAR.test(chars[runEnd])) { ++runEnd; }
+            // The segmenter's pieces of the run, in characters from the run's start.
+            const pieces = [];
+            let at = 0;
+            for (const {segment} of segmenter.segment(chars.slice(runStart, runEnd).join(''))) {
+                const piece = [...segment];
+                pieces.push({start: at, end: at + piece.length, piece});
+                at += piece.length;
+            }
+            const tapped = before - runStart;
+            const own = pieces.find((p) => p.start <= tapped && tapped < p.end);
+            if (own) {
+                // A piece split off a stem with a kanji: okurigana (all kana) or a lone kanji the
+                // segmenter does not know as part of a word; kana after kana is left alone.
+                const split = own.piece.every((c) => KANA.test(c)) || (own.piece.length === 1 && KANJI.test(own.piece[0]));
+                const stem = split ? pieces.find((p) => p.end === own.start) : undefined;
+                if (stem && stem.piece.some((c) => KANJI.test(c))) {
+                    tries.push({back: tapped - stem.start, exceed: own.end - stem.start - 1});
+                }
+                if (own.start < tapped) { tries.push({back: tapped - own.start, exceed: tapped - own.start}); }
+            }
+        }
+    }
+    tries.push({back: 0, exceed: null});
+    return tries;
 }
 
 function onFound({type, sentence, textSource}) {
-    answered = true;
     const query = textSource.text();
+    if (mustExceed !== null && [...query].length <= mustExceed) { return; }
+    answered = true;
     /** @type {{[key: string]: unknown}} */
     const message = {
         t: 'found',
@@ -126,6 +192,11 @@ function onEmpty() {
     post({t: 'empty'});
 }
 
+/** The scanner found nothing: a try from a word's start gives way to the next one. */
+function onScannerEmpty() {
+    if (mustExceed === null) { onEmpty(); }
+}
+
 function onError({error}) {
     answered = true;
     post({t: 'error', message: String(error?.message ?? error)});
@@ -133,18 +204,28 @@ function onError({error}) {
 
 /** Searches at client point (x, y); the scanner reports the outcome through its events. */
 async function searchAt(x, y) {
+    answered = false;
+    mustExceed = null;
     // A new tap replaces the word shown, also when it is the same word (the scanner would otherwise
     // ignore a search starting where its current one starts).
     scanner.clearSelection();
-    answered = false;
     const textSource = generator.getRangeFromPoint(x, y, pointOptions);
     if (textSource === null) {
         onEmpty();
         return;
     }
     try {
-        await scanner.search(textSource, null, false, false);
+        for (const {back, exceed} of searchStarts(textSource)) {
+            const from = textSource.clone();
+            if (back > 0) { from.setStartOffset(back, layoutAwareScan); }
+            mustExceed = exceed;
+            await scanner.search(from, null, false, false);
+            if (answered) { return; }
+            // A word that ended before the tapped character: its highlight goes before the next try.
+            scanner.clearSelection();
+        }
     } finally {
+        mustExceed = null;
         textSource.cleanup();
     }
     if (!answered) { onEmpty(); }
@@ -202,7 +283,7 @@ function start() {
             textSourceGenerator: generator,
         });
         textScanner.on('searchSuccess', onFound);
-        textScanner.on('searchEmpty', onEmpty);
+        textScanner.on('searchEmpty', onScannerEmpty);
         textScanner.on('searchError', onError);
         scanner = textScanner;
         try {

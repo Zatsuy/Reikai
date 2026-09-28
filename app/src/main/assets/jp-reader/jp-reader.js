@@ -992,6 +992,31 @@
     return null;
   }
 
+  /*
+   * A tap on a reading that is shown (rt): the middle of its word's first character, where a lookup
+   * starts, or null when the point is on no reading.
+   */
+  function readingBaseAt(x, y) {
+    var hit = document.elementFromPoint(x, y);
+    var rt = hit && hit.closest ? hit.closest('rt') : null;
+    var ruby = rt ? rt.closest('ruby') : null;
+    if (!ruby || !chapter.contains(ruby)) return null;
+    var walker = document.createTreeWalker(ruby, NodeFilter.SHOW_TEXT);
+    for (var node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.parentElement && node.parentElement.closest('rt, rp')) continue;
+      var text = node.data;
+      for (var i = 0; i < text.length; i++) {
+        if (/\s/.test(text.charAt(i))) continue;
+        var range = document.createRange();
+        range.setStart(node, i);
+        range.setEnd(node, i + (text.codePointAt(i) > 0xffff ? 2 : 1));
+        var r = firstRect(range.getClientRects());
+        return r ? { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 } : null;
+      }
+    }
+    return null;
+  }
+
   function zoneAction(fx, fy) {
     var zones = settings.tapZones || [];
     for (var i = 0; i < zones.length; i++) {
@@ -1024,12 +1049,14 @@
     if (revealFurigana(target)) return;
     var fx = x / window.innerWidth;
     var fy = y / window.innerHeight;
-    if (settings.tapMode === 'lookup' && charRangeAt(x, y)) {
+    // A tap on a shown reading looks its word up, from the word's first character.
+    var at = settings.tapMode !== 'lookup' ? null : charRangeAt(x, y) ? { x: x, y: y } : readingBaseAt(x, y);
+    if (at) {
       var hook = window.JpReader && window.JpReader.onTextTap;
       var handled = false;
       if (typeof hook === 'function') {
         try {
-          handled = hook(x, y) === true;
+          handled = hook(at.x, at.y) === true;
         } catch (e) {
           handled = false;
         }
