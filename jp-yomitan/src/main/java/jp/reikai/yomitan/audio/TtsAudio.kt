@@ -76,7 +76,7 @@ class TtsAudio(context: Context) {
             val id = file.name
             val done = CompletableDeferred<Boolean>().also { pending[id] = it }
             try {
-                val queued = withContext(Dispatchers.Main) { engine.synthesizeToFile(text, Bundle(), file, id) }
+                val queued = withContext(Dispatchers.IO) { engine.synthesizeToFile(text, Bundle(), file, id) }
                 val ok =
                     queued == TextToSpeech.SUCCESS && withTimeoutOrNull(SPEAK_TIMEOUT_MILLIS) { done.await() } == true
                 if (!ok) logcat(TAG, LogPriority.WARN) { "tts: could not speak $text" }
@@ -88,7 +88,11 @@ class TtsAudio(context: Context) {
         }
     }
 
-    /** The bound engine and whether it speaks Japanese; binds it when needed. Holds [mutex]. */
+    /**
+     * The bound engine and whether it speaks Japanese; binds it when needed. Holds [mutex]. Only the
+     * binding runs on the main thread (its callback arrives there); the engine's calls are IPC to the
+     * TTS app and run on the IO dispatcher.
+     */
     private suspend fun engineLocked(): Pair<TextToSpeech?, Status> {
         idle?.cancel()
         idle = scope.launch {
@@ -100,11 +104,11 @@ class TtsAudio(context: Context) {
         val engine = withContext(Dispatchers.Main) { TextToSpeech(app) { started.complete(it) } }
         val init = withTimeoutOrNull(START_TIMEOUT_MILLIS) { started.await() }
         if (init != TextToSpeech.SUCCESS) {
-            withContext(Dispatchers.Main) { engine.shutdown() }
+            withContext(Dispatchers.IO) { engine.shutdown() }
             logcat(TAG, LogPriority.WARN) { "tts: no engine (init $init)" }
             return null to Status.NoEngine
         }
-        val status = withContext(Dispatchers.Main) {
+        val status = withContext(Dispatchers.IO) {
             engine.setOnUtteranceProgressListener(Listener())
             val name = engine.defaultEngine.orEmpty()
             when (engine.setLanguage(Locale.JAPAN)) {
@@ -122,7 +126,7 @@ class TtsAudio(context: Context) {
         val engine = tts ?: return
         tts = null
         ready = null
-        withContext(Dispatchers.Main) { engine.shutdown() }
+        withContext(Dispatchers.IO) { engine.shutdown() }
     }
 
     private inner class Listener : UtteranceProgressListener() {
