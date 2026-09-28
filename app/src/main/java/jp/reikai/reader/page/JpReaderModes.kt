@@ -1,5 +1,6 @@
 package jp.reikai.reader.page
 
+import androidx.webkit.WebViewFeature
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -40,6 +41,19 @@ class JpReaderModes(
     private val novelPreferences: NovelPreferences,
     private val setChoice: SetJpReaderChoice,
 ) {
+
+    /**
+     * Whether this device's WebView can carry the Japanese reader's page, which talks to the app through a
+     * web message listener. Without one every novel reads in the standard reader, so the viewport, the
+     * chapter pipeline and the chapter window agree. Read once; replaced in tests.
+     */
+    internal var pageSupported: () -> Boolean = { webMessagesSupported }
+
+    private val webMessagesSupported by lazy {
+        runCatching { WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) }
+            .onFailure { logcat(LogPriority.WARN, it) { "Could not ask WebView for its features" } }
+            .getOrDefault(false)
+    }
 
     /** Each reading session's chapter loader, with the novel the session opened. */
     private val sessions = WeakHashMap<Any, Long>()
@@ -111,6 +125,7 @@ class JpReaderModes(
     }
 
     private suspend fun decide(novelId: Long, sample: String?): Boolean? {
+        if (!pageSupported()) return false
         val novel = novelRepository.getById(novelId) ?: return false
         return JpReaderDefault.decide(JpReaderChoice.of(novel.viewerFlags), languageOf(novel.source)) {
             sample?.let(JapaneseText::looksJapanese)

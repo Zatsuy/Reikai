@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
-import androidx.webkit.WebViewFeature
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import jp.reikai.di.JpGraph
 import jp.reikai.reader.JpReaderHook
@@ -80,8 +79,8 @@ object JpPageHook {
     ): ReaderViewport {
         val graph = graph(host) ?: return standard()
         // The page talks to the app through a web message listener; a WebView too old for one keeps
-        // upstream's reader.
-        if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+        // upstream's reader, which is what the novel's reader is decided as then too.
+        if (!graph.jpReaderModes.pageSupported()) {
             JpReaderHook.readerSwitch(host, MutableStateFlow(false))
             return standard()
         }

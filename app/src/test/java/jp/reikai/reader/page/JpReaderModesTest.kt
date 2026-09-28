@@ -48,6 +48,7 @@ class JpReaderModesTest {
         ),
     )
     private val modes = JpReaderModes(repository, sources, preferences, SetJpReaderChoice(repository))
+        .apply { pageSupported = { true } }
     private val loader = Any()
 
     @Test
@@ -93,6 +94,23 @@ class JpReaderModesTest {
         modes.switches.value shouldBe 1
         write!!.invoke()
         coVerify { repository.update(NovelUpdate(id = KAKUYOMU_NOVEL, viewerFlags = ORIENTATION or 0x200L)) }
+    }
+
+    @Test
+    fun `a webview that cannot carry the page reads every novel in the standard reader`() = runTest {
+        modes.pageSupported = { false }
+        modes.decideEarly(KAKUYOMU_NOVEL) shouldBe false
+        modes.holdsOneChapter(KAKUYOMU_NOVEL) shouldBe false
+        modes.bind(loader, MULTI_NOVEL)
+        modes.decideForLoad(loader, MULTI_NOVEL, japaneseText) shouldBe false
+        // Even a novel whose reader was chosen as Japanese.
+        val chosen = JpReaderModes(
+            mockk { coEvery { getById(any()) } returns novel(KAKUYOMU_NOVEL, "royalroad", viewerFlags = 0x100L) },
+            sources,
+            preferences,
+            SetJpReaderChoice(repository),
+        ).apply { pageSupported = { false } }
+        chosen.decideEarly(KAKUYOMU_NOVEL) shouldBe false
     }
 
     private fun novel(id: Long, source: String, viewerFlags: Long = 0L) =
