@@ -75,6 +75,13 @@ internal class JpReaderSession(
     /** This reader's use of the engine; read by the classifier's thread too. */
     @Volatile
     private var lease: YomitanEngine.Lease? = null
+
+    /**
+     * The engine, once this reader has had it built on the main thread (its warm-up or a lookup), for
+     * the classifier's thread, which never builds it.
+     */
+    @Volatile
+    private var seenEngine: YomitanEngine? = null
     private var sheet: LookupSheet? = null
     private var chapterUrl: String? = null
     private var closed = false
@@ -99,7 +106,8 @@ internal class JpReaderSession(
     /**
      * When the page was last touched or scrolled (uptime): the warm-up waits for a pause in reading.
      * Touches are seen on the text; a scroll through the window's views, since a press that stops a
-     * fling goes to the scrolling list, never to the text under it.
+     * fling goes to the scrolling list, never to the text under it. The reader's own scrolling (auto-
+     * scroll, read-aloud following the text) is heard too, so the wait has a limit ([warmUpWait]).
      */
     private var touchedAt = 0L
     private val onTouched = { touchedAt = SystemClock.uptimeMillis() }
@@ -174,7 +182,7 @@ internal class JpReaderSession(
     private fun warmUp() {
         whenIdle {
             if (closed || lease != null || !graph.jpLookup.isEnabled) return@whenIdle
-            val engine = graph.yomitanEngine
+            val engine = graph.yomitanEngine.also { seenEngine = it }
             val began = SystemClock.uptimeMillis()
             lease = engine.acquire(host) ?: return@whenIdle
             logcat(LogPriority.DEBUG) {
@@ -204,13 +212,13 @@ internal class JpReaderSession(
         lease = null
     }
 
-    private fun whenIdle(block: () -> Unit) {
+    private fun whenIdle(askedAt: Long = SystemClock.uptimeMillis(), block: () -> Unit) {
         Looper.myQueue().addIdleHandler {
-            val quiet = SystemClock.uptimeMillis() - touchedAt
-            if (quiet >= QUIET_MILLIS) {
+            val wait = warmUpWait(SystemClock.uptimeMillis(), touchedAt, askedAt)
+            if (wait <= 0) {
                 block()
             } else if (!closed) {
-                host.window.decorView.postDelayed({ whenIdle(block) }, QUIET_MILLIS - quiet)
+                host.window.decorView.postDelayed({ whenIdle(askedAt, block) }, wait)
             }
             false
         }
@@ -221,6 +229,8 @@ internal class JpReaderSession(
     private fun onLookUp(query: String, sentence: String?, offset: Int, askedAt: Long = SystemClock.uptimeMillis()) {
         if (!graph.jpLookup.isEnabled) return
         sheet().show(popupLookup(query, sentence, offset), askedAt, word = pressedLine)
+        // Built by the sheet by now: the next selection may use it as soon as it is ready.
+        seenEngine = graph.yomitanEngine
     }
 
     private fun popupLookup(query: String, sentence: String?, offset: Int): PopupLookup {
@@ -245,9 +255,10 @@ internal class JpReaderSession(
     // --- JpTextClassifier.Hooks, on the classifier's thread ----------------------------------------
 
     override suspend fun longestMatch(text: String): Int? {
-        // Only a reader that holds the engine (it warmed it up): this never builds or starts it.
-        if (lease == null || !graph.jpPreferences.lookupEnabled().get()) return null
-        val engine = graph.yomitanEngine
+        // Any running engine (this reader's warm-up, the sheet's, another screen's) that this reader
+        // has seen built: this never builds or starts it.
+        val engine = seenEngine ?: return null
+        if (!graph.jpPreferences.lookupEnabled().get()) return null
         if (engine.state.value !is YomitanEngine.State.Ready) return null
         return engine.findTerms(text, limit = 1)?.length
     }
@@ -395,15 +406,15 @@ internal class JpReaderSession(
         }
     }
 
-    private companion object {
-        const val ACTION_LOOK_UP = "jp.reikai.action.READER_LOOK_UP"
-        const val EXTRA_SESSION = "session"
-        const val EXTRA_QUERY = "query"
-        const val EXTRA_SENTENCE = "sentence"
-        const val EXTRA_OFFSET = "offset"
-        const val DARK_LUMINANCE = 0.4
+    internal companion object {
+        private const val ACTION_LOOK_UP = "jp.reikai.action.READER_LOOK_UP"
+        private const val EXTRA_SESSION = "session"
+        private const val EXTRA_QUERY = "query"
+        private const val EXTRA_SENTENCE = "sentence"
+        private const val EXTRA_OFFSET = "offset"
+        private const val DARK_LUMINANCE = 0.4
 
-        val nextId = AtomicInteger()
+        private val nextId = AtomicInteger()
 
         /**
          * Whether a point (view pixels) is well left of the page's one-character selection: the finger
@@ -412,21 +423,34 @@ internal class JpReaderSession(
          * needs no widening (a suggestion must contain Chromium's character, so the finger's word
          * would be selected with that character added).
          */
-        const val BEFORE_SELECTION =
+        private const val BEFORE_SELECTION =
             "function (x, y) { const s = getSelection(); if (!s || s.rangeCount === 0) { return false; } " +
                 "const r = s.getRangeAt(0).getBoundingClientRect(); " +
                 "return x / (devicePixelRatio || 1) < r.left - r.width / 4; }"
 
         /** About one line of the WebView page's text, for where the sheet opens. */
-        const val LINE_DP = 40f
+        private const val LINE_DP = 40f
 
         /** How long a long-press waits for the page to say where the finger was. */
-        const val PAGE_ANSWER_MILLIS = 80L
+        private const val PAGE_ANSWER_MILLIS = 80L
 
         /** How long after the last touch the warm-up waits, so it never lands in a fling. */
-        const val QUIET_MILLIS = 2_000L
+        private const val QUIET_MILLIS = 2_000L
+
+        /**
+         * The longest the warm-up waits for that pause: the reader's own auto-scroll or read-aloud
+         * never pauses, and a long-press after it should find the dictionary ready.
+         */
+        private const val MAX_WAIT_MILLIS = 10_000L
 
         /** A long-press asks its question well within this of the finger going down. */
-        const val PRESS_MEMORY_MILLIS = 3_000L
+        private const val PRESS_MEMORY_MILLIS = 3_000L
+
+        /**
+         * How much longer the warm-up asked for at [askedAt] waits at [now] (uptimes), the page last
+         * touched or scrolled at [touchedAt]; 0 or less: now.
+         */
+        internal fun warmUpWait(now: Long, touchedAt: Long, askedAt: Long): Long =
+            minOf(QUIET_MILLIS - (now - touchedAt), MAX_WAIT_MILLIS - (now - askedAt))
     }
 }
