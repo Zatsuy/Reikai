@@ -12,6 +12,7 @@ out of your context.
 |---|---|
 | Compiles | `scripts/fork/gw :app:compileDebugKotlin` (or the module's compile task) succeeds |
 | Tests pass | `scripts/fork/gw :app:testDebugUnitTest --tests "<FQCN>"` for each class touched; the full suite after an upstream merge |
+| Yomitan engine works off-device (`jp-yomitan/`, its stand-in, the bump script) | `scripts/fork/gw :jp-yomitan:testDebugUnitTest`; `node --test jp-yomitan/src/test/js/*.test.mjs`; `python3 -m unittest scripts/fork/test_yomitan_bump.py` |
 | Formatted | `scripts/fork/gw spotlessApply`, then `git diff --stat` shows only intended files |
 | R8-safe (new package, reflection, JS interface) | `scripts/fork/gw :app:assembleNightly` succeeds |
 | Schema intact (after a merge) | `scripts/fork/gw :data:verifySqlDelightMigration` |

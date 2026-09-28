@@ -38,6 +38,12 @@ jobs:
           python3 .claude/hooks/test_hooks.py
           python3 scripts/fork/seams.py --check
 
+      - name: Yomitan stand-in and bump script tests
+        # Seconds: Node and Python come with the runner. The module's Kotlin tests run in `test` below.
+        run: |
+          node --test jp-yomitan/src/test/js/*.test.mjs
+          python3 -m unittest scripts/fork/test_yomitan_bump.py
+
       - name: Set up the build
         uses: ./.github/actions/setup-build
         with:

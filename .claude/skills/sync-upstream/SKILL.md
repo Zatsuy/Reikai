@@ -18,10 +18,11 @@ Reikai is the fork's upstream (decision D-001); Mihon arrives through it. Backgr
    upstream's branch): a changed convention (DI, screens, migrations) becomes a small edit to the
    fork's `.claude/rules/*.md`, logged in `docs/fork/harness-log.md`. New upstream workflows are
    dropped automatically; the fork runs none of them.
-5. **Verify**: `scripts/fork/gw :app:compileDebugKotlin`, then `scripts/fork/gw :app:testDebugUnitTest`
-   (the full suite: a merge is cross-cutting), `scripts/fork/gw :data:verifySqlDelightMigration`,
-   `scripts/fork/seams.py --check`. Fork code broken by an upstream API change is fixed in fork
-   files, not by widening a seam.
+5. **Verify**: `scripts/fork/gw :app:compileDebugKotlin`, then `scripts/fork/gw :app:testDebugUnitTest
+   :jp-yomitan:testDebugUnitTest` (the full suites: a merge is cross-cutting),
+   `node --test jp-yomitan/src/test/js/*.test.mjs`, `python3 -m unittest scripts/fork/test_yomitan_bump.py`,
+   `scripts/fork/gw :data:verifySqlDelightMigration`, `scripts/fork/seams.py --check`. Fork code
+   broken by an upstream API change is fixed in fork files, not by widening a seam.
 6. **Push** `origin main`, add a line under *Upstream syncs* in `docs/fork/ROADMAP.md` (date,
    upstream branch and short SHA), and report: how many upstream commits, anything notable for the
    owner (new features they will see), anything that needed a decision.
