@@ -6,7 +6,7 @@ it once by hand; after that the app offers each new version itself.
 ## First install (once)
 
 1. On the tablet or phone, open
-   [github.com/Zatsuy/Reikai/releases/latest](https://github.com/Zatsuy/Reikai/releases/latest) in
+   [github.com/Zatsuy/Reikai-JP/releases/latest](https://github.com/Zatsuy/Reikai-JP/releases/latest) in
    the browser.
 2. Under **Assets**, tap `reikai-jp-arm64-v8a-r….apk` (right for almost every recent device; the
    file without `arm64-v8a` in its name works on any device but is larger). If the browser warns

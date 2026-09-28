@@ -6,6 +6,6 @@ package jp.reikai
  * the About screen's GitHub link.
  */
 object ForkRelease {
-    const val REPO = "Zatsuy/Reikai"
+    const val REPO = "Zatsuy/Reikai-JP"
     const val REPO_URL = "https://github.com/$REPO"
 }

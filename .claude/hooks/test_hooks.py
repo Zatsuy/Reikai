@@ -34,7 +34,7 @@ BASH = [
     ("chmod +x scripts/fork/setup-github.sh && bash -n scripts/fork/setup-github.sh", None),
     ("gh secret set SIGNING_KEY < key.b64", "deny"),
     ("gh repo deploy-key add key.pub --allow-write", "deny"),
-    ("gh secret list --repo Zatsuy/Reikai", None),
+    ("gh secret list --repo Zatsuy/Reikai-JP", None),
     ("git reset --hard HEAD~1", "ask"),
     ("git clean -fdx", "ask"),
     ("rm -rf build/fork-logs", None),

@@ -6,8 +6,8 @@ that changes. Opening one is public, under the owner's GitHub account.
 
 | Fix | For | Where it is | State |
 |---|---|---|---|
-| Plugin pages in Shift_JIS and other non-UTF-8 charsets | `unseensnick/Reikai` (`feat/0.4.0`) | branch `pr/plugin-charsets` on `Zatsuy/Reikai`; text below | ready, not offered (D-022) |
-| Three tests that fail at random | `unseensnick/Reikai` (`feat/0.4.0`) | branch `pr/recents-test-flakes` on `Zatsuy/Reikai`; text below | ready, not offered (D-022) |
+| Plugin pages in Shift_JIS and other non-UTF-8 charsets | `unseensnick/Reikai` (`feat/0.4.0`) | branch `pr/plugin-charsets` on `Zatsuy/Reikai-JP`; text below | ready, not offered (D-022) |
+| Three tests that fail at random | `unseensnick/Reikai` (`feat/0.4.0`) | branch `pr/recents-test-flakes` on `Zatsuy/Reikai-JP`; text below | ready, not offered (D-022) |
 | Kakuyomu Popular and Latest | `LNReader/lnreader-plugins` (`master`) | [lnreader-plugins-kakuyomu.patch](lnreader-plugins-kakuyomu.patch); text below | ready, not offered (D-022) |
 
 ## Reikai: decode plugin pages that are not UTF-8
@@ -75,7 +75,7 @@ Title: `fix(test): end three test races that fail ci at random`
 > - [x] Commits follow `type(scope): summary`
 > - Test-only change, so no device test, changelog entry or screenshots.
 
-To open either Reikai one: on GitHub, `Zatsuy/Reikai` → its branch → Contribute → Open pull request, base `unseensnick/Reikai` `feat/0.4.0` (retarget to upstream's newest `feat/<version>`
+To open either Reikai one: on GitHub, `Zatsuy/Reikai-JP` → its branch → Contribute → Open pull request, base `unseensnick/Reikai` `feat/0.4.0` (retarget to upstream's newest `feat/<version>`
 if it moved), paste the text above.
 
 ## lnreader-plugins: Kakuyomu Popular and Latest

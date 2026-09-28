@@ -9,7 +9,7 @@ Usage:
   scripts/fork/release.py notes <prev>   the release body (Markdown); <prev> may be empty
   scripts/fork/release.py prune <keep>   delete all but the newest <keep> releases and their tags
 
-check and prune call `gh` on GITHUB_REPOSITORY (default Zatsuy/Reikai), so they need GH_TOKEN.
+check and prune call `gh` on GITHUB_REPOSITORY (default Zatsuy/Reikai-JP), so they need GH_TOKEN.
 """
 import json
 import os
@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # The release workflow counts too: its Gradle flags shape the APK.
 APP_PATHS = [":(glob)**/src/**", ":(glob)**/*.kts", ":(glob)**/*.pro", "gradle/", "gradle.properties",
              "gradlew", ".github/workflows/fork-release.yml"]
-REPO = os.environ.get("GITHUB_REPOSITORY", "Zatsuy/Reikai")
+REPO = os.environ.get("GITHUB_REPOSITORY", "Zatsuy/Reikai-JP")
 DOCS = f"https://github.com/{REPO}/blob/main/docs/fork"
 GUIDE = f"{DOCS}/install.md"
 MAX_UPSTREAM = 15

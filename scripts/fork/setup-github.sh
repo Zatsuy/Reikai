@@ -4,7 +4,7 @@
 #
 #   scripts/fork/setup-github.sh
 #
-# It sets up two things on Zatsuy/Reikai:
+# It sets up two things on Zatsuy/Reikai-JP:
 #  1. A deploy key the automatic upstream sync pushes with. GitHub's own Actions token cannot push
 #     commits that change workflow files, and upstream's history sometimes does. The script then
 #     proves the key can push such a commit, on a throwaway branch it deletes again.
@@ -14,7 +14,7 @@
 # Nothing secret is printed. Needs: gh (logged in), git, ssh-keygen, keytool (from the JDK), openssl.
 set -euo pipefail
 
-REPO="Zatsuy/Reikai"
+REPO="Zatsuy/Reikai-JP"
 BACKUP_DIR="$HOME/.local/share/reikai-jp/signing"
 ALIAS="reikai-jp"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

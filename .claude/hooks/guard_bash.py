@@ -19,9 +19,9 @@ DENY = [
     # name that merely contains "upstream" is fine.
     (r"\bgit\s+push(\s+-[^\s=]+(=\S+)?)*\s+upstream(?![\w/.-])|\bgit\s+push\b[^|;&]*--repo[= ]upstream\b"
      r"|\bgit\s+push\b[^|;&]*unseensnick",
-     "Never push to upstream Reikai. The fork pushes only to origin (Zatsuy/Reikai)."),
+     "Never push to upstream Reikai. The fork pushes only to origin (Zatsuy/Reikai-JP)."),
     (r"\bgit\s+remote\s+set-url\s+origin\b[^|;&]*unseensnick",
-     "origin must stay the owner's fork (Zatsuy/Reikai)."),
+     "origin must stay the owner's fork (Zatsuy/Reikai-JP)."),
     (r"\bgit\s+push\b[^|;&]*(\s--force(-with-lease)?\b|\s-f\b|\s\+\S)",
      "Force-pushing rewrites the fork's public history. Ask the owner first (AskUserQuestion)."),
     (rf"{READ_VERBS}[^|;&]*{SECRET_FILE}",

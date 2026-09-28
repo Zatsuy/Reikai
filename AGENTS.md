@@ -8,7 +8,7 @@ short. Read what it points to only when the task needs it.
 **Reikai JP** is the owner's fork of [Reikai](https://github.com/unseensnick/Reikai) (a Mihon-based
 manga and light-novel reader) turning it into a Japanese-immersion reader: Yomitan lookup and Anki
 mining while reading, a Japanese reading mode (vertical or horizontal), and a richer novel reader.
-GPL-3.0-or-later, public, not for sale. Fork repo: `Zatsuy/Reikai` (`origin`); upstream:
+GPL-3.0-or-later, public, not for sale. Fork repo: `Zatsuy/Reikai-JP` (`origin`); upstream:
 `unseensnick/Reikai` (`upstream`), tracked at its newest `feat/<version>` branch.
 
 **Where things stand:** *Now* in [docs/fork/ROADMAP.md](docs/fork/ROADMAP.md). **What the owner
@@ -71,7 +71,7 @@ and suggest the better option. Performance and smoothness of the app are a pilla
   model, for easy steps.
 - **Commit each coherent step**: `type(scope): summary` (imperative, lower case, at most 72
   characters), a body that leads with one or two plain sentences for anything non-trivial, no em
-  dashes, no bare `#N` (write `Zatsuy/Reikai#N`), no AI credit lines. `scripts/fork/githooks/`
+  dashes, no bare `#N` (write `Zatsuy/Reikai-JP#N`), no AI credit lines. `scripts/fork/githooks/`
   enforces it; install with `scripts/fork/install-githooks.sh`.
 - **Knowledge goes in the repo, not private memory:** owner answers in `decisions.md`, status in
   the roadmap, research in `docs/fork/research/`, harness changes in `docs/fork/harness-log.md`.
