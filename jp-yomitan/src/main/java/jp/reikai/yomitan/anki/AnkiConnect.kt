@@ -67,7 +67,10 @@ class AnkiConnect internal constructor(
             onRefused(status, action)
             return error(refusalMessage(status)).toString()
         }
-        return reply(request).toString()
+        val started = clock()
+        return reply(request).toString().also {
+            logcat(TAG) { "anki $action: ${clock() - started} ms" }
+        }
     }
 
     /** One request's reply: the result as AnkiConnect shapes it for the request's version, or an error. */

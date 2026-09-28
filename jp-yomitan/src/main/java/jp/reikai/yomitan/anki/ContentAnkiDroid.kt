@@ -136,10 +136,20 @@ internal class ContentAnkiDroid(context: Context) : AnkiDroid {
     }
 
     override fun browse(query: String) {
-        val uri = Uri.parse("anki://x-callback-url/browser?search=${Uri.encode(query)}")
-        app.startActivity(
-            Intent(Intent.ACTION_VIEW, uri).setPackage(AnkiAccess.PACKAGE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        // AnkiDroid's card JavaScript API opens the browser on all decks; its deep link
+        // (anki://x-callback-url/browser) keeps the deck last chosen there, which may hide the note.
+        val allDecks = Intent()
+            .setClassName(AnkiAccess.PACKAGE, "com.ichi2.anki.CardBrowser")
+            .putExtra("search_query", query)
+            .putExtra("all_decks", true)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val deepLink = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("anki://x-callback-url/browser?search=${Uri.encode(query)}"),
         )
+            .setPackage(AnkiAccess.PACKAGE)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { app.startActivity(allDecks) }.getOrElse { app.startActivity(deepLink) }
     }
 
     override fun sync() {
