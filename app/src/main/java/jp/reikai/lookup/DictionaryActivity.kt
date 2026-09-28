@@ -34,6 +34,12 @@ class DictionaryActivity : ComponentActivity() {
     private var webView: WebView? = null
     private var page: YomitanPage? = null
 
+    /** The latest thing asked to look up; one asked while the engine starts is looked up once it is ready. */
+    private var query: String? = null
+
+    /** The page is loaded (the engine was ready): a new query loads at once. */
+    private var loaded = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         frame = FrameLayout(this)
@@ -52,23 +58,30 @@ class DictionaryActivity : ComponentActivity() {
                 }
             },
         )
-        open(intent.getStringExtra(EXTRA_QUERY))
+        query = intent.getStringExtra(EXTRA_QUERY)
+        open()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        val query = intent.getStringExtra(EXTRA_QUERY)
+        query = intent.getStringExtra(EXTRA_QUERY)
         val page = page
-        if (page == null) open(query) else page.load(searchPath(query))
+        when {
+            page == null -> open()
+            loaded -> page.load(searchPath(query))
+            // Still waiting for the engine: the page loads with this query then.
+            else -> Unit
+        }
     }
 
-    private fun open(query: String?) {
+    private fun open() {
         frame.removeAllViews()
+        loaded = false
         if (!lookup.isEnabled) {
             frame.addView(
                 lookupOffCard(this, onClose = ::finish) {
                     lookup.setEnabled(true)
-                    open(query)
+                    open()
                 },
                 lookupOffCardParams(this),
             )
@@ -87,7 +100,7 @@ class DictionaryActivity : ComponentActivity() {
                 override fun onRenderProcessGone() {
                     webView = null
                     this@DictionaryActivity.page = null
-                    if (!isFinishing) open(query)
+                    if (!isFinishing) open()
                 }
             },
         ) ?: return
@@ -110,7 +123,10 @@ class DictionaryActivity : ComponentActivity() {
         lifecycleScope.launch {
             val ready = lookup.engine.ready()
             frame.removeView(progress)
-            if (ready) page.load(searchPath(query))
+            if (ready && this@DictionaryActivity.page === page) {
+                loaded = true
+                page.load(searchPath(query))
+            }
         }
     }
 

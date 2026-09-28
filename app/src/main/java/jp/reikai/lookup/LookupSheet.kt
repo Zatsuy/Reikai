@@ -42,10 +42,11 @@ import logcat.logcat
 import kotlin.math.roundToInt
 
 /**
- * The lookup sheet: Yomitan's results ([YomitanPopup]) in a bottom sheet over [activity]'s content,
- * the one popup of every surface. Drag its handle to resize it or down to close it; a tap outside,
- * the back gesture or Yomitan's own close button close it too. At most about 640 dp wide, so it reads
- * well on a tablet, and in the theme of the page it looks up from.
+ * The lookup sheet: Yomitan's results ([YomitanPopup]) in a sheet over [activity]'s content, the one
+ * popup of every surface. It opens at the bottom, or at the top when it would cover the word looked
+ * up. Drag its handle to resize it or away to close it; a tap outside, the back gesture (once
+ * Yomitan's own history has nothing to go back to) or Yomitan's close button close it too. At most
+ * about 640 dp wide, so it reads well on a tablet, and in the theme of the page it looks up from.
  *
  * Between lookups the sheet stays laid out in the window, transparent and passing every touch through
  * (a WebView outside a window, or hidden, is throttled, and resizing one costs a frame), so the next
@@ -88,8 +89,19 @@ internal class LookupSheet(
     private var permission: ActivityResultLauncher<String>? = null
     private var refusedEarly: AnkiAccess.Refusal? = null
     private val back = object : OnBackPressedCallback(false) {
-        override fun handleOnBackPressed() = close()
+        override fun handleOnBackPressed() {
+            // A word tapped in the results opened in the sheet: back goes to the one before.
+            val popup = popup
+            if (popup != null && popup.canGoBack) popup.goBack() else close()
+        }
     }
+
+    /** The sheet sits at the top of the window (the word looked up is in the part it would cover). */
+    private var atTop = false
+
+    /** The window's bars and cutout, which the sheet keeps clear of on its screen edge. */
+    private var barsTop = 0
+    private var barsBottom = 0
 
     var showing = false
         private set
@@ -121,7 +133,7 @@ internal class LookupSheet(
      * once its engine is warm), without showing anything.
      */
     fun prewarm(dark: Boolean) {
-        if (popup != null || showing) return
+        if (popup?.closed == false || showing) return
         this.dark = dark
         applyColors()
         val popup = obtainPopup() ?: return
@@ -140,14 +152,19 @@ internal class LookupSheet(
         preloadedToken = popup.show(lookup)
     }
 
-    /** Looks [lookup] up; [askedAt] (uptime) is when the reader asked, for the timing log. */
-    fun show(lookup: PopupLookup, askedAt: Long = SystemClock.uptimeMillis()) {
+    /**
+     * Looks [lookup] up; [askedAt] (uptime) is when the reader asked, for the timing log. [word] is
+     * where the word is on the screen (its top to bottom, in screen pixels), if known: the sheet then
+     * opens where it leaves the word in view.
+     */
+    fun show(lookup: PopupLookup, askedAt: Long = SystemClock.uptimeMillis(), word: IntRange? = null) {
         current = lookup
         this.askedAt = askedAt
         dark = lookup.dark ?: isNightMode()
         loading?.cancel()
+        if (!showing) place(word)
         val popup = popup?.takeIf { !it.closed && it.webView.parent === body } ?: obtainPopup()
-        if (popup != null && !showing && lookup == preloaded) {
+        if (popup != null && !showing && lookup == preloaded && popup.holds(preloadedToken)) {
             // Already looked up while the toolbar was up: only the sheet to open.
             preloaded = null
             token = preloadedToken
@@ -181,15 +198,23 @@ internal class LookupSheet(
         }
     }
 
-    /** Closes the sheet (the popup stays ready for the next lookup). */
-    fun close() {
+    /**
+     * Closes the sheet (the popup stays ready for the next lookup); [thenFraction] is its height for
+     * the next time, when a drag left it smaller.
+     */
+    fun close(thenFraction: Float? = null) {
         if (!showing) return
         showing = false
         back.isEnabled = false
         loading?.cancel()
-        sheet.animate().translationY(sheet.height.toFloat()).setDuration(CLOSE_MILLIS)
+        sheet.animate().translationY(offScreen()).setDuration(CLOSE_MILLIS)
             .setInterpolator(DecelerateInterpolator()).withEndAction {
                 if (!showing) {
+                    if (thenFraction != null) {
+                        fraction = thenFraction
+                        // Laid out again while parked, so the next lookup opens at full height.
+                        sheet.requestLayout()
+                    }
                     popup?.clear()
                     park()
                     onClosed()
@@ -208,32 +233,37 @@ internal class LookupSheet(
         loading?.cancel()
         permission?.unregister()
         popup?.let {
-            it.listener = null
-            lookup.releasePopup(it)
+            // Another screen may have taken the popup over since: it is then that screen's.
+            if (it.listener === popupListener) it.listener = null
+            lookup.releasePopup(it, activity)
         }
         popup = null
     }
 
     // --- the popup --------------------------------------------------------------------------------
 
+    private val popupListener = object : YomitanPopup.Listener {
+        override fun onShown(token: Int, pageMillis: Double, shownAt: Long) {
+            shownToken = token
+            val popup = popup ?: return
+            if (token != this@LookupSheet.token || !showing) return
+            hideMessage()
+            whenPainted(popup, pageMillis)
+        }
+
+        override fun onCloseRequested() = close()
+
+        override fun onGone() {
+            popup = null
+            preloaded = null
+            if (showing) current?.let { show(it, SystemClock.uptimeMillis()) }
+        }
+    }
+
     private fun obtainPopup(): YomitanPopup? {
         val popup = lookup.popup(activity) ?: return null
         this.popup = popup
-        popup.listener = object : YomitanPopup.Listener {
-            override fun onShown(token: Int, pageMillis: Double, shownAt: Long) {
-                shownToken = token
-                if (token != this@LookupSheet.token || !showing) return
-                hideMessage()
-                whenPainted(popup, pageMillis)
-            }
-
-            override fun onCloseRequested() = close()
-
-            override fun onGone() {
-                this@LookupSheet.popup = null
-                if (showing) current?.let { show(it, SystemClock.uptimeMillis()) }
-            }
-        }
+        popup.listener = popupListener
         popup.webView.setBackgroundColor(if (dark) DARK_BACKGROUND else LIGHT_BACKGROUND)
         body.addView(popup.webView, 0, FrameLayout.LayoutParams(MATCH, MATCH))
         return popup
@@ -309,7 +339,7 @@ internal class LookupSheet(
         notice.visibility = View.GONE
         refusedEarly?.let(::onAnkiRefused)
         refusedEarly = null
-        sheet.translationY = (sheet.height.takeIf { it > 0 } ?: root.height).toFloat()
+        sheet.translationY = offScreen()
         sheet.alpha = 1f
         scrim.alpha = 0f
         scrim.animate().alpha(1f).setDuration(OPEN_MILLIS).start()
@@ -325,6 +355,40 @@ internal class LookupSheet(
         hideMessage()
         sheet.animate().cancel()
         sheet.alpha = 0f
+    }
+
+    /** Just past the sheet's screen edge, where it slides in from and out to. */
+    private fun offScreen(): Float {
+        val height = (sheet.height.takeIf { it > 0 } ?: root.height).toFloat()
+        return if (atTop) -height else height
+    }
+
+    /**
+     * Puts the sheet at the bottom, or at the top when at the bottom it would cover the [word] (screen
+     * pixels, top to bottom) and at the top it would not, or would cover less of the page around it.
+     */
+    private fun place(word: IntRange?) {
+        val height = root.height
+        val top = if (word == null || height <= 0) {
+            false
+        } else {
+            val origin = IntArray(2).also(root::getLocationOnScreen)[1]
+            SheetPlacement.atTop(word.first - origin, word.last - origin, height, (height * fraction).roundToInt())
+        }
+        if (top == atTop) return
+        atTop = top
+        (sheet.layoutParams as FrameLayout.LayoutParams).gravity =
+            (if (top) Gravity.TOP else Gravity.BOTTOM) or Gravity.CENTER_HORIZONTAL
+        // The handle on the edge that faces the page.
+        sheet.removeView(handle)
+        sheet.addView(handle, if (top) sheet.childCount else 0, LinearLayout.LayoutParams(MATCH, dp(HANDLE_DP)))
+        applyInsets()
+        applyColors()
+        sheet.requestLayout()
+    }
+
+    private fun applyInsets() {
+        sheet.setPadding(0, if (atTop) barsTop else 0, 0, if (atTop) 0 else barsBottom)
     }
 
     private fun showMessage(text: Int, spinner: Boolean = false) {
@@ -349,7 +413,12 @@ internal class LookupSheet(
         val radius = 16 * density
         sheet.background = GradientDrawable().apply {
             setColor(background)
-            cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
+            // Rounded on the edge that faces the page.
+            cornerRadii = if (atTop) {
+                floatArrayOf(0f, 0f, 0f, 0f, radius, radius, radius, radius)
+            } else {
+                floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
+            }
         }
         (handle.getChildAt(0).background as GradientDrawable).setColor(if (dark) DARK_PILL else LIGHT_PILL)
         (handle.getChildAt(1) as ImageButton).setColorFilter(text)
@@ -389,7 +458,7 @@ internal class LookupSheet(
             FrameLayout.LayoutParams(dp(48), dp(40), Gravity.END or Gravity.CENTER_VERTICAL),
         )
         handle.setOnTouchListener(Dragger())
-        sheet.addView(handle, LinearLayout.LayoutParams(MATCH, dp(40)))
+        sheet.addView(handle, LinearLayout.LayoutParams(MATCH, dp(HANDLE_DP)))
 
         notice.orientation = LinearLayout.HORIZONTAL
         notice.gravity = Gravity.CENTER_VERTICAL
@@ -415,10 +484,12 @@ internal class LookupSheet(
         sheet.addView(body, LinearLayout.LayoutParams(MATCH, 0, 1f))
         root.addView(sheet, FrameLayout.LayoutParams(MATCH, MATCH, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
 
-        // Above the navigation bar and within the display's safe area.
-        ViewCompat.setOnApplyWindowInsetsListener(sheet) { view, insets ->
+        // Clear of the system bars and within the display's safe area, on the sheet's screen edge.
+        ViewCompat.setOnApplyWindowInsetsListener(sheet) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-            view.setPadding(0, 0, 0, bars.bottom)
+            barsTop = bars.top
+            barsBottom = bars.bottom
+            applyInsets()
             insets
         }
         applyColors()
@@ -449,7 +520,7 @@ internal class LookupSheet(
         }
     }
 
-    /** The handle: drag to resize, down (or flung down) to close. */
+    /** The handle: drag to resize, away from the page (or flung that way) to close. */
     private inner class Dragger : View.OnTouchListener {
         private var downY = 0f
         private var downFraction = 0f
@@ -465,19 +536,21 @@ internal class LookupSheet(
                 }
                 MotionEvent.ACTION_MOVE -> {
                     velocity?.addMovement(event)
-                    fraction = (downFraction - (event.rawY - downY) / height).coerceIn(MIN_DRAG_FRACTION, MAX_FRACTION)
+                    // Towards the page grows the sheet: down for one at the top, up for one at the bottom.
+                    val grown = (if (atTop) event.rawY - downY else downY - event.rawY) / height
+                    fraction = (downFraction + grown).coerceIn(MIN_DRAG_FRACTION, MAX_FRACTION)
                     sheet.requestLayout()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     val tracker = velocity
                     tracker?.addMovement(event)
                     tracker?.computeCurrentVelocity(1000)
-                    val flungDown = (tracker?.yVelocity ?: 0f) > FLING_DP_PER_SECOND * density
+                    val towardsEdge = (tracker?.yVelocity ?: 0f) * (if (atTop) -1 else 1)
+                    val flungAway = towardsEdge > FLING_DP_PER_SECOND * density
                     tracker?.recycle()
                     velocity = null
-                    if (flungDown || fraction < CLOSE_FRACTION) {
-                        close()
-                        fraction = downFraction.coerceAtLeast(MIN_FRACTION)
+                    if (flungAway || fraction < CLOSE_FRACTION) {
+                        close(thenFraction = downFraction.coerceAtLeast(MIN_FRACTION))
                     } else {
                         fraction = fraction.coerceAtLeast(MIN_FRACTION)
                         savedFraction.set(fraction)
@@ -494,6 +567,7 @@ internal class LookupSheet(
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
         private const val MAX_WIDTH_DP = 640
+        private const val HANDLE_DP = 40
         private const val MIN_FRACTION = 0.3f
         private const val MIN_DRAG_FRACTION = 0.1f
         private const val CLOSE_FRACTION = 0.22f

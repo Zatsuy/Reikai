@@ -12,9 +12,11 @@ import jp.reikai.yomitan.popup.PopupLookup
 
 /**
  * "Look up in Reikai JP" in any app's text-selection menu (`ACTION_PROCESS_TEXT`): the lookup sheet
- * over the app the text came from, closing back to it. The component is switched off with lookup
- * (D-025, [JpLookup]); started anyway (before the switch reached it), it says lookup is off and offers
- * to turn it on.
+ * over the app the text came from, closing back to it. It ends as soon as it is out of sight (a link
+ * in the results opened another screen, or the user left), so it never waits over the other app
+ * with an old lookup and holding the popup. The component is switched off with lookup (D-025,
+ * [JpLookup]); started anyway (before the switch reached it), it says lookup is off and offers to
+ * turn it on.
  */
 class LookupActivity : ComponentActivity() {
 
@@ -31,6 +33,12 @@ class LookupActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handle(intent)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Not for a rotation, which it handles itself, nor a dialog over it (Anki's permission).
+        if (!isChangingConfigurations) finish()
     }
 
     private fun handle(intent: Intent) {

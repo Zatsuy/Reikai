@@ -19,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import java.lang.ref.WeakReference
 
 /**
  * Dictionary lookup as the rest of the app sees it (roadmap 3.4; the Japanese settings screen, 3.5,
@@ -35,6 +36,9 @@ class JpLookup(
 ) {
     private val scope = MainScope()
     private var popup: YomitanPopup? = null
+
+    /** The screen the popup is in now; only it lets the popup go ([releasePopup]). */
+    private var owner: WeakReference<Activity>? = null
     private var popupExpiry: Job? = null
 
     /** "AnkiDroid is not installed" was said once this run; it is not said again. */
@@ -76,15 +80,23 @@ class JpLookup(
         popup?.takeIf { !it.closed }?.let { existing ->
             (existing.webView.parent as? ViewGroup)?.removeView(existing.webView)
             existing.moveTo(host)
+            owner = WeakReference(host)
             return existing
         }
         if (!isEnabled) return null
-        return YomitanPopup.create(engine, host)?.also { popup = it }
+        return YomitanPopup.create(engine, host)?.also {
+            popup = it
+            owner = WeakReference(host)
+        }
     }
 
-    /** [host] is going away: the popup waits, ready, for the next lookup, then closes. */
-    fun releasePopup(popup: YomitanPopup) {
-        if (popup !== this.popup) return
+    /**
+     * [host] is going away: the popup waits, ready, for the next lookup, then closes. Nothing when
+     * another screen has taken the popup since (it is showing there).
+     */
+    fun releasePopup(popup: YomitanPopup, host: Activity) {
+        if (popup !== this.popup || owner?.get() !== host) return
+        owner = null
         (popup.webView.parent as? ViewGroup)?.removeView(popup.webView)
         popup.moveTo(context)
         popupExpiry?.cancel()
@@ -100,6 +112,7 @@ class JpLookup(
         popup?.let { (it.webView.parent as? ViewGroup)?.removeView(it.webView) }
         popup?.close()
         popup = null
+        owner = null
     }
 
     private fun setComponentEnabled(component: Class<*>, on: Boolean) {
