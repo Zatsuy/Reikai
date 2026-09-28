@@ -160,10 +160,13 @@ colors: {background, text, hint}, textIndent: <em>, justify: <bool>, invertSwipe
 | `edge` | `forward` (bool) | a page turn asked past the first or last page |
 | `touch` | - | any touch start (idle timer, engine warm-up) |
 
-`pos` = `{ charOffset, chars, fraction, page, pages, fits, endSeen }`: characters before the first
-visible character (ttu's rule), the chapter's total, their ratio, the 1-based page and page count
-(in scroll mode screens), whether the whole chapter fits on one page, whether its end is on
-screen.
+`pos` = `{ charOffset, anchor, chars, fraction, page, pages, fits, endSeen }`: characters before the
+first visible character (ttu's rule); the anchor, the character the reader means to be at (the first
+visible one after their own last move, kept through re-layouts; the app stores it, so a document
+laid out another way lands on the page holding it instead of slipping back a page); the chapter's
+total, the ratio of `charOffset` to it, the 1-based page and page count (in scroll mode screens),
+whether the whole chapter fits on one page, whether its end is on screen. An `edge` always comes
+after a `pos` for the place it was asked from.
 
 **App → page**, `evaluateJavascript("JpReader.<fn>(…)")`:
 
@@ -218,7 +221,8 @@ Fork code in `app/src/main/java/jp/reikai/reader/page/` and `jp/reikai/data/`; s
   decide, mirrored left to right for vertical text (`JpTapLayout`). Volume keys turn pages.
 - **Position** (ruling 7): `JpChapterPositions` over `JpReaderDatabase` (`jp_reader.db`, plain SQL
   on the bundled SQLite; version 1 = `chapter_position(chapter_id, char_offset, chars, percent,
-  updated_at)`; 4.4 adds version 2). A chapter lands at the stored character when the stored
+  updated_at)`; 4.4 adds version 2). `char_offset` holds the page's anchor rather than its first
+  character (seen on the tablet: two rotations slipped the reader back a page). A chapter lands at the stored character when the stored
   `percent` equals the percent upstream opens it at, else at upstream's percent (so a place the
   standard reader, a mark-as-read or another device moved since is not trusted). Incognito stores
   nothing.

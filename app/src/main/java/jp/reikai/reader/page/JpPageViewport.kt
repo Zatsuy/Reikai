@@ -423,10 +423,11 @@ class JpPageViewport internal constructor(
             endReported = true
             onChapterEndSeen(id)
         }
-        // Incognito keeps no reading place, upstream's or the fork's.
+        // Incognito keeps no reading place, upstream's or the fork's. The anchor, not the page's first
+        // character: a document laid out another way lands on the page holding it without slipping back.
         if (!incognito && pos.chars > 0) {
             positions.put(
-                JpReaderDatabase.ChapterPosition(id, pos.charOffset, pos.chars, percent, System.currentTimeMillis()),
+                JpReaderDatabase.ChapterPosition(id, pos.anchor, pos.chars, percent, System.currentTimeMillis()),
             )
         }
     }

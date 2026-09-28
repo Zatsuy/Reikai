@@ -13,7 +13,10 @@ import kotlin.math.roundToInt
 /**
  * Where the page is in its chapter (the contract's `pos`): [charOffset] characters before the first one
  * on screen, of [chars] (ttu's count), their ratio [fraction], the page (or screen) and page count,
- * whether the chapter fits on one page, and whether its end is on screen.
+ * whether the chapter fits on one page, and whether its end is on screen. [anchor] is the character the
+ * reader means to be at, the first on screen after their own last move: the place to keep, since a page
+ * laid out another way (a rotation, a new document) lands on the page holding it, where [charOffset]
+ * would slip back a page each time. A page that sends none has it equal to [charOffset].
  */
 data class JpPagePosition(
     val charOffset: Int,
@@ -23,6 +26,7 @@ data class JpPagePosition(
     val pages: Int,
     val fits: Boolean,
     val endSeen: Boolean,
+    val anchor: Int = charOffset,
 ) {
     /**
      * The whole percent upstream is told, in its scroll reader's terms: 0 for a chapter that fits on one
@@ -96,6 +100,7 @@ sealed interface JpPageMessage {
                 pages = pos.int("pages")?.coerceAtLeast(1) ?: 1,
                 fits = pos.boolean("fits") ?: false,
                 endSeen = pos.boolean("endSeen") ?: false,
+                anchor = pos.int("anchor")?.coerceIn(0, chars) ?: offset,
             )
         }
 

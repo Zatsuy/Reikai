@@ -39,11 +39,23 @@ class JpPageMessageTest {
 
     @Test
     fun `a position out of range is held to the chapter`() {
-        val message = JpPageMessage.parse("""{"t":"pos","pos":{"charOffset":900,"chars":500,"fraction":7}}""")
+        val message = JpPageMessage.parse("""{"t":"pos","pos":{"charOffset":900,"chars":500,"fraction":7,"anchor":-3}}""")
         (message as JpPageMessage.Position).pos.let {
             it.charOffset shouldBe 500
             it.fraction shouldBe 1.0
+            it.anchor shouldBe 0
         }
+    }
+
+    @Test
+    fun `the anchor is the place the reader means, the page's first character when it sends none`() {
+        val anchored = JpPageMessage.parse("""{"t":"pos","pos":{"charOffset":586,"anchor":786,"chars":2169}}""")
+        (anchored as JpPageMessage.Position).pos.let {
+            it.charOffset shouldBe 586
+            it.anchor shouldBe 786
+        }
+        val plain = JpPageMessage.parse("""{"t":"pos","pos":{"charOffset":586,"chars":2169}}""")
+        (plain as JpPageMessage.Position).pos.anchor shouldBe 586
     }
 
     @Test

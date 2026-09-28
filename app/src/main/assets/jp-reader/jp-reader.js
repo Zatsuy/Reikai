@@ -630,7 +630,7 @@
   function computeState() {
     if (!geo) {
       return {
-        charOffset: intended, chars: total, fraction: total ? intended / total : 0,
+        charOffset: intended, anchor: intended, chars: total, fraction: total ? intended / total : 0,
         page: 1, pages: 1, fits: false, endSeen: false,
       };
     }
@@ -651,6 +651,7 @@
     }
     return {
       charOffset: charOffset,
+      anchor: intended,
       chars: total,
       fraction: total ? charOffset / total : 0,
       page: current,
@@ -660,13 +661,19 @@
     };
   }
 
-  /* The state now; a pending move of the reader's becomes the intended position. */
+  /*
+   * The state now; a pending move of the reader's becomes the intended position, which the state
+   * reports as its anchor: the place to keep, since a page laid out another way (a rotation, another
+   * font size, a new document) lands on the page holding it, while keeping the first character on
+   * screen instead would slip back up to a page each time.
+   */
   function settleState() {
     var state = computeState();
     if (intendedDirty && geo) {
       intended = state.charOffset;
       intendedDirty = false;
     }
+    state.anchor = intended;
     return state;
   }
 

@@ -375,6 +375,33 @@ async function pagedTests(context, vp) {
         }
     });
 
+    await test(`${vp.name} the anchor carries the place through documents laid out another way, without drift`, async () => {
+        // As the app does across a rotation or a new font size: each new document starts from the anchor
+        // the last one reported. Starting from the first character on screen instead slips back a page.
+        for (const layout of ['paged', 'scroll']) {
+            const target = 7777;
+            let at = target;
+            let first = null;
+            for (const fontSize of [22, 29, 17, 22, 29, 22]) {
+                const {page, ready} = await open(context, 'long', {charOffset: at, settings: {layout, fontSize}});
+                same(ready.pos.anchor, target, `${layout} at ${fontSize}px: the anchor is where the reader was`);
+                check(await page.evaluate((n) => __t.charVisible(n), target), `${layout} at ${fontSize}px: character ${target} on screen`);
+                if (fontSize === 22) {
+                    if (first === null) first = ready.pos.charOffset;
+                    same(ready.pos.charOffset, first, `${layout}: the same page at the same size`);
+                }
+                at = ready.pos.anchor;
+                await close(page);
+            }
+        }
+        // The reader's own move makes the first character on screen the anchor.
+        const {page} = await open(context, 'long', {charOffset: 7777});
+        await page.evaluate(() => JpReader.turn(1));
+        const moved = await state(page);
+        same(moved.anchor, moved.charOffset, 'after a turn the anchor is the page\'s first character');
+        await close(page);
+    });
+
     await test(`${vp.name} short chapter fits one page`, async () => {
         for (const layout of ['paged', 'scroll']) {
             const {page, ready} = await open(context, 'short', {settings: {layout}});
@@ -845,7 +872,7 @@ async function readyOnceTest(context, vp) {
 }
 
 function checkShapes() {
-    const POS = ['charOffset', 'chars', 'fraction', 'page', 'pages', 'fits', 'endSeen'];
+    const POS = ['charOffset', 'anchor', 'chars', 'fraction', 'page', 'pages', 'fits', 'endSeen'];
     const bad = [];
     for (const m of allMessages) {
         const keys = Object.keys(m).sort().join(',');
@@ -853,6 +880,7 @@ function checkShapes() {
             const p = m.pos || {};
             const ok = keys === 'pos,t' && Object.keys(p).sort().join(',') === [...POS].sort().join(',') &&
                 Number.isInteger(p.charOffset) && Number.isInteger(p.chars) && p.charOffset >= 0 && p.charOffset <= p.chars &&
+                Number.isInteger(p.anchor) && p.anchor >= 0 && p.anchor <= p.chars &&
                 p.fraction >= 0 && p.fraction <= 1 && Number.isInteger(p.page) && Number.isInteger(p.pages) &&
                 p.page >= 1 && p.page <= p.pages && typeof p.fits === 'boolean' && typeof p.endSeen === 'boolean';
             if (!ok) bad.push(m);
