@@ -23,13 +23,15 @@ unless a **You:** step is still waiting. Why things are built this way:
    5. *(Optional)* **Local audio file**: copy your `android.db` to the tablet, pick it, wait for the
       copy, then delete the original. If "Speak words that have no recording" says no Japanese
       voice is installed, install one in Android's text-to-speech settings.
-   6. Try it: long-press a word in a Japanese chapter → **Look up**.
+   6. Try it: open a Japanese novel (it opens in the new Japanese reader) and tap a word.
    On the phone, repeat 1-3 only after AnkiDroid has synced the Lapis note type there.
 3. *(Once)* In AnkiDroid → Browse, search `Abdicar` and check the note looks as you left it: an
    agent's stray tap opened it in the editor during a test and backed out without typing. If
    anything changed, fix the field by hand (AnkiDroid's Undo only reaches its latest actions). *(Optional)* AnkiDroid →
    Check media removes the few small audio files left from the test cards.
-4. Start a **new** Claude Code conversation and type `/next` (one roadmap item per conversation
+4. *(Only if you already did step 2.3 before Phase 4 arrived)* Settings → Japanese → **Set up
+   cards for Lapis** once more, so cards also get the book's cover.
+5. Start a **new** Claude Code conversation and type `/next` (one roadmap item per conversation
    keeps agents fast and cheap).
 
 **What runs without you** (decision D-015): every Monday GitHub merges upstream Reikai's new work

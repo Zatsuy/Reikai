@@ -42,6 +42,9 @@ Changes you will notice in the app, newest first. Upstream Reikai's own changes 
   service (OpenAI, Gemini, DeepSeek, OpenRouter, Ollama or another, with your key, address and
   model). Keys are not saved in backups. Translations are kept, so opening one again sends nothing.
   In the Japanese reader a translated chapter shows horizontally, without lookup or statistics.
+- **Export as EPUB** in a novel's menu (⋮) saves its downloaded chapters, cover and details as an
+  EPUB file wherever you choose (Japanese novels in vertical text, right to left); chapters not
+  downloaded are skipped and the result says how many.
 
 ### Japanese: look up words with Yomitan
 - New **Settings → Japanese**. Word lookup runs the real Yomitan (the same code as the browser
