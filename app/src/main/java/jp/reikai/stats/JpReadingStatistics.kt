@@ -34,15 +34,16 @@ class JpReadingStatistics(private val database: () -> JpReaderDatabase) {
     /**
      * Every day read of [title], by day, the unwritten ones included. The unwritten ones are taken
      * first: a flush writes a row before it lets go of it, so a row missing from this copy is already
-     * in the database, and one in both is at least as new here.
+     * in the database, and one in both is at least as new here. Null when the database could not be
+     * read: counting from nothing would write today's row over the one stored.
      */
-    suspend fun forTitle(title: String): List<StatisticRow> {
+    suspend fun forTitle(title: String): List<StatisticRow>? {
         val newer = unwritten.values.filter { it.statistic.title == title }
         val stored = withContext(Dispatchers.IO) {
             runCatching { database().statistics(title) }
                 .onFailure { logcat(LogPriority.WARN, it) { "Could not read reading statistics" } }
-                .getOrDefault(emptyList())
-        }
+                .getOrNull()
+        } ?: return null
         return overlay(stored.filter { it.statistic.title == title }, newer)
     }
 

@@ -286,7 +286,9 @@ internal class JpReaderSession(
         }
         host.lifecycleScope.launch {
             val title = viewModel.entryTitle.filterNotNull().first().takeIf { it.isNotBlank() } ?: return@launch
-            tracker.begin(title, statistics.forTitle(title).map { it.statistic })
+            // Stored days that cannot be read leave the session uncounted rather than counted from zero.
+            val stored = statistics.forTitle(title) ?: return@launch
+            tracker.begin(title, stored.map { it.statistic })
         }
         host.lifecycleScope.launch {
             host.repeatOnLifecycle(Lifecycle.State.RESUMED) {
