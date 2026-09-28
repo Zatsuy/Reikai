@@ -109,7 +109,8 @@ class NovelEpubExport(
                 description = novel.description,
                 subjects = novel.genre.orEmpty(),
             )
-            val output = context.contentResolver.openOutputStream(uri) ?: error("The file could not be opened")
+            // Truncated: a larger file picked to be overwritten would otherwise keep its old tail.
+            val output = context.contentResolver.openOutputStream(uri, "wt") ?: error("The file could not be opened")
             BufferedOutputStream(output).use { stream ->
                 EpubWriter(stream, book, ::asJpeg).use { writer ->
                     coverOf(novel)?.let(writer::cover)
