@@ -8,14 +8,9 @@ unless a **You:** step is still waiting. Why things are built this way:
 
 ## Your checklist right now
 
-1. *(When you have five minutes)* Open **Reikai JP** on the tablet (already installed and updated
-   by the agent) and go through its **Welcome!** setup: pick a new storage folder, and restore a
-   backup from upstream Reikai if you want your library there. Steps:
-   [install guide](install.md). On the phone, install it with the same guide if you like.
-2. **Set up word lookup** once Reikai JP offers its next update (Phase 3), on the tablet:
+1. **Set up word lookup** (Reikai JP r2818, on both devices since 2026-09-28, has it), on the tablet:
    1. Settings → Japanese → **Get recommended dictionaries** → tap Download next to **Jitendex**
-      (about 3 minutes; add a frequency or pitch-accent dictionary from the same list if you
-      like), then go back.
+      (about 3 minutes; **JPDBv2** further down the same list adds word frequencies), then go back.
    2. Under AnkiDroid tap **Allow**, then **Allow** in the system dialog.
    3. Tap **Set up cards for Lapis** and pick the deck your cards should go to.
    4. *(Optional)* **Import your desktop Yomitan settings**: on the computer, Yomitan → Settings →
@@ -25,13 +20,15 @@ unless a **You:** step is still waiting. Why things are built this way:
       voice is installed, install one in Android's text-to-speech settings.
    6. Try it: open a Japanese novel (it opens in the new Japanese reader) and tap a word.
    On the phone, repeat 1-3 only after AnkiDroid has synced the Lapis note type there.
-3. *(Once)* In AnkiDroid → Browse, search `Abdicar` and check the note looks as you left it: an
+2. *(Once)* In AnkiDroid → Browse, search `Abdicar` and check the note looks as you left it: an
    agent's stray tap opened it in the editor during a test and backed out without typing. If
    anything changed, fix the field by hand (AnkiDroid's Undo only reaches its latest actions). *(Optional)* AnkiDroid →
    Check media removes the few small audio files left from the test cards.
-4. *(Only if you already did step 2.3 before Phase 4 arrived)* Settings → Japanese → **Set up
-   cards for Lapis** once more, so cards also get the book's cover.
-5. Start a **new** Claude Code conversation and type `/next` (one roadmap item per conversation
+3. *(Optional, two minutes, on the computer)* Give the repository page its preview picture, the one
+   shown when the link is shared: GitHub → Zatsuy/Reikai-JP → **Settings** → **General** → **Social
+   preview** → **Edit** → **Upload an image**, and pick `docs/fork/media/social-preview.jpg` from
+   this folder. GitHub offers no way for an agent to do it.
+4. Start a **new** Claude Code conversation and type `/next` (one roadmap item per conversation
    keeps agents fast and cheap).
 
 **What runs without you** (decision D-015): every Monday GitHub merges upstream Reikai's new work
@@ -64,6 +61,33 @@ email you (safe to ignore), and the next agent session you start sees it and fix
   `/sync-upstream` only when the session-start lines report a failed run. Log:
   - 2026-09-27: fork moved onto `upstream/feat/0.4.0` at `668d48c34`.
 - **Retro** (`/retro`, after a large item or when you ask): see [harness.md](harness.md).
+
+## Done: presentation and clean-up (2026-09-28)
+
+- [x] **The repository presents the project.** Renamed `Zatsuy/Reikai` → `Zatsuy/Reikai-JP` (GitHub
+  redirects the old name, so apps already installed keep updating; the app, hooks and scripts use
+  the new one). A README written for readers (`.github/README.md`, which GitHub shows first) with a
+  header picture, framed screenshots and two clips from the tablet and phone (`docs/fork/media/`,
+  3.8 MB, rebuilt from new captures by `scripts/fork/readme_media.py`); a fork `CONTRIBUTING.md`; a
+  new description, 18 topics and the download link on the repository page; Wiki and Projects off.
+- [x] **Both devices on the newest Reikai JP.** Fork CI had failed on formatting since the Phase 4
+  push, and a failure there also stops the daily release, so r2694 (without Phases 3 and 4) was
+  still the newest: fixed, released as r2818 and installed over the owner's app on both devices,
+  library kept.
+- [x] **Leave nothing behind** (D-031): removed the developer, benchmark and test apps and the test
+  folders (62 MB each) from both devices; on this computer Gradle's build cache (12 GB), an unused
+  Gradle version, local nightly and benchmark outputs (3 GB) and old scratch folders (650 MB); on
+  GitHub 55 superseded Actions caches (7.7 GB). `gw`, the session-start hook and the skills keep it
+  that way.
+  **You:** the social-preview upload in *Your checklist* (optional).
+  Ruling: the screenshots show a Kakuyomu web novel, credited under the README - no public-domain
+  text is reachable through the installed sources and local books are 5.1 - cost if wrong: a
+  re-shoot with `readme_media.py`.
+  Open: the reference clones in `../refs` could shrink by about 200 MB as shallow clones (the
+  command was refused as irreversible; say "make the refs shallow" to approve it).
+  **Done 2026-09-28** in `925d69fa6`..`248047af7`. Agent's device use (D-023): "stay awake while
+  charging" was on for both devices and is back off; demo mode was tried and is off; no debug build
+  is left on either device, so the next device check installs one (and downloads Jitendex again).
 
 ## Done: Phase 4, Japanese reading mode (2026-09-28)
 
