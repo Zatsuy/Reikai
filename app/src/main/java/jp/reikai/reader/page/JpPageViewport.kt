@@ -88,6 +88,8 @@ class JpPageViewport internal constructor(
     private val cutoutTopDp: () -> Int,
     private val onChapterFits: (chapterId: Long, fits: Boolean) -> Unit,
     private val onChapterEndSeen: (chapterId: Long) -> Unit,
+    /** Upstream's "hide chapter title": the document then has no heading of its own. */
+    private val hideTitle: () -> Boolean,
 ) : ReaderViewport,
     TextViewport,
     ChapterWindow {
@@ -366,6 +368,7 @@ class JpPageViewport internal constructor(
         val insetTop = cutoutTopDp()
         documentInset = insetTop
         val baseUrl = chapter.baseUrl?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        val hidesTitle = hideTitle()
         val built = withContext(Dispatchers.IO) {
             // A place by character is the original's: a translation lands by percent.
             val stored = if (atEnd || translation != null) null else positions.get(chapter.chapterId)
@@ -383,7 +386,7 @@ class JpPageViewport internal constructor(
                     init,
                     current,
                     look(settings),
-                    chapter.title,
+                    chapter.title.takeUnless { hidesTitle },
                     html,
                     fonts,
                     withLookup,

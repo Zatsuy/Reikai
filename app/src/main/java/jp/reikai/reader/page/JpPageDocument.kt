@@ -101,13 +101,14 @@ object JpPageDocument {
     /**
      * The whole document. [look] and [options] give the first paint its colours, font and classes
      * before the page script runs; the script reads everything from [init]. With [lookup], Yomitan's
-     * scanner follows the page script ([LOOKUP_SCRIPT]).
+     * scanner follows the page script ([LOOKUP_SCRIPT]). A null [title] (upstream's "hide chapter title")
+     * leaves the heading out.
      */
     fun build(
         init: JsonObject,
         options: JpPageOptions,
         look: JpPageLook,
-        title: String,
+        title: String?,
         chapterHtml: String,
         fontFiles: List<String>,
         lookup: Boolean = false,
@@ -134,7 +135,8 @@ object JpPageDocument {
             .appendLine("</script>")
         appendLine("</head>")
         appendLine("<body>")
-        append("<main id=\"jp-chapter\"><h1 class=\"jp-title\">").append(escapeHtml(title)).append("</h1>")
+        append("<main id=\"jp-chapter\">")
+        if (title != null) append("<h1 class=\"jp-title\">").append(escapeHtml(title)).append("</h1>")
         append(chapterHtml)
         appendLine("</main>")
         append("<script src=\"").append(ASSET_PATH).appendLine("jp-reader.js\"></script>")

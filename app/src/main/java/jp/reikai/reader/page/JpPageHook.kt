@@ -108,6 +108,7 @@ object JpPageHook {
                     cutoutTopDp = host::displayCutoutTopDp,
                     onChapterFits = viewModel::reportFitsOnScreen,
                     onChapterEndSeen = viewModel::reportChapterEndSeen,
+                    hideTitle = novelPreferences.readerHideChapterTitle()::get,
                 ).also { JpReaderHook.pageViewport(host, it) }
             },
         )

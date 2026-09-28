@@ -27,7 +27,7 @@ class JpPageDocumentTest {
     )
 
     private fun build(
-        title: String = "第一話",
+        title: String? = "第一話",
         chapterHtml: String = "<p>吾輩は猫である。</p>",
         charOffset: Int? = 42,
         lookup: Boolean = false,
@@ -56,6 +56,13 @@ class JpPageDocumentTest {
         document.body().children().last()!!.attr("src") shouldBe "/jp-reader/jp-reader.js"
         // No inline script: the policy would refuse it.
         document.select("script:not([src]):not([type=\"application/json\"])").size shouldBe 0
+    }
+
+    @Test
+    fun `with "hide chapter title" on, the document has no heading`() {
+        val document = Jsoup.parse(build(title = null))
+        document.select("h1.jp-title").size shouldBe 0
+        document.selectFirst("main#jp-chapter > p")!!.text() shouldBe "吾輩は猫である。"
     }
 
     @Test
