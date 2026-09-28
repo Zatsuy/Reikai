@@ -72,8 +72,8 @@ object JapaneseText {
      * themselves); [longestMatch], when the dictionary is at hand, is the length of the longest
      * dictionary word (with deinflection) starting at an offset, or null. The dictionary only ever
      * extends ICU's word: to its okurigana and endings ("恐れ" + "て"), or back over a word ICU split
-     * ("恐れ|て" tapped on "て"). It never shrinks it, so the result is never shorter than what
-     * Firefox selects.
+     * ("恐れ|て" tapped on "て"; "伯|爵", a word ICU does not know, tapped on "爵"). It never shrinks
+     * it, so the result is never shorter than what Firefox selects.
      */
     fun selectWord(
         text: CharSequence,
@@ -87,9 +87,13 @@ object JapaneseText {
             ?: (start until start + Character.charCount(Character.codePointAt(text, start)))
         if (longestMatch == null) return icu
         val own = longestMatch(icu.first)?.let { (icu.first until icu.first + it).clip(run) }
-        // Only okurigana split from its stem: kana tapped right after a word with a kanji in it. Kana
-        // after kana ("した|の") is left alone, where a match across would be a guess.
-        val stem = if (icu.first > run.first && text.allKana(icu)) {
+        // Only a word ICU split after a stem with a kanji in it: okurigana (kana tapped right after
+        // it), or a lone kanji, which ICU leaves when it does not know the word ("伯|爵"). Kana after
+        // kana ("した|の") is left alone, where a match across would be a guess, and so is a word ICU
+        // knows ("東京|大学" tapped on "大" stays 大学).
+        val split =
+            text.allKana(icu) || (Character.codePointCount(text, icu.first, icu.last + 1) == 1 && text.hasKanji(icu))
+        val stem = if (icu.first > run.first && split) {
             segment(icu.first - 1)?.clip(run)?.takeIf { text.hasKanji(it) }
         } else {
             null

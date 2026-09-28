@@ -34,6 +34,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import logcat.LogPriority
+import logcat.logcat
 import reikai.novel.source.langCode
 import reikai.presentation.reader.NovelReaderViewModel
 import reikai.presentation.reader.readerBackgroundColorInt
@@ -68,6 +70,9 @@ internal class JpReaderSession(
     private val waiting = ArrayList<WeakReference<TextView>>()
     private var job: Job? = null
     private var lookupJob: Job? = null
+
+    /** This reader's use of the engine; read by the classifier's thread too. */
+    @Volatile
     private var lease: YomitanEngine.Lease? = null
     private var sheet: LookupSheet? = null
     private var chapterUrl: String? = null
@@ -86,6 +91,13 @@ internal class JpReaderSession(
     }
     private var pressed: String? = null
     private var pressedAt = 0L
+
+    /** Where the last long-press was on the screen (the line's top to bottom), for the sheet's place. */
+    private var pressedLine: IntRange? = null
+
+    /** When the page was last touched (uptime): the warm-up waits for a pause in scrolling. */
+    private var touchedAt = 0L
+    private val onTouched = { touchedAt = SystemClock.uptimeMillis() }
 
     fun start() {
         host.lifecycle.addObserver(this)
@@ -108,7 +120,7 @@ internal class JpReaderSession(
 
     fun decorate(view: TextView) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val presses = PressTracker(view)
+            val presses = PressTracker(view, onTouched) { pressedLine = it }
             JpReaderHook.classifier(view.context, classifierMode, this, presses::pressedIn)?.let {
                 view.setTextClassifier(it)
                 view.setOnTouchListener(presses)
@@ -123,7 +135,7 @@ internal class JpReaderSession(
 
     fun decorate(view: WebView) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val presses = WebPressTracker(view)
+            val presses = WebPressTracker(view, onTouched) { pressedLine = it }
             JpReaderHook.classifier(view.context, classifierMode, this, presses::pressedIn, onlyGrow = true)?.let {
                 view.setTextClassifier(it)
                 view.setOnTouchListener(presses)
@@ -145,19 +157,33 @@ internal class JpReaderSession(
     }
 
     /**
-     * Starts the engine and readies the popup for a Japanese novel, each once the main thread is idle,
-     * so neither delays the chapter.
+     * Starts the engine and readies the popup for a Japanese novel, each once the main thread is idle
+     * and the page has not been touched for a moment, so neither delays the chapter nor a scroll: the
+     * engine's WebView costs the main thread 85 ms and the popup 40 ms (tablet, native mode), and an
+     * idle moment comes between two frames of a fling too.
      */
     private fun warmUp() {
         whenIdle {
             if (closed || lease != null || !graph.jpLookup.isEnabled) return@whenIdle
             val engine = graph.yomitanEngine
+            val began = SystemClock.uptimeMillis()
             lease = engine.acquire(host) ?: return@whenIdle
+            logcat(LogPriority.DEBUG) {
+                "warm-up: engine started on the main thread in ${SystemClock.uptimeMillis() - began} ms"
+            }
             host.lifecycleScope.launch {
                 if (engine.ready() &&
                     lease != null
                 ) {
-                    whenIdle { if (!closed && lease != null) sheet().prewarm(isDarkPage()) }
+                    whenIdle {
+                        if (!closed && lease != null) {
+                            val at = SystemClock.uptimeMillis()
+                            sheet().prewarm(isDarkPage())
+                            logcat(LogPriority.DEBUG) {
+                                "warm-up: popup readied in ${SystemClock.uptimeMillis() - at} ms"
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -171,7 +197,12 @@ internal class JpReaderSession(
 
     private fun whenIdle(block: () -> Unit) {
         Looper.myQueue().addIdleHandler {
-            block()
+            val quiet = SystemClock.uptimeMillis() - touchedAt
+            if (quiet >= QUIET_MILLIS) {
+                block()
+            } else if (!closed) {
+                host.window.decorView.postDelayed({ whenIdle(block) }, QUIET_MILLIS - quiet)
+            }
             false
         }
     }
@@ -180,7 +211,7 @@ internal class JpReaderSession(
 
     private fun onLookUp(query: String, sentence: String?, offset: Int, askedAt: Long = SystemClock.uptimeMillis()) {
         if (!graph.jpLookup.isEnabled) return
-        sheet().show(popupLookup(query, sentence, offset), askedAt)
+        sheet().show(popupLookup(query, sentence, offset), askedAt, word = pressedLine)
     }
 
     private fun popupLookup(query: String, sentence: String?, offset: Int): PopupLookup {
@@ -205,7 +236,8 @@ internal class JpReaderSession(
     // --- JpTextClassifier.Hooks, on the classifier's thread ----------------------------------------
 
     override suspend fun longestMatch(text: String): Int? {
-        if (!graph.jpPreferences.lookupEnabled().get()) return null
+        // Only a reader that holds the engine (it warmed it up): this never builds or starts it.
+        if (lease == null || !graph.jpPreferences.lookupEnabled().get()) return null
         val engine = graph.yomitanEngine
         if (engine.state.value !is YomitanEngine.State.Ready) return null
         return engine.findTerms(text, limit = 1)?.length
@@ -264,7 +296,11 @@ internal class JpReaderSession(
      * it; the classifier gets a window of the chunk's text, found here by matching it against the
      * chunk's (reader chunks never change their text).
      */
-    private class PressTracker(private val view: TextView) : View.OnTouchListener {
+    private class PressTracker(
+        private val view: TextView,
+        private val onTouched: () -> Unit,
+        private val onLine: (IntRange) -> Unit,
+    ) : View.OnTouchListener {
         @Volatile private var text: CharSequence? = null
 
         @Volatile private var offset = -1
@@ -281,6 +317,7 @@ internal class JpReaderSession(
 
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouch(v: View, event: MotionEvent): Boolean {
+            onTouched()
             if (event.actionMasked != MotionEvent.ACTION_DOWN) return false
             offset = -1
             val layout = view.layout ?: return false
@@ -292,6 +329,9 @@ internal class JpReaderSession(
             text = view.text
             at = event.eventTime
             offset = if (before) boundary - 1 else boundary
+            // The pressed line on the screen: the view's top there, plus the line's place in the view.
+            val lineTop = (event.rawY - event.y).toInt() + view.totalPaddingTop - view.scrollY
+            onLine(lineTop + layout.getLineTop(line)..lineTop + layout.getLineBottom(line))
             // Only watching: the text view handles the press as before.
             return false
         }
@@ -302,7 +342,11 @@ internal class JpReaderSession(
      * one character after the boundary nearest the finger, so the page is asked (on the main thread,
      * while the classifier waits on its own) whether the finger was left of that character.
      */
-    private class WebPressTracker(private val view: WebView) : View.OnTouchListener {
+    private class WebPressTracker(
+        private val view: WebView,
+        private val onTouched: () -> Unit,
+        private val onLine: (IntRange) -> Unit,
+    ) : View.OnTouchListener {
         @Volatile private var x = 0f
 
         @Volatile private var y = 0f
@@ -328,10 +372,14 @@ internal class JpReaderSession(
 
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouch(v: View, event: MotionEvent): Boolean {
+            onTouched()
             if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                 x = event.x
                 y = event.y
                 at = event.eventTime
+                // The page's lines cannot be measured from here: about a line around the finger.
+                val half = (LINE_DP / 2 * view.resources.displayMetrics.density).toInt()
+                onLine(event.rawY.toInt() - half..event.rawY.toInt() + half)
             }
             return false
         }
@@ -347,13 +395,26 @@ internal class JpReaderSession(
 
         val nextId = AtomicInteger()
 
-        /** Whether a point (view pixels) is left of the page's selection: the finger was on the character before it. */
+        /**
+         * Whether a point (view pixels) is well left of the page's one-character selection: the finger
+         * was on the character before it. A press within a quarter character of the boundary counts
+         * as on the selected character: there Chromium's choice is as likely the word meant, and it
+         * needs no widening (a suggestion must contain Chromium's character, so the finger's word
+         * would be selected with that character added).
+         */
         const val BEFORE_SELECTION =
             "function (x, y) { const s = getSelection(); if (!s || s.rangeCount === 0) { return false; } " +
-                "const r = s.getRangeAt(0).getBoundingClientRect(); return x / (devicePixelRatio || 1) < r.left; }"
+                "const r = s.getRangeAt(0).getBoundingClientRect(); " +
+                "return x / (devicePixelRatio || 1) < r.left - r.width / 4; }"
+
+        /** About one line of the WebView page's text, for where the sheet opens. */
+        const val LINE_DP = 40f
 
         /** How long a long-press waits for the page to say where the finger was. */
         const val PAGE_ANSWER_MILLIS = 80L
+
+        /** How long after the last touch the warm-up waits, so it never lands in a fling. */
+        const val QUIET_MILLIS = 2_000L
 
         /** A long-press asks its question well within this of the finger going down. */
         const val PRESS_MEMORY_MILLIS = 3_000L

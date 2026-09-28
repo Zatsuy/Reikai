@@ -67,16 +67,30 @@ internal class JpTextClassifier(
 
     override fun suggestSelection(request: TextSelection.Request): TextSelection {
         val text = request.text
-        val deadline = SystemClock.uptimeMillis() + DICTIONARY_BUDGET_MILLIS
+        val began = SystemClock.uptimeMillis()
         // The engine answers on the main thread, so a call made there could never wait for it.
         val offMain = Looper.myLooper() != Looper.getMainLooper()
         val start = request.startIndex
         val finger = pressed(text, start, request.endIndex) ?: start
+        // The dictionary's time starts once the finger is placed (the WebView's page is asked first).
+        val deadline = SystemClock.uptimeMillis() + DICTIONARY_BUDGET_MILLIS
         val segment = { offset: Int -> icuWordAt(text, offset) }
-        val longestMatch = if (offMain) { offset: Int -> dictionaryMatch(text, offset, deadline) } else null
+        val asked = IntArray(2)
+        val longestMatch = if (offMain) {
+            { offset: Int ->
+                asked[0]++
+                dictionaryMatch(text, offset, deadline).also { if (it == null) asked[1]++ }
+            }
+        } else {
+            null
+        }
         val word = JapaneseText.selectWord(text, finger, segment, longestMatch)
             ?: JapaneseText.selectWord(text, start, segment, longestMatch).takeIf { finger != start }
             ?: return system.suggestSelection(request)
+        logcat(LogPriority.DEBUG) {
+            "select ${text.subSequence(word.first, word.last + 1)} in ${SystemClock.uptimeMillis() - began} ms " +
+                "(finger ${finger - start}, dictionary asked ${asked[0]}, no answer ${asked[1]}, off main $offMain)"
+        }
         if (onlyGrow) {
             return TextSelection.Builder(
                 minOf(word.first, start),
@@ -145,7 +159,10 @@ internal class JpTextClassifier(
     }
 
     private companion object {
-        /** How long a long-press waits for the dictionary before it settles for ICU's word. */
+        /**
+         * How long a long-press waits for the dictionary before it settles for ICU's word (two
+         * questions at most, about 10-20 ms each on the tablet with a warm engine).
+         */
         const val DICTIONARY_BUDGET_MILLIS = 150L
 
         /** Yomitan's default scan length. */

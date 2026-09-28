@@ -284,7 +284,8 @@ class NovelTextViewport(
     }
 
     private val recycler = RecyclerView(context).apply {
-        layoutManager = LinearLayoutManager(context)
+        // FORK: a chapter's text taking focus (the first long-press) no longer scrolls the page
+        layoutManager = jp.reikai.reader.JpReaderHook.layoutManager(context)
         addItemDecoration(readAloudBox)
         adapter = this@NovelTextViewport.adapter
         // A chapter is one item; recycling it would throw away the laid-out text we just built.

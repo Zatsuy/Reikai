@@ -5,10 +5,13 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ApplicationInfo
 import android.os.Build
+import android.view.View
 import android.view.textclassifier.TextClassificationManager
 import android.view.textclassifier.TextClassifier
 import android.webkit.WebView
 import android.widget.TextView
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import jp.reikai.yomitan.text.JapaneseText
 import reikai.presentation.reader.NovelReaderViewModel
@@ -16,8 +19,9 @@ import java.io.File
 import java.util.WeakHashMap
 
 /**
- * Reikai JP's hook into upstream's novel reader: four one-line seams call it (the provider's
- * attach, each native text chunk, the WebView, the WebView document's opening tag). Everything it
+ * Reikai JP's hook into upstream's novel reader: five one-line seams call it (the provider's
+ * attach, the native renderer's layout manager and each of its text chunks, the WebView, the
+ * WebView document's opening tag). Everything it
  * does lives in the [JpReaderSession] of the reader's activity.
  */
 object JpReaderHook {
@@ -30,6 +34,24 @@ object JpReaderHook {
         val session = JpReaderSession(host, viewModel, classifierMode(host))
         synchronized(sessions) { sessions.put(host, session) }?.close()
         session.start()
+    }
+
+    /**
+     * The native renderer's layout manager (`NovelTextViewport`): upstream's, except that an item
+     * taking focus never scrolls the page. A chapter's text is one selectable item, which the first
+     * long-press focuses; RecyclerView then scrolls the focused item's top to the top of the page
+     * (87 px on the tablet, with the chapter heading above it) while the finger is still down, and
+     * the press, now over other text, selects from one line into the next. Scrolling for a selection
+     * handle dragged to the edge (a rectangle request, not focus) is unchanged.
+     */
+    @JvmStatic
+    fun layoutManager(context: Context): LinearLayoutManager = object : LinearLayoutManager(context) {
+        override fun onRequestChildFocus(
+            parent: RecyclerView,
+            state: RecyclerView.State,
+            child: View,
+            focused: View?,
+        ): Boolean = true
     }
 
     /** A text chunk of the native renderer (`NovelTextViewport.createChunkView`). */

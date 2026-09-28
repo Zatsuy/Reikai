@@ -136,6 +136,21 @@ class JapaneseTextTest {
             Arguments.of("kana after kana is not joined back", listOf("し", "た", "の", "も"), 2, listOf("たのも", "の"), "の"),
             Arguments.of("the dictionary never shrinks ICU's word", listOf("東京大学", "に"), 1, listOf("東京"), "東京大学"),
             Arguments.of("no dictionary match keeps ICU's word", listOf("伯爵", "家"), 0, emptyList<String>(), "伯爵"),
+            Arguments.of(
+                "a lone kanji ICU split off a word joins it back",
+                listOf("、", "伯", "爵", "家", "から"),
+                2,
+                listOf("伯爵", "爵", "家"),
+                "伯爵",
+            ),
+            Arguments.of("the word's first kanji grows to it", listOf("、", "伯", "爵", "家"), 1, listOf("伯爵"), "伯爵"),
+            Arguments.of(
+                "a word ICU knows is not joined to the one before",
+                listOf("東京", "大学", "に"),
+                2,
+                listOf("東京大学", "大学"),
+                "大学",
+            ),
             Arguments.of("a match stops at punctuation", listOf("話", "だ", "。", "次"), 0, listOf("話だ。次"), "話だ"),
         )
 
