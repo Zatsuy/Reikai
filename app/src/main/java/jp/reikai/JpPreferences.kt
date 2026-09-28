@@ -22,4 +22,7 @@ class JpPreferences(private val preferenceStore: PreferenceStore) {
      * WebView data does not reset Yomitan.
      */
     fun yomitanStorage() = preferenceStore.getString("jp_yomitan_storage_local", "{}")
+
+    /** The local audio database (`android.db`) the user picked, as a document URI; "" when none. */
+    fun localAudioUri() = preferenceStore.getString("jp_local_audio_uri", "")
 }

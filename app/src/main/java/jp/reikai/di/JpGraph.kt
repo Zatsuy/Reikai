@@ -15,6 +15,8 @@ import jp.reikai.yomitan.LocalServer
 import jp.reikai.yomitan.YomitanEngine
 import jp.reikai.yomitan.anki.AnkiAccess
 import jp.reikai.yomitan.anki.AnkiConnect
+import jp.reikai.yomitan.audio.LocalAudio
+import jp.reikai.yomitan.audio.TtsAudio
 import mihon.core.metro.IsDebugBuild
 import mihon.core.metro.metroGraph
 import okhttp3.CookieJar
@@ -30,6 +32,12 @@ interface JpGraph {
 
     /** Whether AnkiDroid can be reached, and the calls refused while it cannot (3.4, 3.5). */
     val ankiAccess: AnkiAccess
+
+    /** The local audio database: pick it, clear it, its state (3.5). */
+    val localAudio: LocalAudio
+
+    /** Text-to-speech as an audio source: whether a Japanese voice is there (3.5). */
+    val ttsAudio: TtsAudio
 }
 
 val Context.jpGraph: JpGraph get() = metroGraph<JpGraph>()
@@ -42,6 +50,17 @@ object JpBindings {
     @Provides
     @SingleIn(AppScope::class)
     fun provideAnkiAccess(context: Context): AnkiAccess = AnkiAccess(context)
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun provideLocalAudio(context: Context, preferences: JpPreferences): LocalAudio {
+        val uri = preferences.localAudioUri()
+        return LocalAudio(context, uri::get, uri::set)
+    }
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun provideTtsAudio(context: Context): TtsAudio = TtsAudio(context)
 
     /**
      * The Yomitan engine. Constructing it starts nothing: the engine waits for a screen to acquire it
@@ -56,6 +75,8 @@ object JpBindings {
         preferences: JpPreferences,
         network: () -> NetworkHelper,
         ankiAccess: AnkiAccess,
+        localAudio: LocalAudio,
+        ttsAudio: TtsAudio,
         @IsDebugBuild isDebugBuild: Boolean,
     ): YomitanEngine {
         val lookup = preferences.lookupEnabled()
@@ -75,7 +96,9 @@ object JpBindings {
                 isLookupEnabled = lookup::get,
                 storage = PreferenceYomitanStorage(preferences.yomitanStorage()),
                 httpClient = { client },
-                localServer = LocalServer(listOf(AnkiConnect.route(context, ankiAccess))),
+                localServer = LocalServer(
+                    listOf(AnkiConnect.route(context, ankiAccess), localAudio.route, ttsAudio.route),
+                ),
                 debug = isDebugBuild,
             ),
         )

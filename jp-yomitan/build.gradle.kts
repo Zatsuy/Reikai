@@ -18,6 +18,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     // FileProvider, which shares card media with AnkiDroid.
     implementation(libs.androidx.core)
+    // Local audio's android.db; the app ships this SQLite already (its own database uses it).
+    implementation(libs.androidx.sqlite.bundled)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.logcat)
 
