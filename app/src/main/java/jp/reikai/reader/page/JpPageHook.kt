@@ -2,6 +2,8 @@ package jp.reikai.reader.page
 
 import android.app.Activity
 import android.content.Context
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.webkit.WebViewFeature
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import jp.reikai.di.JpGraph
@@ -27,6 +29,10 @@ import java.util.WeakHashMap
  */
 object JpPageHook {
 
+    /**
+     * Each live reader's switch. A switch holds its Activity, so a weak key alone would never let go:
+     * the entry goes when the Activity is destroyed.
+     */
     private val switches = WeakHashMap<Activity, JpReaderSwitch>()
 
     private fun graph(context: Context): JpGraph? = (context.applicationContext as? GraphProvider<*>)?.graph as? JpGraph
@@ -107,6 +113,13 @@ object JpPageHook {
             },
         )
         synchronized(switches) { switches[host] = switch }
+        host.lifecycle.addObserver(
+            object : DefaultLifecycleObserver {
+                override fun onDestroy(owner: LifecycleOwner) {
+                    synchronized(switches) { if (switches[host] === switch) switches.remove(host) }
+                }
+            },
+        )
         JpReaderHook.readerSwitch(host, switch.isJapanese)
         return switch
     }
