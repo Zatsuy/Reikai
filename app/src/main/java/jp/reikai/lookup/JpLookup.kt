@@ -16,6 +16,7 @@ import jp.reikai.yomitan.popup.YomitanPopup
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
@@ -52,6 +53,9 @@ class JpLookup(
     }
 
     val isEnabled: Boolean get() = preferences.lookupEnabled().get()
+
+    /** The lookup switch as it changes, starting with its current value. */
+    fun lookupChanges(): Flow<Boolean> = preferences.lookupEnabled().changes()
 
     /** Switches lookup on or off; off stops the engine and hides "Look up" everywhere (D-025). */
     fun setEnabled(on: Boolean) = preferences.lookupEnabled().set(on)

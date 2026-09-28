@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Japanese settings screen (roadmap 3.5). Plain words for Japanese learners; Yomitan is named
+  because its own settings pages open from here.
+-->
+<resources>
+    <string name="jp_settings_title">Japanese</string>
+    <string name="jp_settings_summary">Word lookup, dictionaries, Anki cards, word audio</string>
+
+    <!-- Lookup -->
+    <string name="jp_settings_lookup_group">Word lookup</string>
+    <string name="jp_settings_lookup">Look up words with Yomitan</string>
+    <string name="jp_settings_lookup_on">Select a word while reading to see its meaning and add it to Anki</string>
+    <string name="jp_settings_lookup_off">Off: no popup, and the dictionary never starts</string>
+    <string name="jp_settings_lookup_off_restart">Off. The memory it used is fully freed the next time the app starts</string>
+    <string name="jp_settings_lookup_needed">Turn on lookup above to set up dictionaries, Anki and audio</string>
+    <string name="jp_settings_open_dictionary">Open dictionary</string>
+    <string name="jp_settings_open_dictionary_summary">Search Japanese words</string>
+    <string name="jp_settings_engine_failed">The dictionary could not start: %1$s</string>
+
+    <!-- Dictionaries -->
+    <string name="jp_settings_dictionaries_group">Dictionaries</string>
+    <string name="jp_settings_dictionaries">Installed dictionaries</string>
+    <string name="jp_settings_dictionaries_checking">Checking…</string>
+    <string name="jp_settings_dictionaries_none">None yet: lookups find nothing until you add one below</string>
+    <plurals name="jp_settings_dictionaries_count">
+        <item quantity="one">%1$d installed: %2$s</item>
+        <item quantity="other">%1$d installed: %2$s</item>
+    </plurals>
+    <string name="jp_settings_dictionaries_manage">Tap to turn them on or off, reorder or delete them</string>
+    <string name="jp_settings_get_dictionaries">Get recommended dictionaries</string>
+    <string name="jp_settings_get_dictionaries_summary">Yomitan\'s picks for Japanese: tap Download next to each one you want. Jitendex (the main dictionary) takes a few minutes</string>
+
+    <!-- Anki -->
+    <string name="jp_settings_anki_group">Anki cards</string>
+    <string name="jp_settings_ankidroid">AnkiDroid</string>
+    <string name="jp_settings_anki_missing">Not installed. Tap to get AnkiDroid, the free Anki app, to save words as flashcards</string>
+    <string name="jp_settings_anki_needs_permission">Reikai JP needs your permission to add cards</string>
+    <string name="jp_settings_anki_denied">Allowed only in the app\'s settings now: Permissions, then AnkiDroid</string>
+    <string name="jp_settings_anki_ready">Connected: cards go straight into AnkiDroid</string>
+    <string name="jp_settings_anki_allow">Allow</string>
+    <string name="jp_settings_anki_open_settings">Open settings</string>
+    <string name="jp_settings_cards">Cards</string>
+    <string name="jp_settings_cards_checking">Checking your note types…</string>
+    <string name="jp_settings_cards_configured">%1$s cards go into “%2$s”. Tap to change their fields or deck in Yomitan\'s Anki settings</string>
+    <string name="jp_settings_cards_lapis">Set up cards for Lapis</string>
+    <string name="jp_settings_cards_lapis_summary">Fills in Lapis\'s fields the way its guide says. You choose the deck</string>
+    <string name="jp_settings_cards_other">Choose a note type in Yomitan\'s Anki settings (Lapis is a good one for Japanese)</string>
+    <string name="jp_settings_cards_needs_anki">Connect AnkiDroid first</string>
+    <string name="jp_settings_deck_title">Which deck should new cards go into?</string>
+    <string name="jp_settings_deck_none">AnkiDroid has no decks yet. Make one in AnkiDroid, then come back</string>
+    <string name="jp_settings_cards_done">Lapis cards now go into “%1$s”</string>
+    <string name="jp_settings_cards_failed">Cards could not be set up: %1$s</string>
+    <string name="jp_settings_cancel">Cancel</string>
+
+    <!-- Audio -->
+    <string name="jp_settings_audio_group">Word audio</string>
+    <string name="jp_settings_local_audio">Local audio file</string>
+    <string name="jp_settings_local_audio_none">Optional: pick your android.db (an offline collection of word recordings) to hear words without the internet. It is copied into the app, so you can delete the original afterwards</string>
+    <string name="jp_settings_local_audio_copying">Copying into the app: %1$s of %2$s</string>
+    <string name="jp_settings_local_audio_opening">Opening…</string>
+    <string name="jp_settings_local_audio_ready">%1$s, played first. Tap to remove it</string>
+    <string name="jp_settings_local_audio_failed">This file could not be used (%1$s). Tap to pick another</string>
+    <string name="jp_settings_local_audio_remove_title">Remove local audio?</string>
+    <string name="jp_settings_local_audio_remove_body">This deletes the app\'s copy (%1$s). Words then play from the internet sources.</string>
+    <string name="jp_settings_local_audio_remove">Remove</string>
+    <string name="jp_settings_tts">Speak words that have no recording</string>
+    <string name="jp_settings_tts_ready">Uses your device\'s Japanese voice, after every recording source</string>
+    <string name="jp_settings_tts_no_voice">No Japanese voice installed: tap to add one in Android\'s text-to-speech settings</string>
+    <string name="jp_settings_tts_no_engine">This device has no text-to-speech app</string>
+    <string name="jp_settings_tts_checking">Checking your device\'s voices…</string>
+
+    <!-- Yomitan -->
+    <string name="jp_settings_yomitan_group">Yomitan</string>
+    <string name="jp_settings_import">Import your desktop Yomitan settings</string>
+    <string name="jp_settings_import_summary">On your computer: Yomitan, Settings, Backup, Export Settings. Copy the file here, then tap Import Settings on the page that opens. Dictionaries are not included: add them above</string>
+    <string name="jp_settings_all">All Yomitan settings</string>
+    <string name="jp_settings_all_summary">Popup look, scanning, card fields, audio sources, profiles and more</string>
+
+    <!-- The Yomitan settings screen -->
+    <string name="jp_yomitan_settings">Yomitan settings</string>
+    <string name="jp_yomitan_saved">Saved %1$s</string>
+    <string name="jp_yomitan_save_failed">The file could not be saved</string>
+</resources>

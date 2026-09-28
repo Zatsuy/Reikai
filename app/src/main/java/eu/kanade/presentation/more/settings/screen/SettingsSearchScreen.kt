@@ -312,6 +312,8 @@ private val settingScreens = listOf(
     // silently loses their rows.
     SettingsMangaReaderScreen,
     SettingsNovelReaderScreen,
+    // FORK: Reikai JP's Japanese settings, findable by settings search
+    jp.reikai.settings.SettingsJapaneseScreen,
     SettingsDownloadScreen,
     SettingsTrackingScreen,
     SettingsBrowseScreen,

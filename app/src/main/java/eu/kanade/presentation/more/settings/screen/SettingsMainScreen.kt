@@ -209,6 +209,14 @@ object SettingsMainScreen : Screen() {
             screen = SettingsNovelReaderScreen,
         ),
         // RK <--
+        // FORK --> Reikai JP's Japanese settings: word lookup, dictionaries, Anki cards, word audio
+        Item(
+            titleRes = jp.reikai.settings.SettingsJapaneseScreen.TITLE,
+            subtitleRes = jp.reikai.settings.SettingsJapaneseScreen.SUMMARY,
+            icon = jp.reikai.settings.SettingsJapaneseScreen.ICON,
+            screen = jp.reikai.settings.SettingsJapaneseScreen,
+        ),
+        // FORK <--
         Item(
             titleRes = MR.strings.pref_category_downloads,
             subtitleRes = MR.strings.pref_downloads_summary,

@@ -42,6 +42,14 @@
             android:launchMode="singleTop"
             android:theme="@style/Theme.JpDictionary"
             android:windowSoftInputMode="adjustResize" />
+        <!-- Yomitan's own settings and other pages (roadmap 3.5), opened from the Japanese settings. -->
+        <activity
+            android:name="jp.reikai.settings.YomitanSettingsActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false"
+            android:label="@string/jp_yomitan_settings"
+            android:theme="@style/Theme.JpDictionary"
+            android:windowSoftInputMode="adjustResize" />
         <provider
             android:name="jp.reikai.yomitan.anki.AnkiMediaProvider"
             android:authorities="${applicationId}.jp-anki-media"
