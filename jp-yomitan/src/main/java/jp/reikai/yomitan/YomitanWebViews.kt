@@ -200,7 +200,7 @@ internal class YomitanWebViewClient(
             else -> path != "/settings.html"
         }
         if (YomitanOrigin.owns(url) && staysHere) return false
-        engine.openPage("tab", url)
+        engine.openPage("tab", url, view)
         return true
     }
 

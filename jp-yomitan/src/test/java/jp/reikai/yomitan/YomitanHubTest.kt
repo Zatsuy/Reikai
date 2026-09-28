@@ -33,7 +33,7 @@ class YomitanHubTest {
     private class FakeHost : HubHost {
         override val localStorage = YomitanStorage.InMemory()
         var backendReady = 0
-        override fun openPage(how: String, url: String?): JsonElement? = null
+        override fun openPage(how: String, url: String?, viewId: Int): JsonElement? = null
         var immediateAnswer: FetchResult? = null
         override fun fetch(request: FetchRequest, done: (FetchResult) -> Unit): () -> Unit {
             immediateAnswer?.let(done)

@@ -141,6 +141,9 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
     /** The screens hosting Yomitan's pages, by their hub view, for what only a screen can do (save a file). */
     private val listeners = HashMap<Int, YomitanPageListener>()
 
+    /** Those pages' WebViews (not the engine's own), whose screens the pages they ask for open over. */
+    private val pageViews = HashMap<Int, WebView>()
+
     private val stateFlow = MutableStateFlow<State>(if (config.isLookupEnabled()) State.Stopped else State.Off)
     val state: StateFlow<State> = stateFlow.asStateFlow()
 
@@ -438,6 +441,7 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
         }
         val binding = HubBinding(this, webView, kind, viewId, script)
         listeners[viewId] = listener
+        if (kind != PageKind.ENGINE) pageViews[viewId] = webView
         webView.webViewClient = YomitanWebViewClient(this, { binding }, kind, listener, onGone)
         webView.webChromeClient = YomitanChromeClient(config.debug, listener)
         return binding
@@ -446,6 +450,7 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
     /** A WebView left the hub ([HubBinding.detach]). */
     internal fun detached(viewId: Int) {
         listeners.remove(viewId)
+        pageViews.remove(viewId)
         saves.dropView(viewId)
     }
 
@@ -456,13 +461,14 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
         }
     }
 
-    internal fun openPage(how: String, url: String?): JsonElement? {
+    /** Opens a page Yomitan asked for; [from] is the WebView of the page that asked (null: the backend). */
+    internal fun openPage(how: String, url: String?, from: WebView?): JsonElement? {
         val request = when {
             how == "options" -> YomitanPageRequest.Settings(YomitanOrigin.url("settings.html"))
             url == null -> null
             else -> YomitanPageRequest.of(url)
         } ?: return null
-        val opened = config.pageOpener?.open(request) ?: openInBrowser(request)
+        val opened = config.pageOpener?.open(request, from?.context) ?: openInBrowser(request)
         logcat(TAG) { "open $how ${request.url}: ${if (opened) "opened" else "not handled"}" }
         return if (!opened) {
             null
@@ -486,7 +492,8 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
     private inner class EngineHubHost : HubHost {
         override val localStorage: YomitanStorage get() = config.storage
 
-        override fun openPage(how: String, url: String?) = this@YomitanEngine.openPage(how, url)
+        override fun openPage(how: String, url: String?, viewId: Int) =
+            this@YomitanEngine.openPage(how, url, pageViews[viewId])
 
         override fun fetch(request: FetchRequest, done: (FetchResult) -> Unit) = network.fetch(request, done)
 

@@ -1,5 +1,6 @@
 package jp.reikai.yomitan
 
+import android.content.Context
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
@@ -90,5 +91,6 @@ sealed interface YomitanPageRequest {
  * Called on the main thread; returns false when the request was not handled.
  */
 fun interface YomitanPageOpener {
-    fun open(request: YomitanPageRequest): Boolean
+    /** [from] is the context of the WebView whose page asked (its screen's), null when Yomitan's backend did. */
+    fun open(request: YomitanPageRequest, from: Context?): Boolean
 }

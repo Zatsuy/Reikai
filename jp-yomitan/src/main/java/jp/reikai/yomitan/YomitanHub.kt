@@ -79,8 +79,11 @@ internal sealed interface FetchResult {
 internal interface HubHost {
     val localStorage: YomitanStorage
 
-    /** `how` is tab, window, update or options; returns the tab to report back, if any. */
-    fun openPage(how: String, url: String?): JsonElement?
+    /**
+     * `how` is tab, window, update or options, asked by a document of the WebView [viewId]; returns
+     * the tab to report back, if any.
+     */
+    fun openPage(how: String, url: String?, viewId: Int): JsonElement?
 
     /** Starts a request; [done] runs on the hub's thread. Returns a function that cancels it. */
     fun fetch(request: FetchRequest, done: (FetchResult) -> Unit): () -> Unit
@@ -402,7 +405,7 @@ internal class YomitanHub(private val host: HubHost) {
             "sget", "sset", "sremove", "sclear" -> storage(from, mid, op, header.str("area"), payload)
             "open" -> {
                 val body = runCatching { Json.parseToJsonElement(payload).jsonObject }.getOrNull()
-                val tab = host.openPage(body?.str("how") ?: "tab", body?.str("url"))
+                val tab = host.openPage(body?.str("how") ?: "tab", body?.str("url"), from.viewId)
                 reply(from, mid, tab?.toString().orEmpty())
             }
             "fetch" -> fetch(from, mid, payload)
