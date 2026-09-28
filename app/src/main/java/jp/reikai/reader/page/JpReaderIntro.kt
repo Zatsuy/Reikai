@@ -6,16 +6,17 @@ import jp.reikai.JpPreferences
 import jp.reikai.yomitan.R
 
 /**
- * The first time the Japanese reader opens (D-026): it reads vertically, like a printed book, and
+ * The first time the Japanese reader opens in vertical text (D-026): it reads like a printed book, and
  * horizontal text is one tap away. Once, whatever the answer.
  */
 internal object JpReaderIntro {
 
+    /** Shown the first time the reader lands in vertical text; a horizontal open leaves it for later. */
     fun showOnce(context: Context, preferences: JpPreferences, vertical: Boolean) {
+        if (!vertical) return
         val shown = preferences.readerIntroShown()
         if (shown.get()) return
         shown.set(true)
-        if (!vertical) return
         MaterialAlertDialogBuilder(context)
             .setTitle(R.string.jp_reader_intro_title)
             .setMessage(R.string.jp_reader_intro_body)
