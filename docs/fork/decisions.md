@@ -51,6 +51,8 @@ item asks with AskUserQuestion and moves the answer to *Standing decisions*.
 - **2026-09-28** Owner, starting Phase 4: build all of it in one session, efficiently (D-028). Taps in
   the Japanese reader: "look up by default, but make it configurable" (D-029). From the Tsundoku
   list: status bar, short chapters read, chapter translation, EPUB export (D-030).
+  Also: besides pages, continuous scrolling to the end of the chapter in both directions, horizontal
+  text scrolling down and vertical text scrolling sideways (4.1's pages-or-scrolling setting).
 - **2026-09-27** Owner, starting Phase 3: build all of Phase 3 at once with subagents (D-027);
   Yomitan switchable, on by default ("a japanese native may want to use the app and find the popup
   annoying and it consumes RAM as well", D-025); the Japanese reader starts vertical with a one-time
