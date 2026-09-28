@@ -11,7 +11,10 @@ import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import jp.reikai.JpPreferences
 import jp.reikai.lookup.PreferenceYomitanStorage
 import jp.reikai.yomitan.YomitanConfig
+import jp.reikai.yomitan.LocalServer
 import jp.reikai.yomitan.YomitanEngine
+import jp.reikai.yomitan.anki.AnkiAccess
+import jp.reikai.yomitan.anki.AnkiConnect
 import mihon.core.metro.IsDebugBuild
 import mihon.core.metro.metroGraph
 import okhttp3.CookieJar
@@ -24,6 +27,9 @@ import okhttp3.CookieJar
 interface JpGraph {
     val jpPreferences: JpPreferences
     val yomitanEngine: YomitanEngine
+
+    /** Whether AnkiDroid can be reached, and the calls refused while it cannot (3.4, 3.5). */
+    val ankiAccess: AnkiAccess
 }
 
 val Context.jpGraph: JpGraph get() = metroGraph<JpGraph>()
@@ -33,10 +39,15 @@ val Context.jpGraph: JpGraph get() = metroGraph<JpGraph>()
 @BindingContainer
 object JpBindings {
 
+    @Provides
+    @SingleIn(AppScope::class)
+    fun provideAnkiAccess(context: Context): AnkiAccess = AnkiAccess(context)
+
     /**
      * The Yomitan engine. Constructing it starts nothing: the engine waits for a screen to acquire it
-     * (roadmap 3.1). Later slices plug in here: the AnkiConnect and audio routes of the local server
-     * (3.2, 3.3) and the page opener for the search and settings screens (3.4, 3.5).
+     * (roadmap 3.1). Its local server answers AnkiConnect from AnkiDroid (3.2) and serves local audio
+     * and text-to-speech (3.3); the page opener for the search and settings screens comes later (3.4,
+     * 3.5).
      */
     @Provides
     @SingleIn(AppScope::class)
@@ -44,6 +55,7 @@ object JpBindings {
         context: Context,
         preferences: JpPreferences,
         network: () -> NetworkHelper,
+        ankiAccess: AnkiAccess,
         @IsDebugBuild isDebugBuild: Boolean,
     ): YomitanEngine {
         val lookup = preferences.lookupEnabled()
@@ -63,6 +75,7 @@ object JpBindings {
                 isLookupEnabled = lookup::get,
                 storage = PreferenceYomitanStorage(preferences.yomitanStorage()),
                 httpClient = { client },
+                localServer = LocalServer(listOf(AnkiConnect.route(context, ankiAccess))),
                 debug = isDebugBuild,
             ),
         )

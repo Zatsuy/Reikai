@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The one directory Reikai JP shares with AnkiDroid: media files on their way into a card. -->
+<paths>
+    <cache-path
+        name="jp_anki_media"
+        path="jp-anki-media/" />
+</paths>

@@ -1,2 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- AnkiDroid's API (roadmap 3.2): a runtime permission the user grants from the popup or settings. -->
+    <uses-permission android:name="com.ichi2.anki.permission.READ_WRITE_DATABASE" />
+
+    <queries>
+        <!-- AnkiDroid's content provider and its card browser and sync intents. -->
+        <package android:name="com.ichi2.anki" />
+        <!-- Text-to-speech engines, for the TTS audio source (3.3). -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
+    <application>
+        <provider
+            android:name="jp.reikai.yomitan.anki.AnkiMediaProvider"
+            android:authorities="${applicationId}.jp-anki-media"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/jp_anki_media_paths" />
+        </provider>
+    </application>
+
+</manifest>

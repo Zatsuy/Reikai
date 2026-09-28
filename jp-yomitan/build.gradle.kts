@@ -16,6 +16,8 @@ dependencies {
     api(libs.okhttp.core)
     api(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
+    // FileProvider, which shares card media with AnkiDroid.
+    implementation(libs.androidx.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.logcat)
 
