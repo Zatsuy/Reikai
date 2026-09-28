@@ -13,10 +13,14 @@ import androidx.sqlite.driver.bundled.SQLITE_OPEN_URI
 import jp.reikai.yomitan.LocalResponse
 import jp.reikai.yomitan.LocalRoute
 import jp.reikai.yomitan.LocalServer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +34,8 @@ import kotlinx.serialization.json.put
 import logcat.LogPriority
 import logcat.logcat
 import java.io.File
+import java.io.IOException
+import java.io.InputStream
 
 /**
  * Local audio: the community `android.db` (SQLite: `entries(expression, reading, source, speaker,
@@ -39,9 +45,11 @@ import java.io.File
  * - `GET /localaudio/get/?term=&reading=` answers Yomitan's custom-json list of recordings;
  * - `GET /localaudio/<source>/<file>` answers one recording.
  *
- * The picked file stays where it is: SQLite opens it read-only through the picker's file descriptor
- * (`/proc/self/fd/N`). Where that is refused, the file is copied into the app's storage once, with
- * progress in [status]. Nothing is opened until the first lookup asks for audio.
+ * SQLite first tries the picked file in place, read-only through the picker's file descriptor
+ * (`/proc/self/fd/N`). Where that is refused (every device tried so far), the file is copied into the
+ * app's storage once, in the background, with progress in [status]; a new pick or a removal cancels
+ * the copy, and a copy the process did not live to finish starts again on the next lookup that asks
+ * for audio. Nothing is opened until the first lookup asks for audio.
  *
  * @param savedUri the picked file's URI, kept by the app ("" when none).
  * @param saveUri keeps it.
@@ -72,11 +80,21 @@ class LocalAudio(
 
     private val app = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Guards [db] and the files; held for short steps only, never for a copy. */
     private val mutex = Mutex()
     private var db: Database? = null
+
+    /** The latest pick, removal or copy; the next one cancels it before it starts. */
+    private var work: Job? = null
     private val statusFlow = MutableStateFlow(if (savedUri().isEmpty()) Status.None else Status.Closed)
 
     val status: StateFlow<Status> = statusFlow.asStateFlow()
+
+    init {
+        // What is left of a copy the process did not live to finish (it starts again when needed).
+        exclusive { mutex.withLock { partOf(copyFile()).delete() } }
+    }
 
     /** The local server's route for `/localaudio/...`. */
     val route: LocalRoute = LocalRoute.get(PREFIX) { request ->
@@ -88,27 +106,28 @@ class LocalAudio(
         }
     }
 
-    /**
-     * Uses the database the user picked ([uri] from `ACTION_OPEN_DOCUMENT`): keeps access to it across
-     * restarts, opens it (copying it when it cannot be opened in place) and checks it is an
-     * `android.db`. Returns the resulting [status].
-     */
-    suspend fun setDatabase(uri: Uri): Status = mutex.withLock {
-        withContext(Dispatchers.IO) {
-            closeLocked()
-            runCatching { app.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            copyFile().delete()
-            saveUri(uri.toString())
-            openLocked()
-            statusFlow.value
-        }
+    /** [pick], waiting until the database is open (or failed); returns the resulting [status]. */
+    suspend fun setDatabase(uri: Uri): Status {
+        pick(uri).join()
+        return statusFlow.value
     }
 
     /**
-     * [setDatabase] in the background, so copying several GB goes on when the screen that picked the
-     * file closes; follow it through [status].
+     * Uses the database the user picked ([uri] from `ACTION_OPEN_DOCUMENT`): keeps access to it across
+     * restarts, opens it (copying it when it cannot be opened in place) and checks it is an
+     * `android.db`. Runs in the background, so copying several GB goes on when the screen that picked
+     * the file closes; follow it through [status]. A copy in progress is cancelled first.
      */
-    fun pick(uri: Uri): Job = scope.launch { setDatabase(uri) }
+    fun pick(uri: Uri): Job = exclusive {
+        mutex.withLock {
+            closeLocked()
+            deleteFilesLocked()
+            runCatching { app.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            saveUri(uri.toString())
+            statusFlow.value = Status.Opening
+        }
+        openOrCopy()
+    }
 
     /** The database's size in bytes (the app's copy, or the picked file), or null when none or unknown. */
     suspend fun size(): Long? = withContext(Dispatchers.IO) {
@@ -119,9 +138,12 @@ class LocalAudio(
             }
     }
 
-    /** Forgets the database, and the app's copy of it if there is one. */
-    suspend fun clear() = mutex.withLock {
-        withContext(Dispatchers.IO) {
+    /**
+     * Forgets the database, and the app's copy of it if there is one, cancelling a copy in progress.
+     * Finishes even when the caller is cancelled (its screen closed).
+     */
+    suspend fun clear() = exclusive {
+        mutex.withLock {
             closeLocked()
             val uri = savedUri()
             if (uri.isNotEmpty()) {
@@ -132,11 +154,11 @@ class LocalAudio(
                     )
                 }
             }
-            copyFile().delete()
+            deleteFilesLocked()
             saveUri("")
             statusFlow.value = Status.None
         }
-    }
+    }.join()
 
     private suspend fun sources(term: String, reading: String): LocalResponse {
         val started = SystemClock.elapsedRealtime()
@@ -176,22 +198,45 @@ class LocalAudio(
     private suspend fun <T> withDatabase(block: (Database) -> T): T? {
         // While the file is being opened or copied (minutes for several GB), lookups go without it.
         if (statusFlow.value.let { it is Status.Copying || it == Status.Opening }) return null
-        return mutex.withLock { useLocked(block) }
+        var copyMissing = false
+        val result = mutex.withLock {
+            if (db == null && statusFlow.value == Status.Closed && !openExistingLocked()) {
+                copyMissing = true
+                return@withLock null
+            }
+            val open = db ?: return@withLock null
+            runCatching { block(open) }.onFailure { logcat(TAG, LogPriority.WARN) { "local audio: $it" } }.getOrNull()
+        }
+        // The app's copy is gone (the process died while copying): make it again for later lookups.
+        if (copyMissing) exclusive { openOrCopy() }
+        return result
     }
 
-    private fun <T> useLocked(block: (Database) -> T): T? {
-        if (db == null && statusFlow.value == Status.Closed) openLocked(allowCopy = false)
-        val open = db ?: return null
-        return runCatching { block(open) }.onFailure {
-            logcat(TAG, LogPriority.WARN) { "local audio: $it" }
-        }.getOrNull()
+    /** Opens the saved database, first copying it into the app's storage when it must be. */
+    private suspend fun openOrCopy() {
+        if (mutex.withLock { db != null || openExistingLocked() }) return
+        val uri = Uri.parse(savedUri())
+        try {
+            copy(uri)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logcat(TAG, LogPriority.WARN) { "local audio: cannot copy $uri: $e" }
+            statusFlow.value = Status.Failed(e.message ?: e.javaClass.simpleName)
+            return
+        }
+        mutex.withLock { if (db == null) openExistingLocked() }
     }
 
-    /** Opens the saved database; copies it when it cannot be opened in place and [allowCopy]. */
-    private fun openLocked(allowCopy: Boolean = true) {
+    /**
+     * Opens the app's copy of the saved database, or the picked file in place; false when neither is
+     * possible and the file must be copied first. A file that cannot be read or is not an
+     * `android.db` ends in [Status.Failed].
+     */
+    private fun openExistingLocked(): Boolean {
         val uri = savedUri().takeIf { it.isNotEmpty() }?.let(Uri::parse) ?: run {
             statusFlow.value = Status.None
-            return
+            return true
         }
         statusFlow.value = Status.Opening
         val started = SystemClock.elapsedRealtime()
@@ -200,8 +245,7 @@ class LocalAudio(
             if (copy.isFile) {
                 Database.open(copy.path, null).also { statusFlow.value = Status.Ready(copied = true) }
             } else {
-                openInPlace(uri)
-                    ?: if (allowCopy) copyAndOpen(uri, copy) else error("the audio database cannot be opened")
+                openInPlace(uri) ?: return false
             }
         } catch (e: Exception) {
             logcat(TAG, LogPriority.WARN) { "local audio: cannot open $uri: $e" }
@@ -209,6 +253,7 @@ class LocalAudio(
             null
         }
         logcat(TAG) { "local audio: ${statusFlow.value} after ${SystemClock.elapsedRealtime() - started} ms" }
+        return true
     }
 
     /** SQLite on the picker's descriptor, read-only and without locks (`immutable`); null if refused. */
@@ -224,38 +269,36 @@ class LocalAudio(
         }
     }
 
-    private fun copyAndOpen(uri: Uri, copy: File): Database {
+    /** Copies the picked file into the app's storage, with progress in [status]; stops when cancelled. */
+    private suspend fun copy(uri: Uri) {
+        val copy = copyFile()
         val total = app.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1L
         copy.parentFile!!.mkdirs()
         if (total > 0 && StatFs(copy.parent).availableBytes < total + FREE_SPACE_MARGIN) {
             error("not enough free space to copy the audio database (${total / MB} MB)")
         }
-        val partial = File(copy.path + ".part")
         statusFlow.value = Status.Copying(0, total)
-        app.contentResolver.openInputStream(uri)!!.use { input ->
-            partial.outputStream().use { output ->
-                val buffer = ByteArray(1 shl 20)
-                var copied = 0L
-                var reported = 0L
-                while (true) {
-                    val n = input.read(buffer)
-                    if (n < 0) break
-                    output.write(buffer, 0, n)
-                    copied += n
-                    if (copied - reported >= PROGRESS_STEP) {
-                        reported = copied
-                        statusFlow.value = Status.Copying(copied, total)
-                    }
-                }
-            }
-        }
-        check(partial.renameTo(copy)) { "the copy could not be saved" }
-        return Database.open(copy.path, null).also { statusFlow.value = Status.Ready(copied = true) }
+        val input = app.contentResolver.openInputStream(uri) ?: error("the file cannot be read")
+        input.use { copyInto(it, copy, total) { copied -> statusFlow.value = Status.Copying(copied, total) } }
+    }
+
+    /** Runs [block] in the background once the previous pick, removal or copy is cancelled and over. */
+    private fun exclusive(block: suspend () -> Unit): Job = synchronized(this) {
+        val previous = work
+        scope.launch {
+            previous?.cancelAndJoin()
+            block()
+        }.also { work = it }
     }
 
     private fun closeLocked() {
         db?.close()
         db = null
+    }
+
+    private fun deleteFilesLocked() {
+        copyFile().delete()
+        partOf(copyFile()).delete()
     }
 
     private fun copyFile() = File(app.noBackupFilesDir, "jp-local-audio/android.db")
@@ -329,6 +372,42 @@ class LocalAudio(
         internal const val ENTRIES_BY_TERM_OR_READING =
             "SELECT source, display, file, expression, reading FROM entries WHERE expression = ?1 OR reading = ?2"
         internal const val RECORDING = "SELECT data FROM android WHERE source = ?1 AND file = ?2 LIMIT 1"
+
+        /** Where [copyInto] writes before the copy is whole. */
+        internal fun partOf(file: File) = File(file.path + ".part")
+
+        /**
+         * Copies [input] to [target] through [partOf] it, which never outlives a failure or a
+         * cancellation; fails when the input ends before [total] bytes (when known, above 0), so a
+         * truncated copy is never opened.
+         */
+        internal suspend fun copyInto(input: InputStream, target: File, total: Long, progress: (Long) -> Unit) {
+            val partial = partOf(target)
+            try {
+                partial.outputStream().use { output ->
+                    val buffer = ByteArray(1 shl 20)
+                    var copied = 0L
+                    var reported = 0L
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        output.write(buffer, 0, n)
+                        copied += n
+                        if (copied - reported >= PROGRESS_STEP) {
+                            reported = copied
+                            progress(copied)
+                        }
+                    }
+                    if (total > 0 && copied != total) {
+                        throw IOException("the copy is incomplete ($copied of $total bytes)")
+                    }
+                }
+                check(partial.renameTo(target)) { "the copy could not be saved" }
+            } finally {
+                partial.delete()
+            }
+        }
 
         private val EMPTY_LIST = LocalResponse.json("""{"type":"audioSourceList","audioSources":[]}""")
 
