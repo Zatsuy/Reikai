@@ -63,7 +63,11 @@ internal class JpPageLookup(
         viewport.lookup = true
     }
 
-    /** Leaves the engine (lookup switched off, or the page going); the next document has no scanner. */
+    /**
+     * Leaves the engine (lookup switched off, or the page going); the next document has no scanner. The
+     * page on screen stops handing taps on text to its scanner, which is joined to nothing now, so they
+     * open the menu again as without lookup.
+     */
     @SuppressLint("RequiresFeature")
     fun unbind() {
         val joined = content ?: return
@@ -76,7 +80,7 @@ internal class JpPageLookup(
 
     /** The word's highlight goes (the sheet closed); a selection the reader made since stays. */
     fun clear() {
-        if (content != null) webView.evaluateJavascript("window.__reikaiReader && __reikaiReader.clear()", null)
+        if (content != null) viewport.runInPage("window.__reikaiReader && __reikaiReader.clear()")
     }
 
     override fun onDestroy(webView: WebView) = unbind()
@@ -101,7 +105,7 @@ internal class JpPageLookup(
             url?.let { put("url", it) }
             title?.let { put("title", it) }
         }
-        webView.evaluateJavascript("window.__reikaiReader && __reikaiReader.setContext($context)", null)
+        viewport.runInPage("window.__reikaiReader && __reikaiReader.setContext($context)")
     }
 
     /** The word's boxes (CSS pixels of the page, one per device-independent pixel) on the screen. */

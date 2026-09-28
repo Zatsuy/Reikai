@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -145,9 +146,32 @@ class JpPageViewport internal constructor(
             documentSettings?.let(::applySettings)
         }
 
-    /** Whether the next documents load Yomitan's scanner (4.3: lookup is on and joined to this page). */
-    @Volatile
+    /**
+     * Whether the documents load Yomitan's scanner (4.3: lookup is on and joined to this page). The
+     * scanner, and the stand-in it runs on, come only with a new document, so switched on while a chapter
+     * is open, that chapter's document is opened again where the reader is; switched off, the scanner in
+     * the page is no longer joined to anything.
+     */
     var lookup = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (value) lookupJoins++
+            if (!ready) return // the document on its way is checked when it is ready
+            if (value) {
+                if (scannerMismatch()) reopen(lastAnchor)
+            } else if (documentJoin != 0) {
+                // Its scanner is joined to nothing now: taps on text go back to opening the menu.
+                runInPage("if (window.JpReader) { JpReader.onTextTap = null; }")
+                documentJoin = 0
+            }
+        }
+
+    /** Each time lookup is switched on; a document's scanner works only for the one it was built in. */
+    private var lookupJoins = 0
+
+    /** The [lookupJoins] the document on screen was built with a scanner for, 0 for none. */
+    private var documentJoin = 0
 
     /**
      * Answers requests of the page before this viewport does (4.3: Yomitan's origin, for its content
@@ -203,6 +227,10 @@ class JpPageViewport internal constructor(
 
     /** The document on screen was opened on its last page by a step back. */
     private var openedAtEnd = false
+
+    /** The chapter of the document on screen, and the place its page last named, for opening it again. */
+    private var shown: NovelReaderViewModel.LoadedChapter? = null
+    private var lastAnchor: Int? = null
 
     /**
      * An edge step asked for and not answered yet, so a second swipe steps no further. Cleared by the
@@ -350,6 +378,7 @@ class JpPageViewport internal constructor(
         scope.cancel()
         chapterId = null
         documentId = null
+        shown = null
         served = null
         WebViewCompat.removeWebMessageListener(webView, MESSAGE_NAME)
         webView.stopLoading()
@@ -377,14 +406,41 @@ class JpPageViewport internal constructor(
      * downloaded one carries its pictures inline) and loads it. It lands at the character stored for
      * the chapter when that place is the one upstream last heard of, else at upstream's percent.
      */
-    override suspend fun load(chapter: NovelReaderViewModel.LoadedChapter, settings: NovelReaderSettings) {
-        val atEnd = landAtEnd == chapter.chapterId
+    override suspend fun load(chapter: NovelReaderViewModel.LoadedChapter, settings: NovelReaderSettings) =
+        open(chapter, settings, reopenAt = null)
+
+    /** The document on screen has a scanner lookup does not want, or lacks one it wants (or has a dead one). */
+    private fun scannerMismatch() =
+        translatedInto == null && shown != null && documentJoin != (if (lookup) lookupJoins else 0)
+
+    /** Opens the document on screen again at [anchor], the same chapter as it was reported so far. */
+    private fun reopen(anchor: Int?) {
+        val chapter = shown ?: return
+        val settings = documentSettings ?: return
+        scope.launch { open(chapter, settings, reopenAt = anchor) }
+    }
+
+    /**
+     * [reopenAt]: the chapter on screen opened again at that character (lookup switched on), which keeps
+     * what its document has told upstream so far rather than telling it again.
+     */
+    private suspend fun open(
+        chapter: NovelReaderViewModel.LoadedChapter,
+        settings: NovelReaderSettings,
+        reopenAt: Int?,
+    ) {
+        val again = reopenAt != null && chapter.chapterId == chapterId
+        val atEnd = !again && landAtEnd == chapter.chapterId
         endStep()
         dropPendingCalls()
         ready = false
-        fitsReported = null
-        endReported = false
-        storedPercent = null
+        if (!again) {
+            fitsReported = null
+            endReported = false
+            storedPercent = null
+        }
+        shown = chapter
+        lastAnchor = null
         chapterId = chapter.chapterId
         documentSettings = settings
         val number = ++documents
@@ -397,13 +453,14 @@ class JpPageViewport internal constructor(
         peek = if (translation != null) Peek(chapter.chapterId) else null
         val current = documentOptions()
         val withLookup = lookup && translation == null
+        documentJoin = if (withLookup) lookupJoins else 0
         val insetTop = cutoutTopDp()
         documentInset = insetTop
         val baseUrl = chapter.baseUrl?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
         val hidesTitle = hideTitle()
         val built = withContext(Dispatchers.IO) {
             // A place by character is the original's: a translation lands by percent.
-            val stored = if (atEnd || translation != null) null else positions.get(chapter.chapterId)
+            val stored = if (atEnd || again || translation != null) null else positions.get(chapter.chapterId)
             val hidden = isIncognito(chapter.sourceId)
             val fonts = fontFiles(current.font)
             withContext(Dispatchers.Default) {
@@ -411,7 +468,11 @@ class JpPageViewport internal constructor(
                 val init = JpPageDocument.init(
                     chapterId = chapter.chapterId,
                     documentId = documentId,
-                    charOffset = stored?.takeIf { backFromPeek || it.percent == chapter.progressPercent }?.charOffset,
+                    charOffset = if (again) {
+                        reopenAt
+                    } else {
+                        stored?.takeIf { backFromPeek || it.percent == chapter.progressPercent }?.charOffset
+                    },
                     fraction = if (atEnd) 1.0 else chapter.progressPercent / 100.0,
                     settings = settingsJson(settings, current, insetTop),
                 )
@@ -431,7 +492,7 @@ class JpPageViewport internal constructor(
         // A later load or the viewport's end overtook this one while it was built.
         if (number != documents || chapterId != chapter.chapterId) return
         incognito = built.incognito
-        openedAtEnd = atEnd
+        if (!again) openedAtEnd = atEnd
         servedFonts = built.fonts.toSet()
         served = documentId to built.html
         webView.setBackgroundColor(readerBackgroundColorInt(settings.backgroundColor))
@@ -520,6 +581,8 @@ class JpPageViewport internal constructor(
                 pending.clear()
                 pushAutoScroll()
                 onPosition(id, message.pos)
+                // Lookup came on or went off while this document was on its way.
+                if (scannerMismatch()) reopen(message.pos.anchor)
                 listeners.forEach { it.onReady(webView, id) }
                 JpReaderIntro.showOnce(context, jpPreferences, vertical = documentOptions().vertical)
             }
@@ -542,6 +605,7 @@ class JpPageViewport internal constructor(
 
     private fun onPosition(id: Long, pos: JpPagePosition, live: Boolean = false) {
         val percent = pos.percent
+        lastAnchor = pos.anchor
         onTopLine(id, null)
         // Auto-scroll reports once a second: upstream's debounced save, as its own scroll reader's is, rather
         // than a database write each time.
@@ -619,6 +683,12 @@ class JpPageViewport internal constructor(
             "if (window.JpReader) { ${call.js}; }"
         }
         webView.evaluateJavascript(script, answer)
+    }
+
+    /** Runs [js] in the document on screen now, if there is a page to run it in; nothing is queued. */
+    internal fun runInPage(js: String) {
+        if (chapterId == null) return
+        webView.evaluateJavascript(js, null)
     }
 
     private fun dropPendingCalls() {
