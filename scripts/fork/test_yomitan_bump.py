@@ -2,6 +2,8 @@
 """Tests for yomitan_bump.py's offline parts. Run: python3 scripts/fork/test_yomitan_bump.py"""
 import io
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -78,23 +80,70 @@ class ExpectedShaTest(unittest.TestCase):
 class DecideTest(unittest.TestCase):
     NOW = bump.datetime(2026, 10, 1, tzinfo=bump.timezone.utc)
 
+    @staticmethod
+    def release(tag, published, **flags):
+        return {"tag_name": tag, "published_at": published, **flags}
+
+    def decide(self, pinned, *releases):
+        return bump.decide(pinned, list(releases), 7, self.NOW)
+
     def test_a_newer_release_is_taken_after_its_wait(self):
-        update, _ = bump.decide("26.9.8.0", "26.9.15.0", "2026-09-15T01:00:00Z", 7, self.NOW)
-        self.assertTrue(update)
+        self.assertEqual(self.decide("26.9.8.0", self.release("26.9.15.0", "2026-09-15T01:00:00Z"))[0], "26.9.15.0")
 
     def test_a_newer_release_waits_its_seven_days(self):
-        update, reason = bump.decide("26.9.8.0", "26.9.29.0", "2026-09-29T01:00:00Z", 7, self.NOW)
-        self.assertFalse(update)
+        tag, reason = self.decide("26.9.8.0", self.release("26.9.29.0", "2026-09-29T01:00:00Z"))
+        self.assertIsNone(tag)
         self.assertIn("2026-10-06", reason)
 
+    def test_weekly_releases_still_arrive(self):
+        # The newest is always too young when Yomitan releases every week; the one before it is not.
+        tag, _ = self.decide("26.9.8.0",
+                             self.release("26.9.29.0", "2026-09-29T01:00:00Z"),
+                             self.release("26.9.22.0", "2026-09-22T01:00:00Z"),
+                             self.release("26.9.15.0", "2026-09-15T01:00:00Z"))
+        self.assertEqual(tag, "26.9.22.0")
+
+    def test_drafts_and_pre_releases_are_never_taken(self):
+        tag, _ = self.decide("26.9.8.0",
+                             self.release("26.9.20.0", "2026-09-20T01:00:00Z", prerelease=True),
+                             self.release("26.9.19.0", "2026-09-19T01:00:00Z", draft=True),
+                             self.release("26.9.8.0", "2026-09-08T01:00:00Z"))
+        self.assertIsNone(tag)
+
     def test_versions_compare_as_numbers(self):
-        self.assertTrue(bump.decide("26.9.8.0", "26.10.1.0", "2026-09-01T00:00:00Z", 7, self.NOW)[0])
-        self.assertFalse(bump.decide("26.10.1.0", "26.9.8.0", "2026-09-01T00:00:00Z", 7, self.NOW)[0])
-        self.assertFalse(bump.decide("26.9.8.0", "26.9.8.0", "2026-09-01T00:00:00Z", 7, self.NOW)[0])
+        old = "2026-09-01T00:00:00Z"
+        self.assertEqual(self.decide("26.9.8.0", self.release("26.10.1.0", old))[0], "26.10.1.0")
+        self.assertIsNone(self.decide("26.10.1.0", self.release("26.9.8.0", old))[0])
+        self.assertIsNone(self.decide("26.9.8.0", self.release("26.9.8.0", old))[0])
 
     def test_an_unexpected_tag_stops(self):
         with self.assertRaises(SystemExit):
-            bump.decide("26.9.8.0", "v27-beta", "2026-09-01T00:00:00Z", 7, self.NOW)
+            self.decide("26.9.8.0", self.release("v27-beta", "2026-09-01T00:00:00Z"))
+
+
+class TokenTest(unittest.TestCase):
+    def test_the_token_never_follows_a_redirect(self):
+        seen = {}
+
+        def fake_urlopen(request, timeout):
+            seen["unredirected"] = request.unredirected_hdrs
+            raise bump.urllib.error.HTTPError(request.full_url, 404, "no", {}, None)
+
+        original, bump.urllib.request.urlopen = bump.urllib.request.urlopen, fake_urlopen
+        bump.os.environ["GITHUB_TOKEN"] = "secret"
+        try:
+            with self.assertRaises(bump.urllib.error.HTTPError) as raised:
+                bump.http_get("https://api.github.com/repos/x/y")
+            raised.exception.close()
+        finally:
+            bump.urllib.request.urlopen = original
+            del bump.os.environ["GITHUB_TOKEN"]
+        self.assertEqual(seen["unredirected"].get("Authorization"), "Bearer secret")
+        request = bump.urllib.request.Request("https://api.github.com/")
+        request.add_unredirected_header("Authorization", "Bearer secret")
+        redirected = bump.urllib.request.HTTPRedirectHandler().redirect_request(
+            request, None, 302, "Found", {}, "https://objects.example/")
+        self.assertNotIn("Authorization", dict(redirected.header_items()))
 
 
 class StripCommentsTest(unittest.TestCase):
@@ -110,6 +159,38 @@ class StripCommentsTest(unittest.TestCase):
         self.assertNotIn("bookmarks", stripped)
         self.assertIn("'https://example.org/*not a comment*/'", stripped)
         self.assertIn("/[/*]+/g; chrome.tabs.query({});", stripped)
+
+    def test_a_regex_after_a_control_statement_is_not_a_comment(self):
+        stripped = bump.strip_js_comments("if (x) /[/*]/.test(s); chrome.tabs.query();\nlet y = 2; /* end */\n")
+        self.assertIn("chrome.tabs.query();", stripped)
+        self.assertNotIn("end", stripped)
+
+    def test_division_stays_division_after_white_space(self):
+        code = "const a = f(b)" + " " * 40 + "\n    / 2; /* note */ chrome.runtime.getURL('x');\n"
+        stripped = bump.strip_js_comments(code)
+        self.assertIn("chrome.runtime.getURL('x');", stripped)
+        self.assertNotIn("note", stripped)
+
+    def test_block_after_ignores_braces_in_regexes_strings_and_comments(self):
+        code = "a() { const r = /[{]/; const s = '{'; /* { */ return 1; }\nb() {}"
+        self.assertEqual(bump.block_after(code, 0), "a() { const r = /[{]/; const s = '{'; /* { */ return 1; }")
+
+    @unittest.skipUnless(shutil.which("node"), "needs Node")
+    def test_the_stripped_vendored_scripts_still_parse(self):
+        # A comment found where there is none would cut real code out; the rest would then not parse.
+        out = Path(tempfile.mkdtemp())
+        files = sorted((bump.ASSETS / "js").rglob("*.js"))
+        for i, path in enumerate(files):
+            (out / f"{i}.js").write_text(bump.strip_js_comments(path.read_text(encoding="utf-8")))
+        script = ("const vm = require('node:vm'); const fs = require('node:fs'); let bad = 0;"
+                  f"for (let i = 0; i < {len(files)}; i++) {{ try {{ new vm.SourceTextModule("
+                  f"fs.readFileSync({json.dumps(str(out))} + '/' + i + '.js', 'utf8')); }}"
+                  " catch (e) { bad++; console.log(i, e.message); } } process.exit(bad ? 1 : 0);")
+        result = subprocess.run(["node", "--experimental-vm-modules", "--no-warnings", "-e", script],
+                                capture_output=True, text=True)
+        names = {str(i): files[i].relative_to(bump.ASSETS).as_posix() for i in range(len(files))}
+        failures = [f"{names.get(line.split(' ', 1)[0], '?')}: {line}" for line in result.stdout.splitlines()]
+        self.assertEqual(result.returncode, 0, "\n".join(failures))
 
 
 class TripwireTest(unittest.TestCase):

@@ -11,13 +11,14 @@ Usage:
   scripts/fork/yomitan_bump.py vendor TAG [--sha256 HEX]
       download TAG's yomitan-firefox.zip, check its SHA-256 against GitHub's asset digest and the
       pinned value (PINNED below, or --sha256), wipe the vendored tree and unzip the release into it
-  scripts/fork/yomitan_bump.py verify
+  scripts/fork/yomitan_bump.py verify [--root DIR]
       exit 1 unless the vendored tree matches yomitan-release.json exactly (no file changed,
-      missing or added)
+      missing or added); --root checks another checkout, such as a commit's worktree
   scripts/fork/yomitan_bump.py check [--pinned VERSION] [--soak-days N]
-      key=value lines for $GITHUB_OUTPUT: pinned, latest, published, update (true or false),
-      reason. Only a promoted release counts (GitHub's releases/latest), and only once it has been
-      out for N days (7), so a release Yomitan pulls or fixes quickly never reaches the app.
+      key=value lines for $GITHUB_OUTPUT: pinned, newest, tag (the release to take, or empty),
+      update (true or false), reason. It takes the newest promoted release (no draft or
+      pre-release) newer than the vendored one that has been out N days (7), so a release Yomitan
+      pulls or fixes quickly never reaches the app.
   scripts/fork/yomitan_bump.py tripwire [--write]
       compare the surfaces of the vendored Yomitan that Reikai JP's stand-in depends on with the
       reviewed baseline (jp-yomitan/yomitan-surface.json); exit 1 listing every change. --write
@@ -79,7 +80,8 @@ def http_get(url, accept=None):
         request.add_header("Accept", accept)
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if token and url.startswith("https://api.github.com/"):
-        request.add_header("Authorization", f"Bearer {token}")
+        # Unredirected: urllib copies ordinary headers to a redirect's target, whatever its host.
+        request.add_unredirected_header("Authorization", f"Bearer {token}")
     # Three tries: a passing network hiccup should not wake an agent (D-015).
     for attempt in range(3):
         try:
@@ -202,25 +204,37 @@ def version_key(tag):
     return tuple(int(part) for part in tag.split("."))
 
 
-def decide(pinned, latest, published, soak_days=SOAK_DAYS, now=None):
-    """(update, reason) for the pinned version and GitHub's latest promoted release."""
+def published(release):
+    return datetime.fromisoformat(release["published_at"].replace("Z", "+00:00"))
+
+
+def decide(pinned, releases, soak_days=SOAK_DAYS, now=None):
+    """(tag to take or None, reason) for the pinned version and RELEASES (GitHub's release list):
+    the newest promoted release (neither draft nor pre-release) that is newer than PINNED and has
+    been out SOAK_DAYS. Waiting on the newest alone would take nothing while Yomitan releases more
+    often than once a week."""
     now = now or datetime.now(timezone.utc)
-    if version_key(latest) <= version_key(pinned):
-        return False, f"Yomitan {pinned} is vendored and {latest} is the latest release"
-    out = datetime.fromisoformat(published.replace("Z", "+00:00"))
-    ready = out + timedelta(days=soak_days)
-    if now < ready:
-        return False, f"Yomitan {latest} came out {out:%Y-%m-%d}; it is taken from {ready:%Y-%m-%d} ({soak_days}-day wait)"
-    return True, f"Yomitan {latest} (out {out:%Y-%m-%d}) replaces {pinned}"
+    promoted = sorted((r for r in releases if not r.get("draft") and not r.get("prerelease") and r.get("published_at")),
+                      key=lambda r: version_key(r["tag_name"]), reverse=True)
+    newer = [r for r in promoted if version_key(r["tag_name"]) > version_key(pinned)]
+    if not newer:
+        newest = promoted[0]["tag_name"] if promoted else "none"
+        return None, f"Yomitan {pinned} is vendored and {newest} is the newest release"
+    for release in newer:
+        if now >= published(release) + timedelta(days=soak_days):
+            return release["tag_name"], f"Yomitan {release['tag_name']} (out {published(release):%Y-%m-%d}) replaces {pinned}"
+    oldest = newer[-1]
+    ready = published(oldest) + timedelta(days=soak_days)
+    return None, (f"Yomitan {oldest['tag_name']} is newer than {pinned} but younger than {soak_days} days; "
+                  f"it is taken from {ready:%Y-%m-%d}")
 
 
 def check(pinned=None, soak_days=SOAK_DAYS, now=None, release_json=RELEASE_JSON):
     pinned = pinned or json.loads(release_json.read_text())["version"]
-    # releases/latest skips drafts and pre-releases: only what Yomitan promoted to its users.
-    latest = github_api("releases/latest")
-    update, reason = decide(pinned, latest["tag_name"], latest["published_at"], soak_days, now)
-    return {"pinned": pinned, "latest": latest["tag_name"], "published": latest["published_at"],
-            "update": update, "reason": reason}
+    releases = github_api("releases?per_page=30")
+    tag, reason = decide(pinned, releases, soak_days, now)
+    newest = next((r["tag_name"] for r in releases if not r.get("draft") and not r.get("prerelease")), "")
+    return {"pinned": pinned, "newest": newest, "tag": tag or "", "update": tag is not None, "reason": reason}
 
 
 def print_values(values):
@@ -238,26 +252,29 @@ def print_values(values):
 REGEX_KEYWORDS = ("return", "typeof", "case", "in", "of", "delete", "void", "throw", "new", "else", "do", "yield", "await")
 
 
-def strip_js_comments(text):
-    """TEXT without // and /* */ comments (JSDoc and type casts included), strings and regular
-    expressions kept intact; a block comment leaves its line breaks."""
-    out = []
+def js_tokens(text):
+    """Splits JavaScript source into (kind, piece) pairs whose pieces join back into TEXT; kind is
+    "comment", "string" (quotes and template literals, whole), "regex" or "code". Whether a `/`
+    starts a regular expression or divides is decided, as usual, by the last significant text
+    before it (never white space or a comment)."""
     i, n = 0, len(text)
-    last = ""
+    last = ""  # the last few characters of significant text
+    code_from = 0
+    # For each open `(`: whether it follows if/while/for/with. After such a `)` a `/` starts a
+    # regular expression (`if (x) /re/.test(s)`); after any other `)` it divides.
+    parens = []
+    control_paren = False
     while i < n:
         c = text[i]
         nxt = text[i + 1] if i + 1 < n else ""
+        kind = None
         if c == "/" and nxt == "/":
             end = text.find("\n", i)
-            i = n if end < 0 else end
-            continue
-        if c == "/" and nxt == "*":
+            kind, j = "comment", (n if end < 0 else end)
+        elif c == "/" and nxt == "*":
             end = text.find("*/", i + 2)
-            end = n if end < 0 else end + 2
-            out.append("\n" * text.count("\n", i, end) or " ")
-            i = end
-            continue
-        if c in "'\"`":
+            kind, j = "comment", (n if end < 0 else end + 2)
+        elif c in "'\"`":
             j = i + 1
             while j < n and text[j] != c:
                 if text[j] == "\\":
@@ -265,13 +282,11 @@ def strip_js_comments(text):
                 elif c != "`" and text[j] == "\n":
                     break
                 j += 1
-            out.append(text[i:j + 1])
-            last, i = c, j + 1
-            continue
-        if c == "/":
-            before = "".join(out[-12:]).rstrip()
-            word = re.search(r"[\w$]+$", before)
-            if not before or before[-1] in "(,=:[!&|?{};+-*%<>~^" or (word and word.group() in REGEX_KEYWORDS):
+            kind, j = "string", min(j + 1, n)
+        elif c == "/":
+            word = re.search(r"[\w$]+$", last)
+            if (not last or last[-1] in "(,=:[!&|?{};+-*%<>~^" or (word and word.group() in REGEX_KEYWORDS)
+                    or (last[-1] == ")" and control_paren)):
                 j, in_class = i + 1, False
                 while j < n and text[j] != "\n":
                     if text[j] == "\\":
@@ -284,36 +299,46 @@ def strip_js_comments(text):
                     elif text[j] == "/" and not in_class:
                         break
                     j += 1
-                out.append(text[i:j + 1])
-                last, i = "/", j + 1
-                continue
-        out.append(c)
-        if not c.isspace():
-            last = c
-        i += 1
-    return "".join(out)
+                kind, j = "regex", min(j + 1, n)
+        if kind is None:
+            if not c.isspace():
+                if c == "(":
+                    parens.append(bool(re.search(r"(?<![\w$.])(?:if|while|for|with)$", last)))
+                control_paren = c == ")" and bool(parens) and parens.pop()
+                last = (last + c)[-16:]
+            i += 1
+            continue
+        if code_from < i:
+            yield "code", text[code_from:i]
+        yield kind, text[i:j]
+        if kind != "comment":
+            last = (last + text[i:j])[-16:]
+        i = code_from = j
+    if code_from < n:
+        yield "code", text[code_from:]
+
+
+def strip_js_comments(text):
+    """TEXT without // and /* */ comments (JSDoc and type casts included), strings and regular
+    expressions kept intact; a block comment leaves its line breaks."""
+    return "".join(("\n" * piece.count("\n") or " ") if kind == "comment" else piece
+                   for kind, piece in js_tokens(text))
 
 
 def block_after(text, start):
-    """The text from START through the brace block that begins at the first `{` after it."""
-    open_at = text.find("{", start)
-    if open_at < 0:
-        return None
-    depth, i = 0, open_at
-    while i < len(text):
-        c = text[i]
-        if c in "'\"`":
-            j = i + 1
-            while j < len(text) and text[j] != c:
-                j += 2 if text[j] == "\\" else 1
-            i = j
-        elif c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
-                return text[start:i + 1]
-        i += 1
+    """The text from START through the brace block that begins at the first `{` after it; braces in
+    strings, regular expressions and comments do not count."""
+    depth, at = 0, 0
+    for kind, piece in js_tokens(text):
+        if kind == "code" and at + len(piece) > start:
+            for offset in range(max(start - at, 0), len(piece)):
+                if piece[offset] == "{":
+                    depth += 1
+                elif piece[offset] == "}" and depth > 0:
+                    depth -= 1
+                    if depth == 0:
+                        return text[start:at + offset + 1]
+        at += len(piece)
     return None
 
 
@@ -504,7 +529,7 @@ def update(tag=None, pinned=None, soak_days=SOAK_DAYS, run_smoke=True):
         print(found["reason"], file=sys.stderr)
         if not found["update"]:
             return None
-        tag = found["latest"]
+        tag = found["tag"]
     vendor(tag)
     problems = verify()
     if problems:
@@ -527,7 +552,8 @@ def main():
     v = sub.add_parser("vendor")
     v.add_argument("tag")
     v.add_argument("--sha256")
-    sub.add_parser("verify")
+    ver = sub.add_parser("verify")
+    ver.add_argument("--root", type=Path, default=ROOT, help="check the checkout at ROOT (e.g. a commit's worktree)")
     for name in ("check", "update"):
         p = sub.add_parser(name)
         if name == "update":
@@ -542,13 +568,14 @@ def main():
     if args.command == "vendor":
         vendor(args.tag, args.sha256)
     elif args.command == "verify":
-        problems = verify()
+        tree, record = args.root / ASSETS.relative_to(ROOT), args.root / RELEASE_JSON.relative_to(ROOT)
+        problems = verify(tree, record)
         for line in problems:
             print(line)
         if problems:
-            sys.exit(f"{len(problems)} problem(s): the vendored Yomitan does not match {RELEASE_JSON.name}")
-        version = json.loads(RELEASE_JSON.read_text())["version"]
-        print(f"vendored Yomitan {version} matches {RELEASE_JSON.name}")
+            sys.exit(f"{len(problems)} problem(s): the vendored Yomitan in {shown(args.root)} does not match {RELEASE_JSON.name}")
+        version = json.loads(record.read_text())["version"]
+        print(f"vendored Yomitan {version} in {shown(args.root)} matches {RELEASE_JSON.name}")
     elif args.command == "check":
         print_values(check(args.pinned, args.soak_days))
     elif args.command == "tripwire":
