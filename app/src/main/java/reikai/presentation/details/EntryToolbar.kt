@@ -266,6 +266,8 @@ fun EntryToolbar(
                             ),
                         )
                     }
+                    // FORK: Reikai JP's novel items: export the downloaded chapters as an EPUB
+                    addAll(jp.reikai.export.JpNovelMenu.overflowActions())
                 },
             )
         },

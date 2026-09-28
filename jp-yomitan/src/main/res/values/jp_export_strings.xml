@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Export as EPUB (roadmap 4.5, phase 4 ruling 16). -->
+<resources>
+    <!-- The novel screen's menu. -->
+    <string name="jp_export_epub">Export as EPUB</string>
+    <string name="jp_export_started">Exporting as EPUB…</string>
+    <string name="jp_export_nothing_downloaded">None of this novel\'s chapters are downloaded. Download the chapters you want in the book, then export.</string>
+    <string name="jp_export_not_found">This novel could not be found. Open it again, then export.</string>
+
+    <!-- The notification while it runs, and when it is done. -->
+    <string name="jp_export_progress_title">Exporting %1$s</string>
+    <string name="jp_export_progress">Chapter %1$d of %2$d</string>
+    <string name="jp_export_cancel">Cancel</string>
+    <string name="jp_export_done_title">EPUB saved: %1$s</string>
+    <plurals name="jp_export_exported">
+        <item quantity="one">%1$d chapter exported</item>
+        <item quantity="other">%1$d chapters exported</item>
+    </plurals>
+    <plurals name="jp_export_skipped">
+        <item quantity="one">%1$d not downloaded was skipped</item>
+        <item quantity="other">%1$d not downloaded were skipped</item>
+    </plurals>
+    <!-- "12 chapters exported, 3 not downloaded were skipped" -->
+    <string name="jp_export_counts">%1$s, %2$s</string>
+    <string name="jp_export_open">Tap to open it.</string>
+    <string name="jp_export_nothing_title">Nothing exported: %1$s</string>
+    <string name="jp_export_failed_title">EPUB export failed: %1$s</string>
+</resources>

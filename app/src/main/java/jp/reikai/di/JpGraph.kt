@@ -17,6 +17,7 @@ import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import jp.reikai.JpPreferences
 import jp.reikai.data.JpChapterPositions
 import jp.reikai.data.JpReaderDatabase
+import jp.reikai.export.NovelEpubExport
 import jp.reikai.lookup.JpLookup
 import jp.reikai.lookup.JpPageOpener
 import jp.reikai.lookup.PreferenceYomitanStorage
@@ -77,6 +78,9 @@ interface JpGraph {
 
     /** Chapter translation in the novel reader (4.5). */
     val chapterTranslations: ChapterTranslations
+
+    /** "Export as EPUB" on the novel screen and its background job (4.5). */
+    val novelEpubExport: NovelEpubExport
 }
 
 val Context.jpGraph: JpGraph get() = metroGraph<JpGraph>()
