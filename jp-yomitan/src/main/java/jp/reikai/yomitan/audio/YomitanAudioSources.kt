@@ -21,7 +21,9 @@ import kotlinx.serialization.json.put
  *
  * Yomitan tries its Japanese defaults (jpod101, language-pod-101, jisho) after the listed sources
  * when "enableDefaultAudioSources" is on, so text-to-speech is added after them explicitly to stay
- * the last resort.
+ * the last resort. Switching text-to-speech off removes those again, when they are exactly what
+ * Yomitan would add by itself at the end, so its switch controls them again and nothing plays in
+ * another order.
  */
 object YomitanAudioSources {
 
@@ -84,7 +86,12 @@ object YomitanAudioSources {
         val tts = source("custom", TtsAudio.SOURCE_URL)
         val list = current.toMutableList()
         if (!localAudio) list.removeAll { it.sameAs(local) }
-        if (!textToSpeech) list.removeAll { it.sameAs(tts) }
+        if (!textToSpeech) {
+            val wasLast = list.lastOrNull()?.sameAs(tts) == true
+            list.removeAll { it.sameAs(tts) }
+            // The Japanese defaults added before it (below) go with it.
+            if (wasLast && japaneseDefaults) dropImpliedDefaults(list)
+        }
         if (localAudio && list.none { it.sameAs(local) }) list.add(0, local)
         if (textToSpeech && list.none { it.sameAs(tts) }) {
             if (japaneseDefaults) {
@@ -94,6 +101,19 @@ object YomitanAudioSources {
             list += tts
         }
         return list
+    }
+
+    /**
+     * Drops the Japanese defaults at the end of [list] when they are the very ones, in the same order,
+     * that Yomitan appends by itself (those not listed earlier): the ones added with text-to-speech.
+     */
+    private fun dropImpliedDefaults(list: MutableList<JsonObject>) {
+        val run = list.takeLastWhile { it.type() in JAPANESE_DEFAULTS && it.url().isNullOrEmpty() }.size
+        val drop = (run downTo 1).firstOrNull { n ->
+            val kept = list.subList(0, list.size - n).mapNotNull { it.type() }.toSet()
+            list.takeLast(n).map { it.type() } == JAPANESE_DEFAULTS.filter { it !in kept }
+        } ?: return
+        repeat(drop) { list.removeAt(list.lastIndex) }
     }
 
     private fun source(type: String, url: String) = buildJsonObject {

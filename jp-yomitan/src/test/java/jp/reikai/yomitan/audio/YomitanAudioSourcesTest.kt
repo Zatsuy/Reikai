@@ -7,6 +7,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 
 class YomitanAudioSourcesTest {
 
@@ -60,6 +62,32 @@ class YomitanAudioSourcesTest {
             japaneseDefaults = true,
         )
             .types().shouldContainExactly("custom")
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @CsvSource(
+        delimiter = '|',
+        value = [
+            "all three were added | jpod101 language-pod-101 jisho | true | ''",
+            "jisho was listed before | jisho jpod101 language-pod-101 | true | jisho",
+            "the defaults are off | jpod101 language-pod-101 jisho | false | jpod101 language-pod-101 jisho",
+            "not where Yomitan adds them | jisho jpod101 | true | jisho jpod101",
+        ],
+    )
+    fun `switching text-to-speech off removes the defaults added with it where Yomitan adds them itself`(
+        case: String,
+        listed: String,
+        defaults: Boolean,
+        left: String,
+    ) {
+        fun sources(types: String) = types.split(' ').filter { it.isNotEmpty() }.map { source(it) }
+
+        YomitanAudioSources.sources(
+            listOf(local) + sources(listed) + tts,
+            localAudio = true,
+            textToSpeech = false,
+            japaneseDefaults = defaults,
+        ).shouldContainExactly(listOf(local) + sources(left))
     }
 
     @Test
