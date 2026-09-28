@@ -180,7 +180,7 @@ internal class YomitanWebViewClient(
     private val binding: () -> HubBinding?,
     private val kind: PageKind,
     private val listener: YomitanPageListener,
-    private val onGone: () -> Unit,
+    private val onGone: (crashed: Boolean) -> Unit,
 ) : WebViewClient() {
 
     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
@@ -214,7 +214,7 @@ internal class YomitanWebViewClient(
     override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
         logcat(LogPriority.WARN) { "Yomitan ${kind.jsName} WebView lost its renderer (crashed=${detail.didCrash()})" }
         binding()?.let { engine.hub.forgetView(it.viewId) }
-        onGone()
+        onGone(detail.didCrash())
         return true
     }
 }

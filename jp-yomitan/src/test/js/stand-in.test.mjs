@@ -45,13 +45,19 @@ function load({url = `${ORIGIN}/settings.html`, kind = 'settings', isTop = true,
         terminate() { this.terminated = true; }
     }
     const windowEvents = new EventTarget();
+    // The stand-in's timers (a picture worker's idle stop) must not keep the test run alive.
+    const unrefTimeout = (fn, ms) => {
+        const timer = setTimeout(fn, ms);
+        timer.unref?.();
+        return timer;
+    };
     const context = {
         reikaiHub: hub,
         location: new URL(url),
         navigator: {userAgent: 'test'},
         Worker: FakeWorker,
         URL, Headers, Response, Request, Blob, EventTarget, Event, MessageChannel, DOMException, URLSearchParams,
-        btoa, atob, setTimeout, clearTimeout, console,
+        btoa, atob, setTimeout: unrefTimeout, clearTimeout, console,
         fetch: async () => new Response('same-origin'),
         addEventListener: (...args) => windowEvents.addEventListener(...args),
         ...extra,
@@ -189,6 +195,25 @@ test('a cross-origin fetch goes to the app and returns its binary answer', async
     hub.deliver({t: 'reply', mid: header.mid, status: 200, statusText: 'OK', headers: {'content-type': 'text/html'}, bin: true});
     hub.deliver(new TextEncoder().encode('<html>猫</html>').buffer);
     assert.equal(await (await response).text(), '<html>猫</html>');
+});
+
+test('a GET with a body is refused as a browser refuses it, without reaching the app', async () => {
+    const {page, hub} = load();
+    await assert.rejects(page.fetch('https://jisho.org/', {body: ''}), {name: 'TypeError'});
+    assert.equal(hub.headers().some((h) => h.op === 'fetch'), false);
+});
+
+test('a findTerms answer the stand-in cannot read is answered with an error, never left waiting', async () => {
+    const {page, hub} = load({url: `${ORIGIN}/background.html`, kind: 'engine'});
+    page.chrome.runtime.onMessage.addListener((message, _sender, respond) => {
+        respond({result: {originalTextLength: 1}});
+        return false;
+    });
+    hub.deliver({t: 'nreq', nid: 4, op: 'findTerms'}, JSON.stringify({text: '猫'}));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(hub.last().header.t, 'nresp');
+    assert.equal(hub.last().header.nid, 4);
+    assert.match(hub.last().header.err, /slice/);
 });
 
 test('the backend answers the app\'s findTerms with only lengths and headwords', async () => {

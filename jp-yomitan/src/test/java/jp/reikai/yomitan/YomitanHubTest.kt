@@ -236,6 +236,28 @@ class YomitanHubTest {
         settings.port.last()["err"]?.jsonPrimitive?.content shouldBe "not an http(s) URL"
     }
 
+    @ParameterizedTest(name = "{0}")
+    @CsvSource(
+        delimiter = '|',
+        value = [
+            "sremove|{\"t\":\"req\",\"op\":\"sremove\",\"area\":\"local\",\"mid\":3}|[{\"a\":1}]",
+            "fetch|{\"t\":\"req\",\"op\":\"fetch\",\"mid\":3}|" +
+                "{\"url\":\"https://example.com/\",\"method\":\"POST\",\"headers\":{},\"bodyBase64\":\"%%\"}",
+        ],
+    )
+    fun `a malformed request is answered with an error instead of crashing the app`(
+        case: String,
+        header: String,
+        payload: String,
+    ) {
+        val (_, settings) = engineAndSettings()
+
+        settings.say(header, payload)
+
+        (settings.port.last()["mid"]?.jsonPrimitive?.content to (settings.port.last()["err"] != null)) shouldBe
+            ("3" to true)
+    }
+
     @ParameterizedTest(name = "a chapter page sending {0}: delivered {1}")
     @CsvSource(
         "termsFind, true",

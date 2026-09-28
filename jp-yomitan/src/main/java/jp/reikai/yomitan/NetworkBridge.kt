@@ -16,6 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import okhttp3.ResponseBody
 import java.io.IOException
 
 /**
@@ -37,7 +38,14 @@ internal class NetworkBridge(
             return {}
         }
         if (LocalServer.matches(url.host, url.port)) return local(url, request, done)
-        val call = client().newCall(toOkHttp(url, request))
+        // OkHttp refuses what a browser's fetch refuses too, e.g. a GET with a body.
+        val okRequest = try {
+            toOkHttp(url, request)
+        } catch (e: IllegalArgumentException) {
+            done(FetchResult.Failed(e.message ?: "invalid request"))
+            return {}
+        }
+        val call = client().newCall(okRequest)
         call.enqueue(
             object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
@@ -120,7 +128,7 @@ internal class NetworkBridge(
     }
 
     private fun Response.toResult(): FetchResult.Ok {
-        val bytes = body.bytes()
+        val bytes = readCapped(body, MAX_BODY_BYTES)
         val headers = LinkedHashMap<String, String>()
         this.headers.names().forEach { name ->
             if (!name.equals("set-cookie", true)) {
@@ -131,8 +139,23 @@ internal class NetworkBridge(
         return FetchResult.Ok(code, message.ifEmpty { "OK" }, headers, request.url.toString(), bytes)
     }
 
-    private companion object {
+    internal companion object {
         /** Cookies stay out (Yomitan's own request rules strip them); the rest OkHttp sets itself. */
         val DROPPED_REQUEST_HEADERS = setOf("cookie", "host", "content-length", "connection", "origin", "referer")
+
+        /**
+         * The largest answer handed to a page (a word's recording is tens of KB, a jisho page a few
+         * hundred): the body is held in memory, and again as base64 on WebViews without binary messages.
+         */
+        const val MAX_BODY_BYTES = 32L * 1024 * 1024
+
+        /** [body]'s bytes; an [IOException] when there are more than [max]. */
+        fun readCapped(body: ResponseBody, max: Long): ByteArray {
+            val length = body.contentLength()
+            if (length > max) throw IOException("the answer is too large ($length bytes)")
+            val source = body.source()
+            if (source.request(max + 1)) throw IOException("the answer is larger than $max bytes")
+            return source.readByteArray()
+        }
     }
 }

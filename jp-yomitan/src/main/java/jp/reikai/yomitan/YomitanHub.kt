@@ -215,7 +215,14 @@ internal class YomitanHub(private val host: HubHost) {
             hello(viewId, sourceOrigin, isMainFrame, key, port, header)
         } else {
             val from = docs[key] ?: return
-            handle(from, type, header, payload)
+            try {
+                handle(from, type, header, payload)
+            } catch (e: Exception) {
+                // A malformed message fails only itself: this runs on the main thread, where an
+                // exception would take the whole app down.
+                host.log('E', "hub: $type from $from failed: $e")
+                header.int("mid")?.let { replyError(from, it, e.message ?: e.javaClass.simpleName) }
+            }
         }
         flushDead()
     }

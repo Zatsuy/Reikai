@@ -89,9 +89,10 @@ data class Headword(val term: String, val reading: String, val matched: String)
  * Lifecycle: nothing runs until a screen calls [acquire] (the reader of a Japanese novel, search,
  * settings, the lookup activity); the engine then starts and stays while any [Lease] is open, and
  * stops [YomitanConfig.idleGraceMillis] after the last one closes, at once when lookup is switched
- * off (D-025), and on memory pressure once idle. When WebView's renderer dies it restarts, if still
- * in use. The hidden WebView sits in the window of the newest lease's activity as one transparent
- * pixel (a WebView outside any window is treated as hidden and throttled).
+ * off (D-025), and on memory pressure once idle. When WebView's renderer crashes it restarts, if
+ * still in use; when the system killed it to free memory, or the engine failed, it starts again when
+ * a screen next needs it ([ready]). The hidden WebView sits in the window of the newest lease's
+ * activity as one transparent pixel (a WebView outside any window is treated as hidden and throttled).
  *
  * Main-thread only, except the suspend functions, which may be called from anywhere.
  */
@@ -204,8 +205,14 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
         return lease
     }
 
-    /** Waits for Yomitan's backend while the engine starts; true once it is ready. Starts nothing. */
+    /**
+     * Waits for Yomitan's backend while the engine starts; true once it is ready. While a screen holds
+     * the engine, an engine that stopped (WebView's renderer was killed to free memory) or failed is
+     * started again first; otherwise this starts nothing.
+     */
     suspend fun ready(): Boolean = withContext(Dispatchers.Main.immediate) {
+        val now = stateFlow.value
+        if ((now == State.Stopped || now is State.Failed) && leases.isNotEmpty()) start()
         stateFlow.first { it != State.Starting } is State.Ready
     }
 
@@ -219,8 +226,8 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
             put("action", action)
             put("params", params)
         }
-        val response = Json.parseToJsonElement(callBackend("api", payload.toString())) as? JsonObject
-            ?: throw YomitanException("$action: no response")
+        val response =
+            parseObject(callBackend("api", payload.toString())) ?: throw YomitanException("$action: no response")
         (response["error"] as? JsonObject)?.let {
             throw YomitanException(it["message"]?.jsonPrimitive?.contentOrNull ?: "$action failed")
         }
@@ -237,7 +244,8 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
             put("text", text)
             put("limit", limit)
         }
-        val result = Json.parseToJsonElement(callBackend("findTerms", payload.toString())).jsonObject
+        val result = parseObject(callBackend("findTerms", payload.toString()))
+            ?: throw YomitanException("findTerms: no response")
         val length = result["length"]?.jsonPrimitive?.int ?: 0
         val headwords = result["entries"]?.jsonArray.orEmpty().flatMap { entry ->
             entry.jsonObject["headwords"]?.jsonArray.orEmpty().map {
@@ -265,9 +273,14 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
     ): YomitanPage? {
         require(kind != PageKind.ENGINE) { "the engine's own WebView is not attached" }
         val lease = acquire(host) ?: return null
+        if (!YomitanWebViews.supported) {
+            // The engine reports it as State.Failed; binding the page would throw.
+            lease.close()
+            return null
+        }
         YomitanWebViews.configure(webView)
         var page: YomitanPage? = null
-        val binding = bind(webView, kind, listener) {
+        val binding = bind(webView, kind, listener) { _ ->
             page?.close()
             destroyWebView(webView)
             listener.onRenderProcessGone()
@@ -337,24 +350,25 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
         }
     }
 
-    private fun onEngineRendererGone() {
+    private fun onEngineRendererGone(crashed: Boolean) {
         // WebView's renderer is one process for the whole app: every Yomitan document died with it.
         hub.forgetAll()
         val now = SystemClock.elapsedRealtime()
-        restarts.addLast(now)
+        if (crashed) restarts.addLast(now)
         while (restarts.isNotEmpty() && now - restarts.first() > RESTART_WINDOW_MILLIS) restarts.removeFirst()
-        when {
-            stateFlow.value == State.Off -> Unit
-            leases.isEmpty() -> stop(State.Stopped)
-            restarts.size > MAX_RESTARTS -> stop(State.Failed("WebView's renderer keeps dying"))
-            else -> start()
+        when (afterRendererGone(stateFlow.value == State.Off, leases.isNotEmpty(), crashed, restarts.size)) {
+            RendererGone.STAY_OFF -> Unit
+            RendererGone.STOP -> stop(State.Stopped)
+            RendererGone.FAIL -> stop(State.Failed("WebView's renderer keeps dying"))
+            RendererGone.RESTART -> start()
         }
     }
 
     /** Puts the hidden WebView into the window of the newest lease whose activity is alive. */
     private fun placeEngineView(gone: Activity? = null) {
         val holder = holder ?: return
-        val activity = leases.reversed().firstNotNullOfOrNull { lease ->
+        // Not leases.reversed(): that compiles to LinkedHashSet.reversed(), new in Android 15 (API 35).
+        val activity = leases.toList().asReversed().firstNotNullOfOrNull { lease ->
             lease.host?.get()?.takeIf { it !== gone && !it.isFinishing && !it.isDestroyed }
         }
         val target = activity?.window?.decorView as? ViewGroup
@@ -384,7 +398,12 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
     // --- the hub's side -----------------------------------------------------------------------------
 
     @SuppressLint("RequiresFeature")
-    private fun bind(webView: WebView, kind: PageKind, listener: YomitanPageListener, onGone: () -> Unit): HubBinding {
+    private fun bind(
+        webView: WebView,
+        kind: PageKind,
+        listener: YomitanPageListener,
+        onGone: (crashed: Boolean) -> Unit,
+    ): HubBinding {
         val viewId = hub.registerView(kind)
         val origins = setOf(YomitanOrigin.ORIGIN)
         val script = WebViewCompat.addDocumentStartJavaScript(webView, scripts.standIn(kind), origins)
@@ -492,11 +511,29 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
         override fun dispatchTouchEvent(ev: MotionEvent?): Boolean = false
     }
 
+    internal enum class RendererGone { STAY_OFF, STOP, FAIL, RESTART }
+
     companion object {
         const val TAG = "Yomitan"
         private const val START_TIMEOUT_MILLIS = 30_000L
         private const val RESTART_WINDOW_MILLIS = 5 * 60_000L
         private const val MAX_RESTARTS = 3
+
+        /**
+         * What the engine does when WebView's renderer died with [crashes] crashes in the last five
+         * minutes. A renderer the system killed to free memory ([crashed] false) is not started again at
+         * once, which could only get it killed again: [ready] starts it when a screen next needs it.
+         */
+        internal fun afterRendererGone(off: Boolean, inUse: Boolean, crashed: Boolean, crashes: Int) = when {
+            off -> RendererGone.STAY_OFF
+            !inUse || !crashed -> RendererGone.STOP
+            crashes > MAX_RESTARTS -> RendererGone.FAIL
+            else -> RendererGone.RESTART
+        }
+
+        /** The backend's answer as a JSON object; null when it answered nothing (no listener responded). */
+        private fun parseObject(text: String): JsonObject? =
+            runCatching { Json.parseToJsonElement(text) }.getOrNull() as? JsonObject
 
         private fun checkMainThread() = check(Looper.myLooper() == Looper.getMainLooper()) {
             "YomitanEngine is main-thread only"

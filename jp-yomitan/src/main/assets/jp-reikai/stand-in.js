@@ -610,6 +610,9 @@
             const headers = {};
             new Headers(init.headers ?? (isRequest ? input.headers : undefined)).forEach((value, key) => { headers[key] = value; });
             const method = (init.method ?? (isRequest ? input.method : 'GET')).toUpperCase();
+            if ((method === 'GET' || method === 'HEAD') && init.body !== undefined && init.body !== null) {
+                throw new TypeError("Failed to execute 'fetch': Request with GET/HEAD method cannot have body.");
+            }
             const body = await encodeBody(init.body, headers);
             const signal = init.signal ?? (isRequest ? input.signal : undefined);
             if (signal?.aborted) { throw signal.reason ?? new DOMException('The user aborted a request.', 'AbortError'); }
@@ -674,10 +677,12 @@
         });
         handlers.set('nreq', (header, payload) => {
             const reply = (value, err) => post({t: 'nresp', nid: header.nid, err}, value === undefined ? '' : JSON.stringify(value));
+            // Every request is answered, or the app would wait for it until the engine stops.
+            const fail = (e) => reply(undefined, String(e?.message ?? e));
             let body;
             try { body = JSON.parse(payload); } catch (e) { reply(undefined, `bad request: ${e}`); return; }
             if (header.op === 'api') {
-                callBackend({action: body.action, params: body.params}).then((response) => reply(response));
+                callBackend({action: body.action, params: body.params}).then((response) => reply(response)).catch(fail);
             } else if (header.op === 'findTerms') {
                 // Only what native code needs: the longest match's length and its headwords.
                 const params = {text: body.text, details: {}, optionsContext: body.optionsContext ?? {current: true}};
@@ -695,7 +700,7 @@
                             })),
                         })),
                     });
-                });
+                }).catch(fail);
             } else {
                 reply(undefined, `unknown request ${header.op}`);
             }
