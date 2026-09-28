@@ -13,6 +13,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewTreeObserver
 import android.webkit.WebView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -95,12 +96,20 @@ internal class JpReaderSession(
     /** Where the last long-press was on the screen (the line's top to bottom), for the sheet's place. */
     private var pressedLine: IntRange? = null
 
-    /** When the page was last touched (uptime): the warm-up waits for a pause in scrolling. */
+    /**
+     * When the page was last touched or scrolled (uptime): the warm-up waits for a pause in reading.
+     * Touches are seen on the text; a scroll through the window's views, since a press that stops a
+     * fling goes to the scrolling list, never to the text under it.
+     */
     private var touchedAt = 0L
     private val onTouched = { touchedAt = SystemClock.uptimeMillis() }
+    private val onScrolled = ViewTreeObserver.OnScrollChangedListener { touchedAt = SystemClock.uptimeMillis() }
 
     fun start() {
         host.lifecycle.addObserver(this)
+        // Opening the chapter counts as reading too: its first scroll often follows at once.
+        touchedAt = SystemClock.uptimeMillis()
+        host.window.decorView.viewTreeObserver.addOnScrollChangedListener(onScrolled)
         // Keeps "Look up in Reikai JP" in step with the lookup switch (it follows the switch while alive).
         graph.jpLookup
         ContextCompat.registerReceiver(
@@ -284,6 +293,7 @@ internal class JpReaderSession(
         runCatching { host.unregisterReceiver(receiver) }
         lease?.close()
         lease = null
+        host.window.decorView.viewTreeObserver.let { if (it.isAlive) it.removeOnScrollChangedListener(onScrolled) }
         host.lifecycle.removeObserver(this)
         JpReaderHook.ended(this, host)
     }
