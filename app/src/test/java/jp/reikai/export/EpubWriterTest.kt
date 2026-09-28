@@ -143,7 +143,8 @@ class EpubWriterTest {
             writer.finish()
         }
         val book = entries(out.toByteArray())
-        xml(book.getValue("OEBPS/chapter0001.xhtml")).all("h1").map { it.textContent } shouldContainExactly listOf("第一部")
+        xml(book.getValue("OEBPS/chapter0001.xhtml")).all("h1").map { it.textContent } shouldContainExactly
+            listOf("第一部")
         xml(book.getValue("OEBPS/chapter0002.xhtml")).first("h1").textContent shouldBe "第2話"
     }
 

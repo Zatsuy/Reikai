@@ -7,8 +7,9 @@ class JpScanMessageTest {
 
     @Test
     fun `a word found carries its sentence, its boxes and the time since the tap`() {
-        val text = """{"doc":"7-1","t":"found","type":"terms","query":"打ち込んだ","sentence":{"text":"彼は古い画像を見て、打ち込んだ。",""" +
-            """"offset":10},"rects":[{"left":300.5,"top":80,"right":322,"bottom":190}],"writingMode":"vertical-rl","ms":42}"""
+        val text =
+            """{"doc":"7-1","t":"found","type":"terms","query":"打ち込んだ","sentence":{"text":"彼は古い画像を見て、打ち込んだ。",""" +
+                """"offset":10},"rects":[{"left":300.5,"top":80,"right":322,"bottom":190}],"writingMode":"vertical-rl","ms":42}"""
 
         parse(text) shouldBe JpScanMessage.Found(
             query = "打ち込んだ",
