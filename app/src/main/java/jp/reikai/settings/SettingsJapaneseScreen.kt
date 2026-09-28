@@ -58,7 +58,7 @@ import jp.reikai.yomitan.audio.TtsAudio
 
 /**
  * Settings, Japanese (roadmap 3.5): the lookup switch (D-025), dictionaries, AnkiDroid and card
- * set-up, word audio, Yomitan's own settings, and the reading statistics (4.4). Everything a Japanese learner sets up once, in the
+ * set-up, word audio, Yomitan's own settings, the reading statistics (4.4) and chapter translation (4.5). Everything a Japanese learner sets up once, in the
  * order they need it: get dictionaries, connect AnkiDroid, set up cards, then optional audio and a
  * desktop Yomitan backup. Yomitan's own pages (its settings) open in [YomitanSettingsActivity].
  *
@@ -318,7 +318,15 @@ object SettingsJapaneseScreen : SearchableSettings {
                 ),
             ),
         )
-        return listOf(lookupGroup, dictionaryGroup, ankiGroup, audioGroup, yomitanGroup, readingGroup)
+        return listOf(
+            lookupGroup,
+            dictionaryGroup,
+            ankiGroup,
+            audioGroup,
+            yomitanGroup,
+            readingGroup,
+            translationGroup(context),
+        )
     }
 
     @Composable

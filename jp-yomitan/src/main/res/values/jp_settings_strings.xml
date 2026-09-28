@@ -5,7 +5,7 @@
 -->
 <resources>
     <string name="jp_settings_title">Japanese</string>
-    <string name="jp_settings_summary">Word lookup, dictionaries, Anki cards, word audio, reading statistics</string>
+    <string name="jp_settings_summary">Word lookup, dictionaries, Anki cards, word audio, reading statistics, translation</string>
 
     <!-- Lookup -->
     <string name="jp_settings_lookup_group">Word lookup</string>
