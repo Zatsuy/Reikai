@@ -26,7 +26,12 @@ class JpPageDocumentTest {
         justify = false,
     )
 
-    private fun build(title: String = "第一話", chapterHtml: String = "<p>吾輩は猫である。</p>", charOffset: Int? = 42) =
+    private fun build(
+        title: String = "第一話",
+        chapterHtml: String = "<p>吾輩は猫である。</p>",
+        charOffset: Int? = 42,
+        lookup: Boolean = false,
+    ) =
         JpPageDocument.build(
             init = JpPageDocument.init(7L, charOffset, 0.5, JsonObject(emptyMap())),
             options = JpPageOptions(vertical = true, paged = true, furigana = "toggle"),
@@ -34,6 +39,7 @@ class JpPageDocumentTest {
             title = title,
             chapterHtml = chapterHtml,
             fontFiles = listOf("Klee One.ttf", "notes.txt"),
+            lookup = lookup,
         )
 
     @Test
@@ -50,6 +56,15 @@ class JpPageDocumentTest {
         document.body().children().last()!!.attr("src") shouldBe "/jp-reader/jp-reader.js"
         // No inline script: the policy would refuse it.
         document.select("script:not([src]):not([type=\"application/json\"])").size shouldBe 0
+    }
+
+    @Test
+    fun `with lookup on, Yomitan's scanner follows the page script as a module`() {
+        val scripts = Jsoup.parse(build(lookup = true)).body().children().takeLast(2)
+        scripts.map { it.attr("src") } shouldBe
+            listOf("/jp-reader/jp-reader.js", "https://yomitan.reikai.invalid/__reikai/reader-scan.js")
+        scripts.last().attr("type") shouldBe "module"
+        Jsoup.parse(build()).select("script[src*=reader-scan]").size shouldBe 0
     }
 
     @Test

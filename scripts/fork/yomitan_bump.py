@@ -401,7 +401,11 @@ CALL_SITES = {
     # Anki's {screenshot} is the lookup's cover (4.3): the backend asks the tab the lookup came from (the
     # popup's own) to hide its popups, which popup-host.js answers unless a Frontend there says it is
     # ready, then captures a window, which the stand-in asks of the app (backend.js above).
-    "js/display/display-anki.js": ["_getNoteContext(", "async _createNote("],
+    "js/display/display-anki.js": ["_getNoteContext(", "async _createNote(", "async _saveAnkiNote(",
+                                   "_getAddNoteRequirementsError(", "_showErrorNotification("],
+    # popup-host.js closes the notice of a card added without a cover, found by its error text.
+    "js/display/display-generator.js": ["createAnkiNoteErrorsNotificationContent("],
+    "js/display/display-notification.js": ["open(", "close(", "_onCloseButtonClick("],
 }
 # Small files the stand-in's worker handling depends on as a whole.
 WHOLE_FILES = [
@@ -425,7 +429,9 @@ ENTRY_FILES = [
 # Markup the app's hosts find by id or attribute (the lookup sheet 3.4, the settings screen 3.5).
 PAGE_ELEMENTS = {
     "popup.html": ['id="dictionary-entries"', 'id="no-results"', 'id="no-dictionaries"', 'id="close-button"',
-                   'href="/settings.html#dictionaries"', 'id="navigate-previous-button"'],
+                   'href="/settings.html#dictionaries"', 'id="navigate-previous-button"', 'id="content-footer"'],
+    "templates-display.html": ['class="footer-notification scrollbar"', 'class="footer-notification-close-button"',
+                               'class="anki-note-error-list"'],
     "search.html": ['id="dictionary-entries"', 'id="no-results"', 'id="no-dictionaries"',
                     'href="/settings.html#dictionaries"'],
     "settings.html": ["<body hidden>", 'data-modal-action="show,recommended-dictionaries"', 'id="dictionaries"',

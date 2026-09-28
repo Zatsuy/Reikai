@@ -11,6 +11,7 @@ import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
 import eu.kanade.domain.source.interactor.GetIncognitoState
+import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import jp.reikai.JpPreferences
@@ -65,6 +66,9 @@ interface JpGraph {
 
     /** Incognito keeps no reading place in the fork's database either (4.1). */
     val getIncognitoState: GetIncognitoState
+
+    /** A novel's own cover, as the picture of a word looked up in it on an Anki card (4.3). */
+    val coverCache: CoverCache
 }
 
 val Context.jpGraph: JpGraph get() = metroGraph<JpGraph>()

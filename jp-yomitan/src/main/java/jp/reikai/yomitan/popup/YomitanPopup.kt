@@ -88,6 +88,9 @@ class YomitanPopup private constructor(
     /** The token of the lookup on the page (or waiting for it), -1 for none. */
     private var current = -1
 
+    /** The lookup on the page (or waiting for it), for its picture on an Anki card. */
+    private var shown: PopupLookup? = null
+
     /** Yomitan's settings or dictionaries changed since the page loaded them. */
     private var stale = false
 
@@ -122,6 +125,7 @@ class YomitanPopup private constructor(
         val token = ++nextToken
         if (closed) return token
         current = token
+        shown = lookup
         if (ready && !stale && (lookup.dark == null || lookup.dark == theme)) {
             swapIn(lookup, token)
         } else {
@@ -143,6 +147,7 @@ class YomitanPopup private constructor(
     /** Empties the page (after the sheet closes), so the next lookup never opens on the last one. */
     fun clear() {
         current = -1
+        shown = null
         pending = null
         canGoBack = false
         if (closed) return
@@ -231,6 +236,9 @@ class YomitanPopup private constructor(
                         popup.ready = false
                         popup.listener?.onGone()
                     }
+
+                    // A word looked up inside the results is still from the same book.
+                    override fun picture() = popup.shown?.picture
                 },
             )
             if (page == null) {

@@ -29,7 +29,9 @@
  *   came from, here this popup's own, to hide its popups, and waits for the answer: this answers as a
  *   page's Frontend would (nothing to hide), unless Yomitan runs a Frontend in this page itself (for
  *   popups nested in the results, which says so with `frontendReady`), which then answers. The app then
- *   gives the lookup's picture, the book's cover.
+ *   gives the lookup's picture, the book's cover. With no cover (a lookup from another app, the
+ *   dictionary search) the card is added with that field empty, and the notice Yomitan shows for it
+ *   is closed: nothing went wrong that the reader could act on.
  * - It tells the app (web message listener `reikaiPopup`) when it is ready, when a lookup is on
  *   screen (first result, or a notice), whether Yomitan's history has a previous lookup to go back to,
  *   and when Yomitan's own close button is pressed. "ready", "stale" and "nav" carry the load number,
@@ -144,7 +146,27 @@
     };
     globalThis.chrome?.runtime?.onMessage?.addListener(onExtensionMessage);
 
+    // YomitanHub.NO_PICTURE, in the error Yomitan's backend reports when there is no cover, and the
+    // warning Yomitan adds for a field left empty that way (display-anki.js _getAddNoteRequirementsError).
+    const NO_PICTURE = 'Reikai JP has no picture for this lookup';
+    const SOME_CONTENT_MISSING = 'The created card may not have some content';
+    const quietNoPicture = (footer) => {
+        new MutationObserver(() => {
+            for (const notification of footer.querySelectorAll('.footer-notification')) {
+                if (notification.hidden) { continue; }
+                const errors = [...notification.querySelectorAll('.anki-note-error-message')].map((e) => e.textContent ?? '');
+                const noPicture = errors.filter((text) => text.includes(NO_PICTURE)).length;
+                const onlyThat = errors.every((text) => text.includes(NO_PICTURE) || text.trim() === SOME_CONTENT_MISSING);
+                if (noPicture > 0 && onlyThat) {
+                    notification.querySelector('.footer-notification-close-button')?.click();
+                }
+            }
+        }).observe(footer, {childList: true, subtree: true});
+    };
+
     const watch = () => {
+        const footer = document.querySelector('#content-footer');
+        if (footer !== null) { quietNoPicture(footer); }
         const entries = document.querySelector('#dictionary-entries');
         if (entries !== null) {
             new MutationObserver(() => { if (entries.firstElementChild !== null) { shown(); } })

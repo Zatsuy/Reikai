@@ -28,6 +28,9 @@ object JpPageDocument {
     const val ASSET_PATH = "/jp-reader/"
     const val FONT_PATH = "/font/"
 
+    /** Yomitan's scanner for the page (4.3), a module on Yomitan's origin, loaded while lookup is on. */
+    const val LOOKUP_SCRIPT = "$YOMITAN_ORIGIN/__reikai/reader-scan.js"
+
     /** Where upstream's [reikai.presentation.reader.web.NovelWebImages] routes a chapter's online pictures. */
     private const val IMAGE_ORIGIN = "https://appassets.androidplatform.net"
 
@@ -86,7 +89,8 @@ object JpPageDocument {
 
     /**
      * The whole document. [look] and [options] give the first paint its colours, font and classes
-     * before the page script runs; the script reads everything from [init].
+     * before the page script runs; the script reads everything from [init]. With [lookup], Yomitan's
+     * scanner follows the page script ([LOOKUP_SCRIPT]).
      */
     fun build(
         init: JsonObject,
@@ -95,6 +99,7 @@ object JpPageDocument {
         title: String,
         chapterHtml: String,
         fontFiles: List<String>,
+        lookup: Boolean = false,
     ): String = buildString(chapterHtml.length + 4096) {
         val classes = listOf(
             if (options.vertical) "jp-vertical" else "jp-horizontal",
@@ -120,6 +125,7 @@ object JpPageDocument {
         append(chapterHtml)
         appendLine("</main>")
         append("<script src=\"").append(ASSET_PATH).appendLine("jp-reader.js\"></script>")
+        if (lookup) append("<script type=\"module\" src=\"").append(LOOKUP_SCRIPT).appendLine("\"></script>")
         appendLine("</body>")
         append("</html>")
     }

@@ -25,7 +25,9 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.util.system.isNightMode
 import jp.reikai.di.jpGraph
 import jp.reikai.lookup.LookupSheet
+import jp.reikai.reader.page.JpPageLookup
 import jp.reikai.reader.page.JpPageViewport
+import jp.reikai.reader.page.JpScanMessage
 import jp.reikai.yomitan.R
 import jp.reikai.yomitan.YomitanEngine
 import jp.reikai.yomitan.popup.PopupLookup
@@ -86,6 +88,9 @@ internal class JpReaderSession(
     private var sheet: LookupSheet? = null
     private var chapterUrl: String? = null
     private var closed = false
+
+    /** Lookup by tap in the Japanese reader's page (4.3), for the page viewport of this reader. */
+    private var pageLookup: JpPageLookup? = null
 
     /** Tells this reader's "Look up" presses from another reader's. */
     private val id = nextId.incrementAndGet()
@@ -163,12 +168,48 @@ internal class JpReaderSession(
 
     /**
      * The Japanese reader's page viewport (4.1). Its touches count as reading for the warm-up, as a
-     * text view's do; the lookup in its page (4.3) attaches through its listener.
+     * text view's do. While lookup is on, a tap on a word in its page looks it up (4.3, Yomitan's
+     * scanner in the page, [JpPageLookup]); a long-press selects the word and offers "Look up" as in
+     * the WebView reader.
      */
     fun onPageViewport(viewport: JpPageViewport) {
         viewport.listeners += object : JpPageViewport.Listener {
             override fun onTouch() = onTouched()
         }
+        val webView = viewport.view as? WebView ?: return
+        decorate(webView)
+        pageLookup?.unbind()
+        val lookup = JpPageLookup(viewport, webView, { graph.yomitanEngine }, pageListener)
+        pageLookup = lookup
+        viewport.listeners += lookup
+        val enabled = graph.jpPreferences.lookupEnabled()
+        // Before the first document loads, which takes the scanner only when joined.
+        if (enabled.get()) lookup.bind()
+        host.lifecycleScope.launch {
+            enabled.changes().distinctUntilChanged().collect { on ->
+                if (pageLookup !== lookup || closed) return@collect
+                if (on) lookup.bind() else lookup.unbind()
+            }
+        }
+    }
+
+    private val pageListener = object : JpPageLookup.Listener {
+        override fun onFound(found: JpScanMessage.Found, word: IntRange?, askedAt: Long) {
+            if (closed || !graph.jpLookup.isEnabled) return
+            val lookup = popupLookup(found.query, found.sentence, found.offset, kanji = found.kanji)
+            sheet().show(lookup, askedAt, word)
+            seenEngine = graph.yomitanEngine
+        }
+
+        override fun onWait() {
+            // A tap before the engine ran: it starts now, not at the next quiet moment; the page
+            // looks the tap up once the engine says it is ready.
+            if (closed || lease != null || !graph.jpLookup.isEnabled) return
+            val engine = graph.yomitanEngine.also { seenEngine = it }
+            lease = engine.acquire(host)
+        }
+
+        override fun context(): Pair<String?, String?> = chapterUrl to documentTitle()
     }
 
     private fun onLanguage(japanese: Boolean) {
@@ -235,7 +276,9 @@ internal class JpReaderSession(
         }
     }
 
-    private fun sheet(): LookupSheet = sheet ?: LookupSheet(host, graph.jpLookup).also { sheet = it }
+    // The word's highlight in the Japanese reader's page goes with the sheet.
+    private fun sheet(): LookupSheet = sheet ?: LookupSheet(host, graph.jpLookup) { pageLookup?.clear() }
+        .also { sheet = it }
 
     private fun onLookUp(query: String, sentence: String?, offset: Int, askedAt: Long = SystemClock.uptimeMillis()) {
         if (!graph.jpLookup.isEnabled) return
@@ -244,18 +287,21 @@ internal class JpReaderSession(
         seenEngine = graph.yomitanEngine
     }
 
-    private fun popupLookup(query: String, sentence: String?, offset: Int): PopupLookup {
-        val novel = viewModel.entryTitle.value
-        val chapter = viewModel.chapter.value?.title
-        return PopupLookup(
-            query = query,
-            sentence = sentence,
-            offset = offset,
-            documentTitle = listOfNotNull(chapter, novel).joinToString(" - ").ifEmpty { null },
-            url = chapterUrl,
-            dark = isDarkPage(),
-        )
-    }
+    private fun popupLookup(query: String, sentence: String?, offset: Int, kanji: Boolean = false) = PopupLookup(
+        query = query,
+        sentence = sentence,
+        offset = offset,
+        documentTitle = documentTitle(),
+        url = chapterUrl,
+        dark = isDarkPage(),
+        kanji = kanji,
+        // Anki's {screenshot}: the novel's cover.
+        picture = viewModel.cover.value?.let { NovelCoverPicture(host.applicationContext, it, graph.coverCache) },
+    )
+
+    /** The chapter and the novel, for Anki's `{document-title}` (Lapis's MiscInfo). */
+    private fun documentTitle(): String? =
+        listOfNotNull(viewModel.chapter.value?.title, viewModel.entryTitle.value).joinToString(" - ").ifEmpty { null }
 
     /** Whether the reader's page is dark, for Yomitan's "match the page" theme. */
     private fun isDarkPage(): Boolean {
@@ -310,6 +356,7 @@ internal class JpReaderSession(
     fun close() {
         if (closed) return
         closed = true
+        pageLookup = null
         job?.cancel()
         lookupJob?.cancel()
         runCatching { host.unregisterReceiver(receiver) }
@@ -428,16 +475,20 @@ internal class JpReaderSession(
         private val nextId = AtomicInteger()
 
         /**
-         * Whether a point (view pixels) is well left of the page's one-character selection: the finger
-         * was on the character before it. A press within a quarter character of the boundary counts
-         * as on the selected character: there Chromium's choice is as likely the word meant, and it
-         * needs no widening (a suggestion must contain Chromium's character, so the finger's word
-         * would be selected with that character added).
+         * Whether a point (view pixels) is well before the page's one-character selection: left of it,
+         * or above it in vertical text (the Japanese reader's page): the finger was on the character
+         * before it. A press within a quarter character of the boundary counts as on the selected
+         * character: there Chromium's choice is as likely the word meant, and it needs no widening (a
+         * suggestion must contain Chromium's character, so the finger's word would be selected with
+         * that character added).
          */
         private const val BEFORE_SELECTION =
             "function (x, y) { const s = getSelection(); if (!s || s.rangeCount === 0) { return false; } " +
-                "const r = s.getRangeAt(0).getBoundingClientRect(); " +
-                "return x / (devicePixelRatio || 1) < r.left - r.width / 4; }"
+                "const range = s.getRangeAt(0); const r = range.getBoundingClientRect(); " +
+                "const d = devicePixelRatio || 1; const at = range.startContainer; " +
+                "const e = at.nodeType === 1 ? at : at.parentElement; " +
+                "const vertical = !!e && getComputedStyle(e).writingMode.startsWith('vertical'); " +
+                "return vertical ? y / d < r.top - r.height / 4 : x / d < r.left - r.width / 4; }"
 
         /** About one line of the WebView page's text, for where the sheet opens. */
         private const val LINE_DP = 40f

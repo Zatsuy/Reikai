@@ -1,5 +1,6 @@
 package jp.reikai.yomitan.popup
 
+import jp.reikai.yomitan.LookupPicture
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -16,6 +17,9 @@ import java.net.URLEncoder
  *   to Yomitan (the device's theme).
  * @property showSentence show [sentence] (or a long [query]) parsed above the results, so each of its
  *   words can be tapped: for text from another app, where the word itself was not picked out.
+ * @property kanji look [query]'s first character up as a kanji (the reader's scanner found no word there,
+ *   only the kanji).
+ * @property picture the picture Anki's `{screenshot}` gets for this lookup (the book's cover), if any.
  */
 data class PopupLookup(
     val query: String,
@@ -25,6 +29,8 @@ data class PopupLookup(
     val url: String? = null,
     val dark: Boolean? = null,
     val showSentence: Boolean = false,
+    val kanji: Boolean = false,
+    val picture: LookupPicture? = null,
 )
 
 /** The popup page's addresses and history state for a [PopupLookup] (see `popup-host.js`). */
@@ -48,7 +54,7 @@ internal object PopupUrls {
      */
     fun page(lookup: PopupLookup): String {
         val params = buildList {
-            add("type" to "terms")
+            add("type" to if (lookup.kanji) "kanji" else "terms")
             add("query" to lookup.query)
             val full = lookup.sentence?.takeIf { it.length > lookup.query.length }
             if (full != null) {

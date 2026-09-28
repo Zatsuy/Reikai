@@ -49,6 +49,16 @@ class YomitanHubTest {
             done(Result.success(if (step == "start") """{"id":1}""" else ""))
         }
 
+        /** The picture of the lookup shown in each view, as Anki's {screenshot} gets it. */
+        val pictures = mutableMapOf<Int, String>()
+        override fun capture(viewId: Int, done: (Result<String>) -> Unit) {
+            done(
+                pictures[viewId]?.let {
+                    Result.success(it)
+                } ?: Result.failure(YomitanException(YomitanHub.NO_PICTURE)),
+            )
+        }
+
         override fun onTripwire(path: String, called: Boolean, url: String) {}
         override fun log(level: Char, text: String) {}
     }
@@ -298,6 +308,47 @@ class YomitanHubTest {
 
         popup.port.headers().map { it["t"]!!.jsonPrimitive.content } shouldContainExactly listOf("welcome", "msg")
         popup.port.headers().first()["role"]?.jsonPrimitive?.content shouldBe "frame"
+    }
+
+    @Test
+    fun `the backend's screenshot of a popup tab is that popup's picture`() {
+        val (backend) = engineAndSettings()
+        val popupView = hub.registerView(PageKind.POPUP)
+        Doc(popupView, url = YomitanOrigin.url("popup.html"))
+        host.pictures[popupView] = "data:image/jpeg;base64,AAAA"
+
+        backend.say("""{"t":"req","op":"capture","mid":4}""", """{"tabId":$popupView,"format":"png","quality":92}""")
+
+        backend.port.last()["err"] shouldBe null
+        backend.port.lastPayload() shouldBe "data:image/jpeg;base64,AAAA"
+    }
+
+    @Test
+    fun `a screenshot without a picture fails, as does one of no tab`() {
+        val (backend, _, settingsView) = engineAndSettings()
+
+        backend.say("""{"t":"req","op":"capture","mid":4}""", """{"tabId":$settingsView}""")
+        backend.port.last()["err"]?.jsonPrimitive?.content shouldBe YomitanHub.NO_PICTURE
+        backend.say("""{"t":"req","op":"capture","mid":5}""", """{"tabId":null}""")
+        backend.port.last()["err"]?.jsonPrimitive?.content shouldBe YomitanHub.NO_PICTURE
+    }
+
+    @ParameterizedTest(name = "a {0} page may not take a screenshot")
+    @CsvSource(
+        "SETTINGS, https://yomitan.reikai.invalid",
+        "POPUP, https://yomitan.reikai.invalid",
+        "READER, https://chapter.reikai.invalid",
+    )
+    fun `only the backend may take a screenshot`(kind: PageKind, origin: String) {
+        engineAndSettings()
+        val popupView = hub.registerView(PageKind.POPUP)
+        Doc(popupView, url = YomitanOrigin.url("popup.html"))
+        host.pictures[popupView] = "data:image/jpeg;base64,AAAA"
+        val page = Doc(hub.registerView(kind), origin = origin, url = "$origin/page")
+
+        page.say("""{"t":"req","op":"capture","mid":6}""", """{"tabId":$popupView}""")
+
+        page.port.last()["err"]?.jsonPrimitive?.content shouldBe "Reikai JP does not let this page use capture"
     }
 
     @Test

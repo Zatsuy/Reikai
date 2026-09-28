@@ -99,9 +99,16 @@ class JpPageViewport internal constructor(
 
         /** A touch began on the page. */
         fun onTouch() = Unit
+
+        /** The viewport ends: [webView] is destroyed right after. */
+        fun onDestroy(webView: WebView) = Unit
     }
 
     val listeners = CopyOnWriteArrayList<Listener>()
+
+    /** Whether the next documents load Yomitan's scanner (4.3: lookup is on and joined to this page). */
+    @Volatile
+    var lookup = false
 
     /**
      * Answers requests of the page before this viewport does (4.3: Yomitan's origin, for its content
@@ -250,6 +257,7 @@ class JpPageViewport internal constructor(
     override fun onChapterStepped() = Unit
 
     override fun destroy() {
+        listeners.forEach { it.onDestroy(webView) }
         listeners.clear()
         requestInterceptor = null
         dropPendingCalls()
@@ -294,6 +302,7 @@ class JpPageViewport internal constructor(
         documentSettings = settings
         val number = ++documents
         val current = options
+        val withLookup = lookup
         val insetTop = cutoutTopDp()
         documentInset = insetTop
         val baseUrl = chapter.baseUrl?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
@@ -309,7 +318,16 @@ class JpPageViewport internal constructor(
                     fraction = if (atEnd) 1.0 else chapter.progressPercent / 100.0,
                     settings = settingsJson(settings, current, insetTop),
                 )
-                Built(JpPageDocument.build(init, current, look(settings), chapter.title, html, fonts), fonts, hidden)
+                val document = JpPageDocument.build(
+                    init,
+                    current,
+                    look(settings),
+                    chapter.title,
+                    html,
+                    fonts,
+                    withLookup,
+                )
+                Built(document, fonts, hidden)
             }
         }
         // A later load or the viewport's end overtook this one while it was built.

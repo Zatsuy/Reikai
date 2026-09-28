@@ -74,7 +74,8 @@ outside), 画像 (a ruby base) and 読む with Yomitan's sentence and offset, re
 `vertical-rl` and the word selected; the whole word for a tap inside one (像, 込, む) and on a reading
 (がぞう); nothing for 朝; the highlight gone after `clear()`; and a margin tap left to the page. Last, the lookup sheet's page (`popup.html` with `popup-host.js`, the app's
 phone defaults) adds a card whose Picture field is `{screenshot}`: with a cover the canned
-AnkiConnect must receive that picture and the card, without one the card with an empty field. It
+AnkiConnect must receive that picture and the card, without one the card with an empty field, and
+no notice of Yomitan's may stay up after either (the host closes the one about the missing cover). It
 fails on any tripwire or stand-in "called" entry, stand-in error, uncaught page error or policy
 violation in the chapter page (one known race in Yomitan's own settings preview excepted, see
 `knownRace` in `smoke.mjs`). It passes

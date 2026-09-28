@@ -28,8 +28,8 @@
  * To the app, through the web message listener `reikaiReader` (chapter origin, main frame), JSON:
  *   {t: 'ready'}   Yomitan answered and its settings are applied
  *   {t: 'wait'}    a tap on text came before that; it is searched once ready (within 10 s)
- *   {t: 'found', type ('terms'|'kanji'), query, sentence: {text, offset}, full?, rects, writingMode}
- *                  rects: the word's client rects in CSS px, [{left, top, right, bottom}]
+ *   {t: 'found', type ('terms'|'kanji'), query, sentence: {text, offset}, full?, rects, writingMode, ms}
+ *                  rects: the word's client rects in CSS px, [{left, top, right, bottom}]; ms: since the tap
  *   {t: 'empty'}   a tap on text where Yomitan found nothing
  *   {t: 'error', message}   the search failed (the engine went away mid-search)
  * It connects when it loads and, when the engine was not running then, when the engine says it is
@@ -83,6 +83,8 @@ let starting = null;
 let early = null;
 /** A tap made while a search was running, searched after it. */
 let queued = null;
+/** When the tap being searched was made (performance.now()). */
+let tappedAt = 0;
 let busy = false;
 /** Whether the running search has told the app its outcome. */
 let answered = false;
@@ -179,6 +181,7 @@ function onFound({type, sentence, textSource}) {
             left: round(left), top: round(top), right: round(right), bottom: round(bottom),
         })),
         writingMode: textSource.getWritingMode(),
+        ms: Math.round(performance.now() - tappedAt),
     };
     // A picture's alt text (a gaiji): the whole text, as Frontend passes it (frontend.js _showContent).
     if (textSource instanceof TextSourceElement && textSource.fullContent !== query) {
@@ -231,17 +234,18 @@ async function searchAt(x, y) {
     if (!answered) { onEmpty(); }
 }
 
-async function tap(x, y) {
+async function tap(x, y, at = performance.now()) {
     if (busy) {
-        queued = {x, y};
+        queued = {x, y, at};
         return;
     }
     busy = true;
     try {
-        /** @type {?{x: number, y: number}} */
-        let point = {x, y};
+        /** @type {?{x: number, y: number, at: number}} */
+        let point = {x, y, at};
         while (point !== null) {
             queued = null;
+            tappedAt = point.at;
             try {
                 await searchAt(point.x, point.y);
             } catch (e) {
@@ -302,7 +306,7 @@ function start() {
             post({t: 'ready'});
             const pending = early;
             early = null;
-            if (pending !== null && performance.now() - pending.at < WAIT_MS) { void tap(pending.x, pending.y); }
+            if (pending !== null && performance.now() - pending.at < WAIT_MS) { void tap(pending.x, pending.y, pending.at); }
         },
         () => {
             // The engine is not running (nothing answered): tried again when it says it is ready.

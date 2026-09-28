@@ -95,6 +95,12 @@ internal interface HubHost {
      */
     fun save(viewId: Int, step: String, id: Int?, payload: String, done: (Result<String>) -> Unit)
 
+    /**
+     * Anki's `{screenshot}`: the picture of the lookup shown in the WebView [viewId] (the book's
+     * cover), as a data URL; [done] runs on the hub's thread, with a failure when there is none.
+     */
+    fun capture(viewId: Int, done: (Result<String>) -> Unit)
+
     /** The backend finished preparing (it announced `applicationBackendReady`). */
     fun onBackendReady()
 
@@ -410,7 +416,28 @@ internal class YomitanHub(private val host: HubHost) {
             }
             "fetch" -> fetch(from, mid, payload)
             "save" -> save(from, mid, header, payload)
+            "capture" -> capture(from, mid, payload)
             else -> replyError(from, mid, "unknown request $op")
+        }
+    }
+
+    /**
+     * Anki's `{screenshot}`, which Yomitan's backend takes of the tab a lookup came from after telling
+     * it to hide its popups (the stand-in names that tab): the picture of the lookup that tab shows.
+     * Only the backend may ask.
+     */
+    private fun capture(from: HubDoc, mid: Int, payload: String) {
+        if (from.role != DocRole.BACKEND) return replyError(from, mid, "Reikai JP does not let this page use capture")
+        val tab = runCatching { Json.parseToJsonElement(payload).jsonObject.int("tabId") }.getOrNull()
+        val view = docs.values.firstOrNull { it.tabId == tab && it.frameId == 0 && it.role != DocRole.BACKEND }?.viewId
+            ?: return replyError(from, mid, NO_PICTURE)
+        host.capture(view) { result ->
+            if (docs[from.key] !== from) return@capture
+            result.fold(
+                onSuccess = { reply(from, mid, it) },
+                onFailure = { replyError(from, mid, it.message ?: NO_PICTURE) },
+            )
+            flushDead()
         }
     }
 
@@ -587,6 +614,9 @@ internal class YomitanHub(private val host: HubHost) {
     internal companion object {
         const val NO_RECEIVER = "Could not establish connection. Receiving end does not exist."
         const val PORT_CLOSED = "The message port closed before a response was received."
+
+        /** Anki's `{screenshot}` with no picture for the lookup; `popup-host.js` knows this text. */
+        const val NO_PICTURE = "Reikai JP has no picture for this lookup"
 
         /**
          * What Yomitan's content script sends from a chapter page (the modules reachable from

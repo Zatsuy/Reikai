@@ -39,7 +39,9 @@ class JpPageMessageTest {
 
     @Test
     fun `a position out of range is held to the chapter`() {
-        val message = JpPageMessage.parse("""{"t":"pos","pos":{"charOffset":900,"chars":500,"fraction":7,"anchor":-3}}""")
+        val message = JpPageMessage.parse(
+            """{"t":"pos","pos":{"charOffset":900,"chars":500,"fraction":7,"anchor":-3}}""",
+        )
         (message as JpPageMessage.Position).pos.let {
             it.charOffset shouldBe 500
             it.fraction shouldBe 1.0

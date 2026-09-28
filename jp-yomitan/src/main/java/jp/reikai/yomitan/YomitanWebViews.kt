@@ -79,7 +79,22 @@ interface YomitanPageListener {
      */
     fun onDownload(download: YomitanDownload): Boolean = false
 
+    /**
+     * The picture for Anki's `{screenshot}` of the lookup on the page (the book's cover), or null
+     * when there is none: Yomitan then adds the card with that field empty.
+     */
+    fun picture(): LookupPicture? = null
+
     object None : YomitanPageListener
+}
+
+/**
+ * A lookup's picture for Anki's `{screenshot}`, which in a browser is a screenshot of the page: in
+ * Reikai JP, the cover of the book the word was looked up in.
+ */
+fun interface LookupPicture {
+    /** The picture as JPEG, at most [maxSize] pixels on its longer side; null when there is none. Off the main thread. */
+    suspend fun jpeg(maxSize: Int): ByteArray?
 }
 
 /** A file a Yomitan page saved: [file] is a temporary copy in the app's cache, named [name] by the page. */
@@ -107,6 +122,28 @@ class YomitanPage internal constructor(
         binding.detach()
         lease.close()
     }
+}
+
+/**
+ * A reader's chapter pages joined to the hub ([YomitanEngine.attachContent]): the stand-in runs in
+ * content mode in each of their documents. The WebView stays the reader's, and so does its
+ * WebViewClient, which answers the engine origin's files through [serve].
+ */
+class YomitanContent internal constructor(
+    private val binding: HubBinding,
+    private val server: EngineServer,
+) : Closeable {
+
+    /** The engine origin's files for the chapter page (Yomitan's modules), or null for another request. */
+    fun serve(request: WebResourceRequest): WebResourceResponse? {
+        val url = request.url
+        if (url.scheme != "https" || url.host != YomitanOrigin.HOST || url.port != -1) return null
+        if (request.method != "GET") return null
+        return server.serveAsset(url.path.orEmpty())
+    }
+
+    /** Leaves the hub; call before the WebView is destroyed. */
+    override fun close() = binding.detach()
 }
 
 /** Builds the stand-in script for each kind of page, with Yomitan's manifest embedded. */
@@ -146,6 +183,23 @@ internal class HubBinding(
         engine.detached(viewId)
         script.remove()
         WebViewCompat.removeWebMessageListener(webView, YomitanOrigin.HUB_NAME)
+    }
+
+    internal companion object {
+        /** The listener the stand-in of documents of [origins] in [webView] talks to, routed to the hub. */
+        @SuppressLint("RequiresFeature")
+        fun listen(engine: YomitanEngine, webView: WebView, viewId: Int, origins: Set<String>) {
+            WebViewCompat.addWebMessageListener(webView, YomitanOrigin.HUB_NAME, origins) {
+                    _,
+                    message,
+                    sourceOrigin,
+                    isMainFrame,
+                    proxy,
+                ->
+                val data = message.data ?: return@addWebMessageListener
+                engine.hub.onMessage(viewId, sourceOrigin.toString(), isMainFrame, proxy, ProxyPort(proxy), data)
+            }
+        }
     }
 }
 

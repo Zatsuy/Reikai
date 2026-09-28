@@ -66,9 +66,17 @@ class AnkiCardSetupTest {
         fields["Frequency"] shouldBe "{frequencies}"
         fields["FreqSort"] shouldBe "{frequency-harmonic-rank}"
         fields["MiscInfo"] shouldBe "{document-title}"
+        // The book's cover (Reikai JP answers Yomitan's screenshot with it).
+        fields["Picture"] shouldBe "{screenshot}"
         fields.filterValues { it.isEmpty() }.keys.toList().shouldContainExactly(
-            "DefinitionPicture", "SentenceFurigana", "SentenceAudio", "Picture", "Hint",
-            "IsWordAndSentenceCard", "IsClickCard", "IsSentenceCard", "IsAudioCard",
+            "DefinitionPicture",
+            "SentenceFurigana",
+            "SentenceAudio",
+            "Hint",
+            "IsWordAndSentenceCard",
+            "IsClickCard",
+            "IsSentenceCard",
+            "IsAudioCard",
         )
     }
 

@@ -136,8 +136,10 @@ object AnkiCardSetup {
     )
 
     /**
-     * Each of the note type's [fields] with its marker from Lapis's README; a field the README leaves
-     * empty (pictures, sentence furigana and audio, the card-type switches) or does not know stays empty.
+     * Each of the note type's [fields] with its marker from Lapis's README, and the book's cover as its
+     * Picture (`{screenshot}`, which Reikai JP answers with the cover of the book a word came from); a
+     * field the README leaves empty (sentence furigana and audio, the card-type switches) or does not
+     * know stays empty.
      */
     internal fun lapisFields(fields: List<String>, mainDictionary: String?): Map<String, String> {
         val markers =
@@ -197,7 +199,10 @@ object AnkiCardSetup {
         put("type", "term")
     }
 
-    /** Lapis's README, "Yomitan field setup"; MainDefinition depends on the dictionaries installed. */
+    /**
+     * Lapis's README, "Yomitan field setup", and Picture; MainDefinition depends on the dictionaries
+     * installed.
+     */
     private val LAPIS_MARKERS = mapOf(
         "Expression" to "{expression}",
         "ExpressionFurigana" to "{furigana-plain}",
@@ -211,5 +216,6 @@ object AnkiCardSetup {
         "Frequency" to "{frequencies}",
         "FreqSort" to "{frequency-harmonic-rank}",
         "MiscInfo" to "{document-title}",
+        "Picture" to "{screenshot}",
     )
 }

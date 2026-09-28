@@ -48,6 +48,7 @@ import logcat.logcat
 import okhttp3.OkHttpClient
 import java.io.Closeable
 import java.lang.ref.WeakReference
+import java.util.Base64
 
 /**
  * How the app sets up the engine (see the fork's DI graph in the app).
@@ -309,6 +310,26 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
         return YomitanPage(webView, kind, binding, lease).also { page = it }
     }
 
+    /**
+     * Joins the chapter pages of [origin] in a reader's [webView] to the hub (4.3): Yomitan's stand-in
+     * runs in content mode in each of their documents, so Yomitan's scripts there reach the engine with
+     * a content script's rights only (messaging within their tab, lookups). Unlike [attach], the
+     * WebView keeps its own WebViewClient, which serves the engine origin's files through
+     * [YomitanContent.serve], and no use of the engine is held (the reader holds its own). Call before
+     * the next load; null when the device's WebView cannot host the engine.
+     */
+    @SuppressLint("RequiresFeature")
+    fun attachContent(webView: WebView, origin: String): YomitanContent? {
+        checkMainThread()
+        if (!YomitanWebViews.supported) return null
+        val viewId = hub.registerView(PageKind.READER)
+        val origins = setOf(origin)
+        val script = WebViewCompat.addDocumentStartJavaScript(webView, scripts.standIn(PageKind.READER), origins)
+        HubBinding.listen(this, webView, viewId, origins)
+        listeners[viewId] = YomitanPageListener.None
+        return YomitanContent(HubBinding(this, webView, PageKind.READER, viewId, script), server)
+    }
+
     // --- starting and stopping ----------------------------------------------------------------------
 
     private fun start() {
@@ -429,16 +450,7 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
         val viewId = hub.registerView(kind)
         val origins = setOf(YomitanOrigin.ORIGIN)
         val script = WebViewCompat.addDocumentStartJavaScript(webView, scripts.standIn(kind), origins)
-        WebViewCompat.addWebMessageListener(webView, YomitanOrigin.HUB_NAME, origins) {
-                _,
-                message,
-                sourceOrigin,
-                isMainFrame,
-                proxy,
-            ->
-            val data = message.data ?: return@addWebMessageListener
-            hub.onMessage(viewId, sourceOrigin.toString(), isMainFrame, proxy, ProxyPort(proxy), data)
-        }
+        HubBinding.listen(this, webView, viewId, origins)
         val binding = HubBinding(this, webView, kind, viewId, script)
         listeners[viewId] = listener
         if (kind != PageKind.ENGINE) pageViews[viewId] = webView
@@ -500,6 +512,23 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
         override fun save(viewId: Int, step: String, id: Int?, payload: String, done: (Result<String>) -> Unit) =
             saves.step(viewId, step, id, payload, { view, file -> listeners[view]?.onDownload(file) == true }, done)
 
+        override fun capture(viewId: Int, done: (Result<String>) -> Unit) {
+            val picture = listeners[viewId]?.picture()
+                ?: return done(Result.failure(YomitanException(YomitanHub.NO_PICTURE)))
+            scope.launch {
+                val jpeg = runCatching { withContext(Dispatchers.IO) { picture.jpeg(PICTURE_MAX_PX) } }
+                    .onFailure { logcat(TAG, LogPriority.WARN) { "The lookup's picture: $it" } }
+                    .getOrNull()
+                done(
+                    if (jpeg == null) {
+                        Result.failure(YomitanException(YomitanHub.NO_PICTURE))
+                    } else {
+                        Result.success("data:image/jpeg;base64," + Base64.getEncoder().encodeToString(jpeg))
+                    },
+                )
+            }
+        }
+
         override fun onBackendReady() {
             if (stateFlow.value != State.Starting) return
             watchdog?.cancel()
@@ -548,6 +577,9 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
     companion object {
         const val TAG = "Yomitan"
         private const val START_TIMEOUT_MILLIS = 30_000L
+
+        /** The longer side of a lookup's picture on an Anki card, in pixels (a cover, not a screen). */
+        private const val PICTURE_MAX_PX = 800
 
         /** Where Yomitan keeps its settings in `chrome.storage.local` (`options-util.js`). */
         private const val OPTIONS_KEY = "options"

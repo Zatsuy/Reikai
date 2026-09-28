@@ -484,6 +484,13 @@ async function addCard(popup, found, token, documentTitle) {
         return true;
     }), 20_000);
     await waitFor(`the note for ${found.query} at AnkiConnect`, () => anki.notes.length > notes, 20_000);
+    // Yomitan's notice of errors, if one stays up after the card is added.
+    await popup.waitForTimeout(600);
+    const notice = await popup.evaluate(() => {
+        const shown = [...document.querySelectorAll('#content-footer .footer-notification')].find((n) => !n.hidden);
+        return shown ? shown.textContent.replace(/\s+/g, ' ').trim() : null;
+    });
+    if (notice !== null) { fail(`a notice stayed up after the card for ${found.query}: ${notice}`); }
     return anki.notes[anki.notes.length - 1];
 }
 
@@ -666,7 +673,7 @@ try {
     const mediaBefore = anki.media.length;
     const withoutCover = await addCard(popup, second, 2, bookTitle);
     if (same([withoutCover.fields.Expression, withoutCover.fields.Picture, anki.media.length], ['読む', '', mediaBefore], 'the card added without a cover')) {
-        say('anki: without a cover the card is still added, its picture field empty');
+        say('anki: without a cover the card is still added, its picture field empty, and no notice stays up');
     }
     await readerContext.close();
     await context.close();

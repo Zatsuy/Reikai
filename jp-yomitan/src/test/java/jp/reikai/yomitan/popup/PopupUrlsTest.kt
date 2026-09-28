@@ -36,6 +36,11 @@ class PopupUrlsTest {
     }
 
     @Test
+    fun `a kanji the reader found only as a kanji is looked up as one`() {
+        params(PopupUrls.page(PopupLookup(query = "込", kanji = true)))["type"] shouldBe "kanji"
+    }
+
+    @Test
     fun `text from another app is shown parsed so each word can be tapped`() {
         params(PopupUrls.page(PopupLookup(query = "猫が好きです", showSentence = true)))["full-visible"] shouldBe "true"
     }
