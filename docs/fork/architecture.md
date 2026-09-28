@@ -59,11 +59,12 @@ while staying a thin, mergeable layer over Reikai.
   the backend builds its database and translator in-process (`ext/js/background/backend.js:67-73`).
   An app-scoped `YomitanEngine`, reference-counted by the Japanese reader, the popup, the
   dictionary and settings screens, loads `background.html`; it never starts while lookup is off
-  (D-025), starts in a reader once the page has been still for 2 s, stops 60 s after its last user
+  (D-025), starts in a reader once the page has been still for 2 s (at once when a word is tapped first), stops 60 s after its last user
   (at once when lookup is switched off), and restarts after a renderer crash (three times in five
   minutes at most).
 - **The stand-in** (`jp-yomitan/src/main/assets/jp-reikai/stand-in.js`, injected by
-  `addDocumentStartJavaScript` into engine-origin documents only): the browser-extension
+  `addDocumentStartJavaScript` into engine-origin documents and, in its content mode, into the
+  Japanese reader's chapter pages, `YomitanEngine.attachContent`): the browser-extension
   functions Yomitan calls (runtime and tab messaging and ports, `storage.local` kept by the app in
   one `jp_` preference so backups carry it, `storage.session` in the app, permissions, logged
   no-ops), routed by the app's hub (`YomitanHub`), one WebView per "tab". It covers what the Phase 2
@@ -96,6 +97,9 @@ while staying a thin, mergeable layer over Reikai.
   per popup), media through the module's own `AnkiMediaProvider`, "view note" through AnkiDroid's
   card browser. No extra app, no open network port. `findCards` and `cardsInfo` use AnkiDroid
   2.24's `cards` table; card flags are not exposed.
+  The book's cover reaches cards through Yomitan's `{screenshot}` marker: the stand-in sends
+  `tabs.captureVisibleTab` to the app (a request only the engine's backend may make), which answers
+  with the cover of the novel the lookup came from; "Set up cards for Lapis" maps Picture to it.
 - **Audio** (`jp-yomitan/.../audio/`): online sources are fetched natively (a WebView page cannot,
   for cross-origin rules); the community `android.db` local audio collection is copied once into
   app storage from the file picked (Android refuses SQLite on the picked file in place), served
@@ -128,25 +132,40 @@ while staying a thin, mergeable layer over Reikai.
 
 | Surface | How |
 |---|---|
-| Japanese reading mode | Yomitan's own text-scanning code in the page: vertical text, furigana skipping and sentence rules behave like desktop Yomitan |
+| Japanese reading mode | A tap runs Yomitan's own `TextScanner` in the chapter page (`jp-reikai/reader-scan.js`, no Yomitan frontend or iframe popup): vertical text, furigana skipping and sentence rules behave like desktop Yomitan. The search starts at the start of the tapped word (the browser's Japanese word breaks), so a tap anywhere in a word or on its reading finds it; results go to the app's sheet |
 | Upstream's native and WebView text modes | Long-press selection. A fork `TextClassifier` (`app/.../jp/reikai/reader/JpTextClassifier.kt`, on each chunk `TextView` and the WebView) answers Japanese text with ICU's Japanese word around the character under the finger, extended by the dictionary's longest match when the engine is warm (150 ms cap), and puts "Look up" first in the selection toolbar |
 | Manga | OCR boxes in image coordinates, mapped through the page view's zoom and pan |
 | Other apps | Android's text-selection menu ("Look up in Reikai JP", `ACTION_PROCESS_TEXT`, `LookupActivity`: the sheet over the other app; switched off with lookup) |
 
 ### 5. Japanese reading mode
 
-- A third novel viewport beside upstream's native and WebView modes, in its own files, plugged in
-  through the one place the reader picks a viewport (`NovelReaderProvider.createViewport`,
-  `app/src/main/java/reikai/presentation/reader/NovelReaderProvider.kt:273`) behind upstream's
-  `ReaderViewport` interface. It reuses upstream's chapter list, progress, history and tracking.
-- **The reader chooses vertical or horizontal text**, pages or continuous scroll; ttu's four
-  furigana modes; `lang="ja"`; Japanese fonts; Japanese line breaking; position kept by character
-  so font changes never lose the place; ttu-compatible character counts.
-- **Default for Japanese text, never forced.** Japanese is detected from the source's language
-  (`NovelSource.lang`, mapped to ISO codes by upstream) or, for local books, from the text itself.
-  The first time a novel opens in Japanese mode the reader says what it is and where the switch
-  is; one tap in the reader menu goes back to the standard reader, remembered per novel (the
-  novel's `viewerFlags`, where 0 already means "follow the default").
+Built in Phase 4; details, the page contract and as-built notes in
+[research/phase4-design-2026-09.md](research/phase4-design-2026-09.md).
+
+- A third novel viewport beside upstream's native and WebView modes (`jp.reikai.reader.page`),
+  behind upstream's `ReaderViewport` and `TextViewport` interfaces. A placeholder view takes
+  `createViewport`'s place and builds the real viewport once the novel's choice is known, so the
+  main thread never waits on the database. One chapter per document at
+  `https://chapter.reikai.invalid/` (its own origin, under a Content-Security-Policy that runs only
+  the reader's script and Yomitan's modules); the page script (`app/src/main/assets/jp-reader/`,
+  tested headless by `scripts/fork/jp-reader-test/`) lays it out as pages (the body a multi-column
+  scroller, as chimahon and Hoshi Reader do) or a continuous scroll, vertical or horizontal.
+  Seamless chapters are off in this reader. It reports upstream's percent progress, so history,
+  "read" and tracking work unchanged, and keeps its own place to the character in the fork's
+  `jp_reader.db`, which also holds the reading statistics.
+- **The reader chooses vertical or horizontal text**, pages or continuous scroll; ttu's furigana
+  modes; `lang="ja"`; the system's Mincho or Gothic or an added font; Japanese line breaking;
+  upright short numbers; position kept by character through font, layout and rotation changes;
+  ttu's character count and statistics (exportable for ttu); a fork status bar.
+- **Default for Japanese text, never forced.** A novel from a `ja` source opens here; a source of
+  no single language decides by the first chapter's text. The first time, a one-time message says
+  it reads vertically like a printed book and offers horizontal (D-026). "Switch to standard
+  reader" in the reader's menu goes back, remembered per novel (`viewer_flags` bits `0x300`, where
+  0 means "follow the default").
+- **Seams:** the viewport choice in `NovelReaderProvider.attach`, the WebView form of the chapter
+  in `NovelChapterTextLoader`, one chapter at a time in `NovelReaderViewModel`, a settings row in
+  `NovelReaderSettingsPages`, the menu line in `ReaderTopBar`, short chapters marked read in
+  `reportFitsOnScreen`, and the translation swap in `loadChapterHtml`.
 
 ### 6. Local books, learning extras, manga lookup (later phases)
 
@@ -198,7 +217,10 @@ renderer PSS, `cmd` with `bench` for lookups).
 | Lookup in the engine (`termsFind`, 300 of 16 characters) | inside the tap budget (tablet p95 20 ms; spike 37.6) |
 | JMdict import (one-time) | completes without crashing, under 5 min (Jitendex from its URL in Yomitan's settings: 147 s tablet, 184-197 s phone) |
 | App cold start | not slower than upstream (the engine never starts at app start) |
-| Chapter open in Japanese mode | not slower than upstream's WebView mode |
+| Chapter open in Japanese mode | not slower than upstream's WebView mode (tablet, a downloaded chapter, tap to settled text: median ~98 ms, 85-144 ms; upstream's WebView mode median ~194 ms, 119-235 ms) |
+| Page turn in Japanese mode | inside one frame (tablet: 0.3-0.4 ms of script, 0.5-2 ms to work out the position) |
+| Re-layout after a settings change | under 300 ms for a 20 000-character chapter (headless, 4x CPU slowdown: 150-210 ms; tablet, a 2 000-character chapter changing direction: ~20 ms) |
+| Tap to results in Japanese mode | as the tap budget above (tablet: min 74, median 120, max 166 ms, the page's search plus the sheet's) |
 | Engine memory | the engine alone under +200 MB in total (app PSS growth plus its WebView renderer) on both devices, by `yomitan_check.py mem` (tablet: app 209-217 → 278-289 MB plus a 76-79 MB renderer; phone: 240-256 → 264-287 MB plus 98-103 MB; at most about +160 MB on either. Reading with the sheet open: tablet native reader 452 + 119 MB, phone WebView reader 447 + 141 MB) |
 
 After the engine stops, WebView keeps its renderer (about 93 MB) until the app restarts, so
@@ -211,5 +233,5 @@ off.
 |---|---|
 | Yomitan cannot be hosted in a WebView after all | Not seen in the spike or in Phase 3. If it happens: GeckoView running Yomitan as a real extension (about +50 MB per phone architecture, unverified), or a native engine |
 | IndexedDB too slow on the phone | The database escape hatch above |
-| Upstream reorganises the reader again | The Japanese mode is a separate viewport behind upstream's interface; only the one seam moves |
+| Upstream reorganises the reader again | The Japanese mode is a separate viewport behind upstream's interfaces; its seven small seams (section 5) move with the code they sit in |
 | Yomitan stops being maintained | The pinned release keeps working; its stable contracts (dictionary format, markers) make a minimal fork of it feasible |

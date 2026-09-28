@@ -36,6 +36,12 @@ Changes you will notice in the app, newest first. Upstream Reikai's own changes 
   off in the standard reader unless you switch it on).
 - A chapter that fits on one screen is marked read as soon as it opens (switch in the reader
   settings).
+- **Translate chapter** in the reader's menu (⋮) shows the chapter translated, in either reader, and
+  **Show original** goes back. Nothing is sent until you tap it. Settings → Japanese →
+  **Translation** picks the service: Google (no key, the default), DeepL (your key), or an AI
+  service (OpenAI, Gemini, DeepSeek, OpenRouter, Ollama or another, with your key, address and
+  model). Keys are not saved in backups. Translations are kept, so opening one again sends nothing.
+  In the Japanese reader a translated chapter shows horizontally, without lookup or statistics.
 
 ### Japanese: look up words with Yomitan
 - New **Settings → Japanese**. Word lookup runs the real Yomitan (the same code as the browser
