@@ -50,8 +50,8 @@ internal data class NovelCoverPicture(
         }
     }
 
-    private companion object {
-        const val JPEG_QUALITY = 85
+    internal companion object {
+        private const val JPEG_QUALITY = 85
 
         /**
          * What LNReader plugins name as the cover of a novel without one: the plugin host's
