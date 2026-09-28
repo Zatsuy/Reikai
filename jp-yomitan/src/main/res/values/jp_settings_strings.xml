@@ -18,6 +18,7 @@
     <string name="jp_settings_open_dictionary_summary">Search Japanese words</string>
     <string name="jp_settings_pin_dictionary">Add the dictionary to the home screen</string>
     <string name="jp_settings_pin_dictionary_summary">A Dictionary icon next to your apps, to search a word in one tap</string>
+    <string name="jp_settings_pin_dictionary_failed">The home screen did not take the Dictionary icon</string>
     <string name="jp_settings_engine_failed">The dictionary could not start: %1$s</string>
 
     <!-- Dictionaries -->

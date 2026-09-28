@@ -2,10 +2,13 @@ package jp.reikai.lookup
 
 import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import jp.reikai.yomitan.R
+import logcat.LogPriority
+import logcat.logcat
 
 /**
  * The "Dictionary" shortcut to the search screen (roadmap 3.4), which the Japanese settings offer to
@@ -17,7 +20,11 @@ import jp.reikai.yomitan.R
  */
 internal object DictionaryShortcut {
 
-    private const val ID = "jp_dictionary"
+    /**
+     * Not "jp_dictionary": that was a manifest shortcut in earlier builds, and one pinned then stays on
+     * the home screen as a disabled manifest shortcut, which a pin request with its id may not touch.
+     */
+    private const val ID = "jp_dictionary_home"
 
     private fun info(context: Context): ShortcutInfoCompat = ShortcutInfoCompat.Builder(context, ID)
         .setShortLabel(context.getString(R.string.jp_dictionary))
@@ -28,6 +35,14 @@ internal object DictionaryShortcut {
 
     fun canPin(context: Context): Boolean = ShortcutManagerCompat.isRequestPinShortcutSupported(context)
 
-    /** Asks the launcher to put the shortcut on the home screen (it asks the user to confirm). */
-    fun pin(context: Context): Boolean = ShortcutManagerCompat.requestPinShortcut(context, info(context), null)
+    /**
+     * Asks the launcher to put the shortcut on the home screen (it asks the user to confirm); says so
+     * when the launcher refuses or the request fails.
+     */
+    fun pin(context: Context) {
+        val asked = runCatching { ShortcutManagerCompat.requestPinShortcut(context, info(context), null) }
+            .onFailure { logcat(LogPriority.WARN) { "Dictionary shortcut: $it" } }
+            .getOrDefault(false)
+        if (!asked) Toast.makeText(context, R.string.jp_settings_pin_dictionary_failed, Toast.LENGTH_LONG).show()
+    }
 }
