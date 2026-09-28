@@ -22,6 +22,7 @@ import jp.reikai.lookup.JpPageOpener
 import jp.reikai.lookup.PreferenceYomitanStorage
 import jp.reikai.reader.page.JpReaderModes
 import jp.reikai.stats.JpReadingStatistics
+import jp.reikai.translate.ChapterTranslations
 import jp.reikai.yomitan.LocalServer
 import jp.reikai.yomitan.YomitanConfig
 import jp.reikai.yomitan.YomitanEngine
@@ -73,6 +74,9 @@ interface JpGraph {
 
     /** A novel's own cover, as the picture of a word looked up in it on an Anki card (4.3). */
     val coverCache: CoverCache
+
+    /** Chapter translation in the novel reader (4.5). */
+    val chapterTranslations: ChapterTranslations
 }
 
 val Context.jpGraph: JpGraph get() = metroGraph<JpGraph>()

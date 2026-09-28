@@ -3,6 +3,8 @@ package jp.reikai
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import jp.reikai.translate.AiPreset
+import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 
 /**
@@ -72,4 +74,25 @@ class JpPreferences(private val preferenceStore: PreferenceStore) {
 
     /** A chapter that fits on one screen or page is marked read when it opens, in either reader. */
     fun shortChaptersRead() = preferenceStore.getBoolean("jp_short_chapters_read", true)
+
+    // Chapter translation (4.5, phase 4 ruling 15). Keys are private preferences, which backups leave out.
+
+    /** `google` (the default, no key), `deepl` or `ai` (a service with an OpenAI-compatible API). */
+    fun translateEngine() = preferenceStore.getString("jp_translate_engine", "google")
+
+    /** A language code to translate into; empty for the device's language (English on a Japanese device). */
+    fun translateTarget() = preferenceStore.getString("jp_translate_target", "")
+
+    fun translateDeepLKey() = preferenceStore.getString(Preference.privateKey("jp_translate_deepl_key"), "")
+
+    /** Which service the AI engine's address and model were last taken from ([AiPreset]). */
+    fun translateAiPreset() = preferenceStore.getString("jp_translate_ai_preset", AiPreset.OPENAI.key)
+
+    fun translateAiAddress() = preferenceStore.getString("jp_translate_ai_address", AiPreset.OPENAI.address)
+
+    fun translateAiModel() = preferenceStore.getString("jp_translate_ai_model", AiPreset.OPENAI.model)
+
+    /** The AI service's key, one per preset, so switching services keeps each key. */
+    fun translateAiKey(preset: String) =
+        preferenceStore.getString(Preference.privateKey("jp_translate_ai_key_$preset"), "")
 }
