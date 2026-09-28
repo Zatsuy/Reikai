@@ -74,7 +74,8 @@ class TranslationSession internal constructor(
         val original = reused ?: loader()
         val key = shownState.value[chapterId] ?: return original
         originals[chapterId] = original
-        val translation = withContext(Dispatchers.Default) {
+        // The saved translation is read from its file: IO, with the hashing and the swap alongside.
+        val translation = withContext(Dispatchers.IO) {
             runCatching { translated(chapterId, key, original.first) }
                 .onFailure { logcat(LogPriority.WARN, it) { "Could not show chapter $chapterId translated" } }
                 .getOrNull()
