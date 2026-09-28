@@ -1,5 +1,8 @@
 package jp.reikai.yomitan
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+
 /**
  * `chrome.storage.local` for Yomitan (it keeps all its settings there, under "options"). The app
  * backs it with a preference so the settings are in the app's backups and survive a WebView data
@@ -14,6 +17,12 @@ interface YomitanStorage {
     fun remove(keys: Collection<String>)
 
     fun clear()
+
+    /**
+     * Emits when the stored values were replaced from outside Yomitan (a restored backup): a running
+     * engine restarts, since Yomitan's backend reads its settings only when it starts.
+     */
+    val replaced: Flow<Unit> get() = emptyFlow()
 
     /** A storage that lives only as long as the process (tests, and a fallback). */
     class InMemory : YomitanStorage {

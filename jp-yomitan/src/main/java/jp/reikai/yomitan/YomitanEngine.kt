@@ -165,6 +165,14 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
                 }
             }
         }
+        scope.launch {
+            config.storage.replaced.collect {
+                if (engineView == null) return@collect
+                logcat(TAG, LogPriority.INFO) { "Yomitan's settings were replaced: restarting the engine" }
+                stop(State.Stopped)
+                if (leases.isNotEmpty()) start()
+            }
+        }
         app.registerComponentCallbacks(
             object : ComponentCallbacks2 {
                 override fun onTrimMemory(level: Int) {

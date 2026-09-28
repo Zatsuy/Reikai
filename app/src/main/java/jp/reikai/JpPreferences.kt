@@ -19,7 +19,9 @@ class JpPreferences(private val preferenceStore: PreferenceStore) {
     /**
      * Yomitan's `chrome.storage.local` (its settings, under "options"), as one JSON object of JSON
      * texts. Kept here rather than in WebView's storage so the app's backups carry it and clearing
-     * WebView data does not reset Yomitan.
+     * WebView data does not reset Yomitan. Upstream's backup carries only this preference file
+     * (`PreferenceBackupCreator`), so it stays here rather than in a file of its own; one profile's
+     * default settings are about 9 KB (16 KB as stored), a few more with custom card templates.
      */
     fun yomitanStorage() = preferenceStore.getString("jp_yomitan_storage_local", "{}")
 
