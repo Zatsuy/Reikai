@@ -1,5 +1,6 @@
 package jp.reikai.export
 
+import android.Manifest
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -8,7 +9,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.provider.DocumentsContract
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.PermissionChecker
 import androidx.core.net.toUri
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
@@ -23,9 +27,11 @@ import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import eu.kanade.tachiyomi.util.system.notify
 import eu.kanade.tachiyomi.util.system.setForegroundSafely
+import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.workManager
 import jp.reikai.di.jpGraph
 import logcat.LogPriority
+import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import kotlin.coroutines.cancellation.CancellationException
 import jp.reikai.yomitan.R as JpR
@@ -33,8 +39,8 @@ import jp.reikai.yomitan.R as JpR
 /**
  * Writes a novel's EPUB in the background (4.5, phase 4 ruling 16), so leaving the screen does not stop
  * it: a progress notification with Cancel on upstream's common channel, then one that says how many
- * chapters went in and how many were skipped as not downloaded, and opens the book when tapped. A
- * failed or empty export deletes the file it was given.
+ * chapters went in and how many were skipped as not downloaded, and opens the book when tapped (a toast
+ * saying the same when notifications are off). A failed or empty export deletes the file it was given.
  */
 class NovelEpubJob(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
@@ -116,7 +122,15 @@ class NovelEpubJob(context: Context, params: WorkerParameters) : CoroutineWorker
         return applicationContext.getString(JpR.string.jp_export_counts, exported, skipped)
     }
 
-    private fun result(heading: String, text: String, book: Uri? = null) {
+    /**
+     * Says how the export ended: a notification, or, when this app may not post one (notifications off,
+     * the permission refused, the channel blocked), a long toast, the only way the owner would learn it.
+     */
+    private suspend fun result(heading: String, text: String, book: Uri? = null) {
+        if (!canNotify()) {
+            withUIContext { applicationContext.toast(heading + "\n" + text, Toast.LENGTH_LONG) }
+            return
+        }
         applicationContext.notify(ID_RESULT, Notifications.CHANNEL_COMMON) {
             setSmallIcon(R.drawable.ic_reikai)
             setContentTitle(heading)
@@ -138,6 +152,19 @@ class NovelEpubJob(context: Context, params: WorkerParameters) : CoroutineWorker
                 )
             }
         }
+    }
+
+    private fun canNotify(): Boolean {
+        val manager = NotificationManagerCompat.from(applicationContext)
+        if (!manager.areNotificationsEnabled()) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            PermissionChecker.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) !=
+            PermissionChecker.PERMISSION_GRANTED
+        ) {
+            return false
+        }
+        val channel = manager.getNotificationChannelCompat(Notifications.CHANNEL_COMMON) ?: return true
+        return channel.importance != NotificationManagerCompat.IMPORTANCE_NONE
     }
 
     /** An unfinished book is no book: the file picked for it goes. */
