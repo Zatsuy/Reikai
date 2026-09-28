@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.view.Gravity
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -32,6 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
+import java.io.File
 
 /**
  * Yomitan's own settings (`settings.html`), and its other pages (info, legal), full screen: "All
@@ -59,14 +61,28 @@ class YomitanSettingsActivity : ComponentActivity() {
         answerFiles(uris.takeIf { it.isNotEmpty() }?.toTypedArray())
     }
 
+    /** The file waiting for the user's "save as" choice; kept across a recreation behind the picker. */
     private var pendingSave: YomitanDownload? = null
     private val saveAs = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        pendingSave?.let { finishSave(it, result.data?.data?.takeIf { result.resultCode == RESULT_OK }) }
+        val target = result.data?.data?.takeIf { result.resultCode == RESULT_OK }
+        val save = pendingSave
         pendingSave = null
+        if (save != null) {
+            finishSave(save, target)
+        } else if (target != null) {
+            // The file went with the app while the picker was open: the picker's new file is empty.
+            lifecycleScope.launch {
+                withContext(Dispatchers.IO) {
+                    runCatching { DocumentsContract.deleteDocument(contentResolver, target) }
+                }
+                Toast.makeText(this@YomitanSettingsActivity, R.string.jp_yomitan_save_failed, Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingSave = savedInstanceState?.let(::restoreSave)
         frame = FrameLayout(this)
         setContentView(frame)
         ViewCompat.setOnApplyWindowInsetsListener(frame) { view, insets ->
@@ -167,7 +183,8 @@ class YomitanSettingsActivity : ComponentActivity() {
         }
 
         override fun onDownload(download: YomitanDownload): Boolean {
-            pendingSave?.file?.delete()
+            // One "save as" at a time: a second would take over the first one's chosen file.
+            if (pendingSave != null) return false
             pendingSave = download
             saveAs.launch(
                 Intent(Intent.ACTION_CREATE_DOCUMENT)
@@ -208,9 +225,28 @@ class YomitanSettingsActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        pendingSave?.let {
+            outState.putString(STATE_SAVE_NAME, it.name)
+            outState.putString(STATE_SAVE_TYPE, it.mimeType)
+            outState.putString(STATE_SAVE_FILE, it.file.path)
+        }
+    }
+
+    private fun restoreSave(state: Bundle): YomitanDownload? {
+        val file = state.getString(STATE_SAVE_FILE)?.let(::File)?.takeIf { it.isFile } ?: return null
+        return YomitanDownload(
+            state.getString(STATE_SAVE_NAME) ?: file.name,
+            state.getString(STATE_SAVE_TYPE) ?: "*/*",
+            file,
+        )
+    }
+
     override fun onDestroy() {
         answerFiles(null)
-        pendingSave?.file?.delete()
+        // Recreated behind the picker, the new screen takes the file over (onSaveInstanceState).
+        if (!isChangingConfigurations) pendingSave?.file?.delete()
         pendingSave = null
         page?.close()
         page = null
@@ -224,6 +260,9 @@ class YomitanSettingsActivity : ComponentActivity() {
         private const val EXTRA_SECTION = "section"
         private const val EXTRA_RECOMMENDED = "recommended"
         private const val SETTINGS = "settings.html"
+        private const val STATE_SAVE_NAME = "jp_save_name"
+        private const val STATE_SAVE_TYPE = "jp_save_type"
+        private const val STATE_SAVE_FILE = "jp_save_file"
 
         /** Yomitan's settings sections the Japanese settings open (`<h2 id>` in `settings.html`). */
         const val DICTIONARIES = "dictionaries"

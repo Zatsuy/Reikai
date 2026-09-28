@@ -138,10 +138,27 @@ object SettingsJapaneseScreen : SearchableSettings {
         }
         if (confirmRemove) {
             val size = state.localAudioBytes?.let { Formatter.formatShortFileSize(context, it) }.orEmpty()
+            // While it is still copying, the removal stops the copy.
+            val copying = state.localAudio is LocalAudio.Status.Copying
             AlertDialog(
                 onDismissRequest = { confirmRemove = false },
-                title = { Text(stringResource(R.string.jp_settings_local_audio_remove_title)) },
-                text = { Text(stringResource(R.string.jp_settings_local_audio_remove_body, size)) },
+                title = {
+                    val title = if (copying) {
+                        R.string.jp_settings_local_audio_stop_title
+                    } else {
+                        R.string.jp_settings_local_audio_remove_title
+                    }
+                    Text(stringResource(title))
+                },
+                text = {
+                    Text(
+                        if (copying) {
+                            stringResource(R.string.jp_settings_local_audio_stop_body)
+                        } else {
+                            stringResource(R.string.jp_settings_local_audio_remove_body, size)
+                        },
+                    )
+                },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -386,6 +403,7 @@ object SettingsJapaneseScreen : SearchableSettings {
                     size(audio.totalBytes),
                 ),
                 state.lookupOn,
+                onClick = actions.removeLocalAudio,
             )
             is LocalAudio.Status.Ready, LocalAudio.Status.Closed -> row(
                 title,

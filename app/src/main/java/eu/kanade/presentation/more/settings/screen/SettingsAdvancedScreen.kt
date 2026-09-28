@@ -312,8 +312,9 @@ object SettingsAdvancedScreen : SearchableSettings {
                                 clearSslPreferences()
                             }
                             // FORK --> every site's storage but the Yomitan dictionaries (the lookup engine's
-                            // origin), instead of all storage and WebView's whole data directory
-                            jp.reikai.settings.WebViewData.clearKeepingDictionaries()
+                            // origin), instead of all storage and WebView's whole data directory; upstream's
+                            // WebStorage and java.io.File imports went with the lines this replaces
+                            jp.reikai.settings.WebViewData.clearKeepingDictionaries(context)
                             // FORK <--
                             context.toast(MR.strings.webview_data_deleted)
                         } catch (e: Throwable) {

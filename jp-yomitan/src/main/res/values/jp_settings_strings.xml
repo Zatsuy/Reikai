@@ -59,12 +59,14 @@
     <string name="jp_settings_audio_group">Word audio</string>
     <string name="jp_settings_local_audio">Local audio file</string>
     <string name="jp_settings_local_audio_none">Optional: pick your android.db (an offline collection of word recordings) to hear words without the internet. It is copied into the app, so you can delete the original afterwards</string>
-    <string name="jp_settings_local_audio_copying">Copying into the app: %1$s of %2$s</string>
+    <string name="jp_settings_local_audio_copying">Copying into the app: %1$s of %2$s. Tap to stop</string>
     <string name="jp_settings_local_audio_opening">Opening…</string>
     <string name="jp_settings_local_audio_ready">%1$s, played first. Tap to remove it</string>
     <string name="jp_settings_local_audio_failed">This file could not be used (%1$s). Tap to pick another</string>
     <string name="jp_settings_local_audio_remove_title">Remove local audio?</string>
     <string name="jp_settings_local_audio_remove_body">This deletes the app\'s copy (%1$s). Words then play from the internet sources.</string>
+    <string name="jp_settings_local_audio_stop_title">Stop copying local audio?</string>
+    <string name="jp_settings_local_audio_stop_body">The copy stops and what was copied so far is deleted. Words then play from the internet sources.</string>
     <string name="jp_settings_local_audio_remove">Remove</string>
     <string name="jp_settings_tts">Speak words that have no recording</string>
     <string name="jp_settings_tts_ready">Uses your device\'s Japanese voice, after every recording source</string>
