@@ -61,7 +61,8 @@ import java.lang.ref.WeakReference
  *   web links open, in the browser.
  * @property debug debug builds: DevTools, Yomitan's console in logcat.
  * @property onReady runs each time Yomitan's backend is ready; `newSettings` when it started without
- *   any settings stored (so Yomitan has just made its defaults).
+ *   any settings stored (so Yomitan has just made its defaults), or a start before it did and never
+ *   got as far as this.
  */
 class YomitanConfig(
     val lookupEnabled: Flow<Boolean>,
@@ -150,7 +151,10 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
     private var engineBinding: HubBinding? = null
     private var loadStartedAt = 0L
 
-    /** This start of the engine found no settings stored. */
+    /**
+     * This start of the engine found no settings stored, or an earlier start that never got as far as
+     * the backend being ready did (Yomitan may have stored its new defaults before the renderer died).
+     */
     private var startedWithoutSettings = false
     private var graceJob: Job? = null
     private var watchdog: Job? = null
@@ -322,7 +326,7 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
         }
         placeEngineView()
         loadStartedAt = SystemClock.elapsedRealtime()
-        startedWithoutSettings = config.storage.get(listOf(OPTIONS_KEY)).isEmpty()
+        startedWithoutSettings = startedWithoutSettings || config.storage.get(listOf(OPTIONS_KEY)).isEmpty()
         view.loadUrl(YomitanOrigin.url("background.html"))
         watchdog = scope.launch {
             delay(START_TIMEOUT_MILLIS)
@@ -496,6 +500,7 @@ class YomitanEngine(context: Context, private val config: YomitanConfig) {
             logcat(TAG, LogPriority.INFO) { "Yomitan's backend is ready after $ms ms" }
             stateFlow.value = State.Ready(ms)
             val newSettings = startedWithoutSettings
+            startedWithoutSettings = false
             scope.launch {
                 runCatching { config.onReady(this@YomitanEngine, newSettings) }
                     .onFailure { logcat(TAG, LogPriority.WARN) { "After the engine started: $it" } }

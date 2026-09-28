@@ -1,7 +1,10 @@
 package jp.reikai.yomitan.settings
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import jp.reikai.yomitan.YomitanException
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -10,6 +13,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import java.io.File
 
 class MobileDefaultsTest {
@@ -41,6 +46,45 @@ class MobileDefaultsTest {
             path to (property["type"]!!.jsonPrimitive.content == typeOf(value.jsonPrimitive) && inEnum)
         }
         checked.filterNot { it.second } shouldBe emptyList()
+    }
+
+    private class Progress(override var due: Boolean = false, override var done: Boolean = false) :
+        MobileDefaults.Progress
+
+    @ParameterizedTest(name = "new settings {0}, done {1} -> applied {2}")
+    @CsvSource(
+        // Yomitan's first settings.
+        "true, false, 1",
+        // Settings that were there when the app first looked (the owner's tablet).
+        "false, false, 0",
+        // Once done, never again, whatever Yomitan's settings are.
+        "true, true, 0",
+    )
+    fun `the defaults go onto Yomitan's first settings only, once`(newSettings: Boolean, done: Boolean, applied: Int) =
+        runTest {
+            val progress = Progress(done = done)
+            var calls = 0
+
+            MobileDefaults.applyOnce(newSettings, progress) { calls++ }
+
+            calls shouldBe applied
+            progress.done shouldBe true
+        }
+
+    @Test
+    fun `a failed try stays due and is made again at the next start, when the settings are no longer new`() = runTest {
+        val progress = Progress()
+        var calls = 0
+
+        shouldThrow<YomitanException> {
+            MobileDefaults.applyOnce(newSettings = true, progress) { throw YomitanException("modifySettings refused") }
+        }
+        progress.done shouldBe false
+        MobileDefaults.applyOnce(newSettings = false, progress) { calls++ }
+
+        calls shouldBe 1
+        progress.done shouldBe true
+        progress.due shouldBe false
     }
 
     private fun JsonElement.at(vararg keys: String): JsonObject = keys.fold(jsonObject) { o, key ->

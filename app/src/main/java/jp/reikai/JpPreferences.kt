@@ -35,6 +35,9 @@ class JpPreferences(private val preferenceStore: PreferenceStore) {
      */
     fun yomitanMobileDefaultsDone() = preferenceStore.getBoolean("jp_yomitan_mobile_defaults_done", false)
 
+    /** Yomitan made new settings and the phone and tablet defaults are not on them yet (a try failed). */
+    fun yomitanMobileDefaultsDue() = preferenceStore.getBoolean("jp_yomitan_mobile_defaults_due", false)
+
     /** The lookup sheet's height as a share of the window's, as the reader last dragged it. */
     fun lookupSheetHeight() = preferenceStore.getFloat("jp_lookup_sheet_height", 0.5f)
 }

@@ -113,11 +113,15 @@ object JpBindings {
                 debug = isDebugBuild,
                 onReady = { engine, newSettings ->
                     // The phone and tablet defaults go onto Yomitan's own first settings only.
-                    val done = preferences.yomitanMobileDefaultsDone()
-                    if (!done.get()) {
-                        if (newSettings) MobileDefaults.apply(engine)
-                        done.set(true)
+                    val progress = object : MobileDefaults.Progress {
+                        override var due: Boolean
+                            get() = preferences.yomitanMobileDefaultsDue().get()
+                            set(value) = preferences.yomitanMobileDefaultsDue().set(value)
+                        override var done: Boolean
+                            get() = preferences.yomitanMobileDefaultsDone().get()
+                            set(value) = preferences.yomitanMobileDefaultsDone().set(value)
                     }
+                    MobileDefaults.applyOnce(engine, newSettings, progress)
                 },
             ),
         )

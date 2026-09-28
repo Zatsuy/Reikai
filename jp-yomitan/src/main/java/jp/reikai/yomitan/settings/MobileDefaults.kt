@@ -42,4 +42,27 @@ object MobileDefaults {
     }
 
     suspend fun apply(engine: YomitanEngine) = YomitanSettings.modify(engine, targets())
+
+    /** Where the app keeps whether the defaults are due (Yomitan made new settings) and done. */
+    interface Progress {
+        var due: Boolean
+        var done: Boolean
+    }
+
+    /**
+     * Sets the defaults once, when the engine is ready: on settings Yomitan made itself ([newSettings],
+     * the engine started with none stored), never on settings that were there when the app first
+     * looked. Due until set, so an attempt that failed is made again at the next start, when
+     * Yomitan's settings are no longer new.
+     */
+    suspend fun applyOnce(engine: YomitanEngine, newSettings: Boolean, progress: Progress) =
+        applyOnce(newSettings, progress) { apply(engine) }
+
+    internal suspend fun applyOnce(newSettings: Boolean, progress: Progress, apply: suspend () -> Unit) {
+        if (progress.done) return
+        if (newSettings) progress.due = true
+        if (progress.due) apply()
+        progress.done = true
+        progress.due = false
+    }
 }
