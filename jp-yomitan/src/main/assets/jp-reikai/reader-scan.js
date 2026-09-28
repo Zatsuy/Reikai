@@ -25,7 +25,8 @@
  * that stem begins, when the dictionary's word from there covers it; otherwise at the tapped
  * character itself, as Yomitan does on a desktop.
  *
- * To the app, through the web message listener `reikaiReader` (chapter origin, main frame), JSON:
+ * To the app, through the web message listener `reikaiReader` (chapter origin, main frame), JSON, each
+ * with the document's id (`doc`, from jp-init) as the page script's messages have it:
  *   {t: 'ready'}   Yomitan answered and its settings are applied
  *   {t: 'wait'}    a tap on text came before that; it is searched once ready (within 10 s)
  *   {t: 'found', type ('terms'|'kanji'), query, sentence: {text, offset}, full?, rects, writingMode, ms}
@@ -45,9 +46,18 @@ import {TextSourceGenerator} from '/js/dom/text-source-generator.js';
 import {TextScanner} from '/js/language/text-scanner.js';
 
 const channel = globalThis.reikaiReader;
+/** The document's id (jp-init's doc), named in every message so the app can drop one from a replaced document. */
+const documentId = (() => {
+    try {
+        const doc = JSON.parse(document.getElementById('jp-init')?.textContent || '{}')?.doc;
+        return typeof doc === 'string' ? doc : null;
+    } catch (e) {
+        return null;
+    }
+})();
 const post = (message) => {
     try {
-        channel?.postMessage(JSON.stringify(message));
+        channel?.postMessage(JSON.stringify(documentId === null ? message : {...message, doc: documentId}));
     } catch (e) {
         // The app went away mid-message; nothing to do.
     }

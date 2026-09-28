@@ -7,7 +7,6 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.longOrNull
 import kotlin.math.roundToInt
 
 /**
@@ -46,10 +45,10 @@ data class JpPagePosition(
 sealed interface JpPageMessage {
 
     /** Laid out and landed, fonts loaded. */
-    data class Ready(val pos: JpPagePosition, val chapterId: Long?) : JpPageMessage
+    data class Ready(val pos: JpPagePosition) : JpPageMessage
 
     /** After a page turn, a settled scroll or a re-layout. */
-    data class Position(val pos: JpPagePosition, val chapterId: Long?) : JpPageMessage
+    data class Position(val pos: JpPagePosition) : JpPageMessage
 
     /** A tap that was not a lookup or a furigana reveal, at fractions of the page. */
     data class Tap(val x: Float, val y: Float, val action: String?) : JpPageMessage
@@ -64,15 +63,17 @@ sealed interface JpPageMessage {
         private val json = Json { ignoreUnknownKeys = true }
 
         /**
-         * [text] read as a message, or null for anything that is not one. The page is the fork's own
-         * script, but the chapter shares its document, so every field is checked, not trusted.
-         * A `chapterId` field, when the page sends one, names the document a position is about.
+         * [text] read as a message of the document [document], or null for anything that is not one. The
+         * page is the fork's own script, but the chapter shares its document, so every field is checked,
+         * not trusted. Every message names its document (`doc`, jp-init's): one from a document already
+         * replaced, still on its way when the next one loads, is no message about the new one.
          */
-        fun parse(text: String): JpPageMessage? {
+        fun parse(text: String, document: String): JpPageMessage? {
             val message = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
+            if (message.string("doc") != document) return null
             return when (message.string("t")) {
-                "ready" -> message.position()?.let { Ready(it, message.long("chapterId")) }
-                "pos" -> message.position()?.let { Position(it, message.long("chapterId")) }
+                "ready" -> message.position()?.let(::Ready)
+                "pos" -> message.position()?.let(::Position)
                 "tap" -> Tap(
                     x = message.double("x")?.toFloat()?.coerceIn(0f, 1f) ?: return null,
                     y = message.double("y")?.toFloat()?.coerceIn(0f, 1f) ?: return null,
@@ -110,8 +111,6 @@ sealed interface JpPageMessage {
 
         private fun JsonObject.int(key: String): Int? =
             primitive(key)?.takeIf { !it.isString }?.let { it.intOrNull ?: it.doubleOrNull?.toInt() }
-
-        private fun JsonObject.long(key: String): Long? = primitive(key)?.takeIf { !it.isString }?.longOrNull
 
         private fun JsonObject.double(key: String): Double? = primitive(key)?.takeIf { !it.isString }?.doubleOrNull
 

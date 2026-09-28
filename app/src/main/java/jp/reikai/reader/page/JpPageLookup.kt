@@ -57,7 +57,8 @@ internal class JpPageLookup(
                 _,
             ->
             if (!isMainFrame || !sourceOrigin.isChapterOrigin()) return@addWebMessageListener
-            message.data?.let(JpScanMessage::parse)?.let(::onMessage)
+            val document = viewport.documentId ?: return@addWebMessageListener
+            message.data?.let { JpScanMessage.parse(it, document) }?.let(::onMessage)
         }
         viewport.lookup = true
     }

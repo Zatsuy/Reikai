@@ -177,6 +177,13 @@ class JpPageViewport internal constructor(
 
     /** The document being shown: its chapter, the settings it was last given, and what it has said. */
     private var chapterId: Long? = null
+
+    /**
+     * The document the page's messages must name (`<chapterId>-<load>`, jp-init's `doc`), set as its load
+     * begins: a message from the one it replaces, still on its way, names another and is dropped.
+     */
+    internal var documentId: String? = null
+        private set
     private var documentSettings: NovelReaderSettings? = null
     private var documents = 0
     private var ready = false
@@ -275,7 +282,8 @@ class JpPageViewport internal constructor(
                 _,
             ->
             if (!isMainFrame || !sourceOrigin.isChapterOrigin()) return@addWebMessageListener
-            message.data?.let(JpPageMessage::parse)?.let(::onMessage)
+            val document = documentId ?: return@addWebMessageListener
+            message.data?.let { JpPageMessage.parse(it, document) }?.let(::onMessage)
         }
     }
 
@@ -320,6 +328,7 @@ class JpPageViewport internal constructor(
         dropPendingCalls()
         scope.cancel()
         chapterId = null
+        documentId = null
         served = null
         WebViewCompat.removeWebMessageListener(webView, MESSAGE_NAME)
         webView.stopLoading()
@@ -358,6 +367,8 @@ class JpPageViewport internal constructor(
         chapterId = chapter.chapterId
         documentSettings = settings
         val number = ++documents
+        val documentId = "${chapter.chapterId}-$number"
+        this.documentId = documentId
         val translation = ChapterTranslator.languageOf(chapter.html)
         translatedInto = translation
         val backFromPeek =
@@ -378,6 +389,7 @@ class JpPageViewport internal constructor(
                 val html = webImages.rewrite(JpPageDocument.cleanChapter(chapter.html, baseUrl), baseUrl, chapter.sourceId)
                 val init = JpPageDocument.init(
                     chapterId = chapter.chapterId,
+                    documentId = documentId,
                     charOffset = stored?.takeIf { backFromPeek || it.percent == chapter.progressPercent }?.charOffset,
                     fraction = if (atEnd) 1.0 else chapter.progressPercent / 100.0,
                     settings = settingsJson(settings, current, insetTop),
@@ -400,7 +412,6 @@ class JpPageViewport internal constructor(
         incognito = built.incognito
         openedAtEnd = atEnd
         servedFonts = built.fonts.toSet()
-        val documentId = "${chapter.chapterId}-$number"
         served = documentId to built.html
         webView.setBackgroundColor(readerBackgroundColorInt(settings.backgroundColor))
         listeners.forEach { it.onDocumentStart(webView, chapter.chapterId) }
@@ -483,7 +494,6 @@ class JpPageViewport internal constructor(
         val id = chapterId ?: return
         when (message) {
             is JpPageMessage.Ready -> {
-                if (message.chapterId != null && message.chapterId != id) return
                 ready = true
                 pending.forEach(::evaluate)
                 pending.clear()
@@ -493,7 +503,7 @@ class JpPageViewport internal constructor(
                 JpReaderIntro.showOnce(context, jpPreferences, vertical = documentOptions().vertical)
             }
             is JpPageMessage.Position -> {
-                if (!ready || (message.chapterId != null && message.chapterId != id)) return
+                if (!ready) return
                 stepping = false
                 landAtEnd = false
                 onPosition(id, message.pos)

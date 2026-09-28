@@ -139,8 +139,9 @@ at `https://chapter.reikai.invalid/jp-reader/…`. The document is served at
 <script src="/jp-reader/jp-reader.js"></script></body></html>
 ```
 
-`jp-init`: `{ "chapterId": <long>, "charOffset": <int|null>, "fraction": <0..1>, "settings": {…} }`.
-The start position is `charOffset` when known, else `fraction` of the chapter's characters.
+`jp-init`: `{ "chapterId": <long>, "doc": "<documentId>", "charOffset": <int|null>, "fraction": <0..1>,
+"settings": {…} }`. The start position is `charOffset` when known, else `fraction` of the chapter's
+characters. `doc` is the document's id (`<chapterId>-<load number>`), which every message names.
 
 `settings`: `{ writing: "vertical"|"horizontal", layout: "paged"|"scroll",
 furigana: "show"|"partial"|"full"|"toggle"|"hide", tapMode: "lookup"|"zones",
@@ -150,7 +151,8 @@ margins: {top,right,bottom,left} (px), insets: {top,bottom} (px: the cutout at t
 colors: {background, text, hint}, textIndent: <em>, justify: <bool>, invertSwipe: <bool> }`.
 
 **Page → app**, one `WebMessageListener` named `jpReader` restricted to the chapter origin
-(`postMessage(JSON.stringify(msg))`), messages `{t, …}`:
+(`postMessage(JSON.stringify(msg))`), messages `{t, doc, …}`, where `doc` is jp-init's: the app drops a
+message naming another document (a late one from the document just replaced) or none:
 
 | `t` | fields | when |
 |---|---|---|
@@ -209,9 +211,9 @@ Fork code in `app/src/main/java/jp/reikai/reader/page/` and `jp/reikai/data/`; s
   request. CSP header: scripts from `'self'` and Yomitan's origin only, inline styles allowed, no
   eval. The chapter's markup is re-parsed and loses every script, handler and embedding element
   (`JpPageDocument.cleanChapter`), whatever "keep embedded scripts" says. Page messages come through
-  `addWebMessageListener("jpReader")`, main frame of the chapter origin only; `pos` before `ready`
-  of the current document is ignored, and a `chapterId` field, if the page ever sends one, must
-  match.
+  `addWebMessageListener("jpReader")`, main frame of the chapter origin only; a message must name
+  the document the viewport last began to load (`doc`, set before the document is built), so one from
+  the document it replaces is dropped, and `pos` before that document's `ready` is ignored.
 - **Upstream's callbacks:** every `pos` goes to `saveProgress` as a whole percent (0 when the
   chapter fits on one page, 100 once its end is on screen, else the character share capped at 99,
   as upstream's scroll reports), `reportTopLine(null)` (so a switch back lands at the percent),
@@ -270,7 +272,8 @@ Fork code in `app/src/main/java/jp/reikai/reader/page/` and `jp/reikai/data/`; s
   segmenter's word, or a kanji stem when the tapped piece is okurigana or a lone kanji the
   segmenter split off (`JapaneseText.selectWord`'s rule), else the tapped character. The word is
   selected (Yomitan's "select matched text"), which is the highlight; programmatic, so no handles or
-  toolbar. Messages to the app through `reikaiReader` (chapter origin, main frame): `ready`, `wait`,
+  toolbar. Messages to the app through `reikaiReader` (chapter origin, main frame, each naming its
+  document as the page script's do, others dropped): `ready`, `wait`,
   `found {type, query, sentence {text, offset}, rects, writingMode, ms}`, `empty`, `error`; from
   the app `__reikaiReader.clear()`, `setContext({url, title})`, `start()`. A tap before the engine
   runs posts `wait`, is kept 10 s, and is searched when the backend's `applicationBackendReady`

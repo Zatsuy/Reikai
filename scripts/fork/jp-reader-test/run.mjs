@@ -967,7 +967,12 @@ function checkShapes() {
     const POS = ['charOffset', 'anchor', 'chars', 'fraction', 'page', 'pages', 'fits', 'endSeen'];
     const bad = [];
     for (const m of allMessages) {
-        const keys = Object.keys(m).sort().join(',');
+        // Every message names its document, jp-init's doc (the fixtures' is "<chapter id>-1").
+        if (typeof m.doc !== 'string' || !/^\d+-1$/.test(m.doc)) {
+            bad.push(m);
+            continue;
+        }
+        const keys = Object.keys(m).filter((k) => k !== 'doc').sort().join(',');
         if (m.t === 'ready' || m.t === 'pos') {
             const p = m.pos || {};
             const ok = keys === 'pos,t' && Object.keys(p).sort().join(',') === [...POS].sort().join(',') &&

@@ -11,8 +11,8 @@ class JpPageMessageTest {
 
     @Test
     fun `a ready message carries the page's position`() {
-        val message = JpPageMessage.parse(
-            """{"t":"ready","pos":{"charOffset":120,"chars":4000,"fraction":0.03,"page":2,"pages":40,"fits":false,"endSeen":false}}""",
+        val message = parse(
+            """{"doc":"7-1","t":"ready","pos":{"charOffset":120,"chars":4000,"fraction":0.03,"page":2,"pages":40,"fits":false,"endSeen":false}}""",
         )
         message shouldBe JpPageMessage.Ready(
             JpPagePosition(
@@ -24,23 +24,20 @@ class JpPageMessageTest {
                 fits = false,
                 endSeen = false,
             ),
-            chapterId = null,
         )
     }
 
     @Test
-    fun `a position names its chapter when the page sends it`() {
-        val message = JpPageMessage.parse("""{"t":"pos","chapterId":77,"pos":{"charOffset":0,"chars":10}}""")
+    fun `a position with only its place reads as a first page that is not the end`() {
+        val message = parse("""{"doc":"7-1","t":"pos","pos":{"charOffset":0,"chars":10}}""")
         message.shouldBeInstanceOf<JpPageMessage.Position>()
-        message.chapterId shouldBe 77L
-        // Missing fields read as a first page that is not the end.
         message.pos shouldBe JpPagePosition(0, 10, 0.0, 1, 1, fits = false, endSeen = false)
     }
 
     @Test
     fun `a position out of range is held to the chapter`() {
-        val message = JpPageMessage.parse(
-            """{"t":"pos","pos":{"charOffset":900,"chars":500,"fraction":7,"anchor":-3}}""",
+        val message = parse(
+            """{"doc":"7-1","t":"pos","pos":{"charOffset":900,"chars":500,"fraction":7,"anchor":-3}}""",
         )
         (message as JpPageMessage.Position).pos.let {
             it.charOffset shouldBe 500
@@ -51,23 +48,23 @@ class JpPageMessageTest {
 
     @Test
     fun `the anchor is the place the reader means, the page's first character when it sends none`() {
-        val anchored = JpPageMessage.parse("""{"t":"pos","pos":{"charOffset":586,"anchor":786,"chars":2169}}""")
+        val anchored = parse("""{"doc":"7-1","t":"pos","pos":{"charOffset":586,"anchor":786,"chars":2169}}""")
         (anchored as JpPageMessage.Position).pos.let {
             it.charOffset shouldBe 586
             it.anchor shouldBe 786
         }
-        val plain = JpPageMessage.parse("""{"t":"pos","pos":{"charOffset":586,"chars":2169}}""")
+        val plain = parse("""{"doc":"7-1","t":"pos","pos":{"charOffset":586,"chars":2169}}""")
         (plain as JpPageMessage.Position).pos.anchor shouldBe 586
     }
 
     @Test
     fun `taps, edges and touches are read as the contract types them`() {
-        JpPageMessage.parse("""{"t":"tap","x":0.25,"y":1.5,"action":"forward"}""") shouldBe
+        parse("""{"doc":"7-1","t":"tap","x":0.25,"y":1.5,"action":"forward"}""") shouldBe
             JpPageMessage.Tap(0.25f, 1f, "forward")
-        JpPageMessage.parse("""{"t":"tap","x":0.5,"y":0.5,"action":"explode"}""") shouldBe
+        parse("""{"doc":"7-1","t":"tap","x":0.5,"y":0.5,"action":"explode"}""") shouldBe
             JpPageMessage.Tap(0.5f, 0.5f, null)
-        JpPageMessage.parse("""{"t":"edge","forward":false}""") shouldBe JpPageMessage.Edge(forward = false)
-        JpPageMessage.parse("""{"t":"touch"}""") shouldBe JpPageMessage.Touch
+        parse("""{"doc":"7-1","t":"edge","forward":false}""") shouldBe JpPageMessage.Edge(forward = false)
+        parse("""{"doc":"7-1","t":"touch"}""") shouldBe JpPageMessage.Touch
     }
 
     @ParameterizedTest
@@ -76,15 +73,29 @@ class JpPageMessageTest {
             "",
             "not json",
             "[1,2]",
-            """{"t":"launch"}""",
-            """{"t":"pos"}""",
-            """{"t":"pos","pos":{"chars":"10","charOffset":0}}""",
-            """{"t":"edge"}""",
-            """{"t":"tap","x":"0.5","y":0.5}""",
+            """{"doc":"7-1","t":"launch"}""",
+            """{"doc":"7-1","t":"pos"}""",
+            """{"doc":"7-1","t":"pos","pos":{"chars":"10","charOffset":0}}""",
+            """{"doc":"7-1","t":"edge"}""",
+            """{"doc":"7-1","t":"tap","x":"0.5","y":0.5}""",
         ],
     )
     fun `anything else is no message`(text: String) {
-        JpPageMessage.parse(text) shouldBe null
+        parse(text) shouldBe null
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            // A late message from the document this one replaced.
+            """{"doc":"7-1","t":"ready","pos":{"charOffset":0,"chars":10}}""",
+            // One that names no document, or not as the contract does.
+            """{"t":"ready","pos":{"charOffset":0,"chars":10}}""",
+            """{"doc":8,"t":"edge","forward":true}""",
+        ],
+    )
+    fun `a message that does not name the document on screen is dropped`(text: String) {
+        JpPageMessage.parse(text, document = "8-2") shouldBe null
     }
 
     @ParameterizedTest(name = "fraction {0}, fits {1}, end seen {2} -> {3}%")
@@ -106,4 +117,6 @@ class JpPageMessageTest {
     ) {
         JpPagePosition(0, 100, fraction, 1, 1, fits, endSeen).percent shouldBe percent
     }
+
+    private fun parse(text: String) = JpPageMessage.parse(text, document = "7-1")
 }

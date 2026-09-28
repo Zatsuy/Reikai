@@ -55,9 +55,16 @@ object JpPageDocument {
 
     fun url(documentId: String): String = "$ORIGIN$CHAPTER_PATH$documentId"
 
-    /** The contract's `jp-init` object. */
-    fun init(chapterId: Long, charOffset: Int?, fraction: Double, settings: JsonObject): JsonObject = buildJsonObject {
+    /** The contract's `jp-init` object; [documentId] is the one every message of the page names. */
+    fun init(
+        chapterId: Long,
+        documentId: String,
+        charOffset: Int?,
+        fraction: Double,
+        settings: JsonObject,
+    ): JsonObject = buildJsonObject {
         put("chapterId", chapterId)
+        put("doc", documentId)
         if (charOffset != null) put("charOffset", charOffset) else put("charOffset", JsonNull)
         put("fraction", fraction.coerceIn(0.0, 1.0))
         put("settings", settings)

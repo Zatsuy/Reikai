@@ -184,7 +184,7 @@ export function chapterDocument(chapter, init, {inlineStyles = true, script = tr
         s.layout === 'scroll' ? 'jp-scroll' : 'jp-paged',
         `jp-furi-${s.furigana}`,
     ].join(' ');
-    const json = JSON.stringify({chapterId: chapter.id, ...init}).replace(/</g, '\\u003c');
+    const json = JSON.stringify({chapterId: chapter.id, doc: `${chapter.id}-1`, ...init}).replace(/</g, '\\u003c');
     const style = inlineStyles ? ` style="--jp-font-size: ${s.fontSize}px"` : '';
     const fontFace = inlineStyles ? '<style id="jp-font-face"></style>' : '';
     return `<!DOCTYPE html>

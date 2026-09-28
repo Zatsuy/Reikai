@@ -51,11 +51,13 @@ sealed interface JpScanMessage {
         private const val MAX_RECTS = 32
 
         /**
-         * [text] read as a message, or null for anything that is not one. The script is the fork's own,
-         * but it shares its document with the chapter, so every field is checked, not trusted.
+         * [text] read as a message of the document [document], or null for anything that is not one. The
+         * script is the fork's own, but it shares its document with the chapter, so every field is
+         * checked, not trusted; one naming another document (`doc`) came from a page already replaced.
          */
-        fun parse(text: String): JpScanMessage? {
+        fun parse(text: String, document: String): JpScanMessage? {
             val message = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
+            if (message.string("doc") != document) return null
             return when (message.string("t")) {
                 "ready" -> Ready
                 "wait" -> Wait

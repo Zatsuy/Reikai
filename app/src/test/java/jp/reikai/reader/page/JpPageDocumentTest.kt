@@ -33,7 +33,7 @@ class JpPageDocumentTest {
         lookup: Boolean = false,
     ) =
         JpPageDocument.build(
-            init = JpPageDocument.init(7L, charOffset, 0.5, JsonObject(emptyMap())),
+            init = JpPageDocument.init(7L, "7-3", charOffset, 0.5, JsonObject(emptyMap())),
             options = JpPageOptions(vertical = true, paged = true, furigana = "toggle"),
             look = look,
             title = title,
@@ -78,6 +78,7 @@ class JpPageDocumentTest {
     fun `jp-init carries the chapter and where it lands`() {
         val init = Json.parseToJsonElement(Jsoup.parse(build()).selectFirst("script#jp-init")!!.data()).jsonObject
         init["chapterId"]!!.jsonPrimitive.content shouldBe "7"
+        init["doc"]!!.jsonPrimitive.content shouldBe "7-3"
         init["charOffset"]!!.jsonPrimitive.content shouldBe "42"
         init["fraction"]!!.jsonPrimitive.content shouldBe "0.5"
         init["settings"] shouldBe JsonObject(emptyMap())

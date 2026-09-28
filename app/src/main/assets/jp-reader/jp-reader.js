@@ -51,9 +51,12 @@
 
   // region messages
 
+  // Every message names this document (jp-init's doc), so the app can tell a late one from a document it
+  // has already replaced from the new document's own.
   function post(msg) {
     var channel = window.jpReader;
     if (!channel || typeof channel.postMessage !== 'function') return;
+    if (init && typeof init.doc === 'string') msg.doc = init.doc;
     try {
       channel.postMessage(JSON.stringify(msg));
     } catch (e) {
