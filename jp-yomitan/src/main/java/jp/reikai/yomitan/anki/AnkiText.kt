@@ -7,6 +7,12 @@ import java.text.Normalizer
  * Anki's rules for a note's first field, as its duplicate check applies them (Anki's
  * `rslib/src/text.rs` and `notes/mod.rs`): media tags become their file names, other HTML is dropped,
  * entities are decoded, and the checksum is the first 32 bits of the SHA-1 of what is left.
+ *
+ * The HTML and media-tag regexes are adapted from Anki (https://github.com/ankitects/anki,
+ * `rslib/src/text.rs`), Copyright Ankitects Pty Ltd and contributors, AGPL-3.0-or-later; GPLv3
+ * section 13 lets this GPL-3.0-or-later project combine with it. Anki decodes every HTML5 named
+ * entity; this decodes numeric ones and the few named ones dictionary text uses, so a first field
+ * holding a rarer named entity may be missed as a duplicate.
  */
 internal object AnkiText {
 

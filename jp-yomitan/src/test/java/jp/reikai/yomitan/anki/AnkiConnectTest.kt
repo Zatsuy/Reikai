@@ -34,6 +34,8 @@ class AnkiConnectTest {
         var checksumQueries = 0
         var deckQueries = 0
         var deckListLoads = 0
+        var modelListLoads = 0
+        var moveFails = false
         var failWith: Exception? = null
         val stored = mutableListOf<Pair<String, ByteArray>>()
 
@@ -48,7 +50,10 @@ class AnkiConnectTest {
             return decks.toList()
         }
 
-        override fun models() = models.toList()
+        override fun models(): List<Model> {
+            modelListLoads++
+            return models.toList()
+        }
 
         override fun notesByChecksum(checksums: Collection<Long>): List<NoteRow> {
             checksumQueries++
@@ -75,6 +80,7 @@ class AnkiConnectTest {
         }
 
         override fun moveCard(noteId: Long, ord: Int, deckId: Long) {
+            if (moveFails) throw IllegalStateException("AnkiDroid could not move the card")
             val i = cards.indexOfFirst { it.noteId == noteId && it.ord == ord }
             cards[i] = cards[i].copy(deckId = deckId)
         }
@@ -231,6 +237,13 @@ class AnkiConnectTest {
     }
 
     @Test
+    fun `a note AnkiDroid added is reported added even when moving its card to the deck fails`() {
+        anki.moveFails = true
+        val id = call("addNote", """{"note":${note("食べる")}}""").jsonPrimitive.long
+        anki.notes.single().id shouldBe id
+    }
+
+    @Test
     fun `addNote refuses a duplicate unless duplicates are allowed`() {
         anki.note(1, 100, "食べる")
         call("addNote", """{"note":${note("食べる")}}""").toString() shouldBe
@@ -288,9 +301,22 @@ class AnkiConnectTest {
         canAdd(note("食べる"))
         canAdd(note("食べる"))
         anki.decks += Deck(30, "New")
+        now += AnkiConnect.RELOAD_MILLIS
         canAdd(note("食べる", deck = "New"))
         now += AnkiConnect.CACHE_MILLIS
         canAdd(note("食べる"))
         anki.deckListLoads shouldBe 3
+    }
+
+    @Test
+    fun `a popup's notes for a missing deck and note type reload each list once, not once per note`() {
+        canAdd(note("食べる"))
+        now += AnkiConnect.RELOAD_MILLIS
+        val missingDeck = listOf(note("飲む", deck = "Nope"), note("見る", deck = "Nope"))
+        val missingType = listOf(note("来る", model = "Nope"), note("行く", model = "Nope"))
+
+        canAdd(*(missingDeck + missingType).toTypedArray())
+
+        (anki.deckListLoads to anki.modelListLoads) shouldBe (2 to 2)
     }
 }

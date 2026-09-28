@@ -33,8 +33,9 @@ import kotlin.io.encoding.Base64
  * `{"result": null, "error": "..."}` on failure. Actions AnkiDroid cannot do answer exactly
  * `unsupported action`, the text Yomitan falls back on (`guiEditNote` falls back to `guiBrowse`).
  *
- * Deck and note type lists are cached ([CACHE_MILLIS]; refreshed when a name is not found, and by
- * the settings page's `deckNames`, `modelNames` and `modelFieldNames`), since the duplicate check
+ * Deck and note type lists are cached ([CACHE_MILLIS]; refreshed when a name is not found, at most
+ * once per [RELOAD_MILLIS], and by the settings page's `deckNames`, `modelNames` and
+ * `modelFieldNames`), since the duplicate check
  * runs on every popup: it costs one provider query for all notes, plus one when a note is scoped to
  * a deck and has a candidate.
  *
@@ -271,9 +272,12 @@ class AnkiConnect internal constructor(
             anki.addNote(prepared.model.id, prepared.model.fields.map { given.field(it) }, tags)
         }
         // New cards go to the note type's last deck; move them where Yomitan asked, as AddContentApi does.
-        anki.cardsOf(id).filter {
-            it.deckId != prepared.deck.id
-        }.forEach { anki.moveCard(id, it.ord, prepared.deck.id) }
+        // The note exists by now: a failed move is logged, never reported, or a retry would add it twice.
+        runCatching {
+            anki.cardsOf(id).filter {
+                it.deckId != prepared.deck.id
+            }.forEach { anki.moveCard(id, it.ord, prepared.deck.id) }
+        }.onFailure { logcat(TAG, LogPriority.WARN) { "anki: note $id was added, but not moved to its deck: $it" } }
         return id
     }
 
@@ -384,20 +388,26 @@ class AnkiConnect internal constructor(
         return anki.models().also { modelCache = Cached(it, clock()) }
     }
 
-    /** Anki's deck names are case-insensitive; a name not in the cache reloads it once. */
+    /**
+     * Whether a name missing from [cache] may reload it: not when it was loaded in the last
+     * [RELOAD_MILLIS], since a popup checks many notes against the same missing deck or note type.
+     */
+    private fun reloadable(cache: Cached<*>?) = cache == null || clock() - cache.at >= RELOAD_MILLIS
+
+    /** Anki's deck names are case-insensitive; a name not in the cache reloads it (see [reloadable]). */
     private fun deck(name: String): Deck? {
         fun find(decks: List<Deck>) =
             decks.firstOrNull { it.name == name } ?: decks.firstOrNull { it.name.equals(name, true) }
-        return find(decks()) ?: find(decks(refresh = true))
+        return find(decks()) ?: if (reloadable(deckCache)) find(decks(refresh = true)) else null
     }
 
     private fun model(name: String): Model? = models().firstOrNull { it.name == name }
-        ?: models(refresh = true).firstOrNull { it.name == name }
+        ?: if (reloadable(modelCache)) models(refresh = true).firstOrNull { it.name == name } else null
 
     /** The note type of [row], reloaded when the cached one's field count no longer matches. */
     private fun modelOf(row: NoteRow): Model? =
         models().firstOrNull { it.id == row.modelId && it.fields.size == row.fields.size }
-            ?: models(refresh = true).firstOrNull { it.id == row.modelId }
+            ?: (if (reloadable(modelCache)) models(refresh = true) else models()).firstOrNull { it.id == row.modelId }
 
     private fun childrenOf(deck: Deck): Set<Long> {
         val prefix = deck.name + "::"
@@ -420,6 +430,7 @@ class AnkiConnect internal constructor(
         const val EMPTY = "cannot create note because it is empty"
 
         const val CACHE_MILLIS = 60_000L
+        const val RELOAD_MILLIS = 5_000L
         const val SYNC_COOLDOWN_MILLIS = 120_000L
 
         private const val TAG = "Yomitan"
