@@ -40,27 +40,13 @@ published and Reikai JP offers it on its **New version available!** screen when 
 every Wednesday a new Yomitan release that is a week old and passes the checks is taken in. When something fails, nothing breaks: it just stops, GitHub may
 email you (safe to ignore), and the next agent session you start sees it and fixes it.
 
-## Now: Phase 4, Japanese reading mode
+## Now: Phase 5, local books
 
-*In progress (2026-09-28, one session, D-028):* 4.1-4.4 and 4.5's status bar and short chapters are
-built and checked on the tablet; translation, EPUB export and the review follow. Plan and as-built
-notes: [research/phase4-design-2026-09.md](research/phase4-design-2026-09.md).
-
-- [ ] **4.1 The reader**: vertical or horizontal text (your choice), pages or scrolling, furigana
-  modes, Japanese fonts and line breaking, position kept when fonts change.
-- [ ] **4.2 Default for Japanese, never forced**: opens automatically for Japanese novels in
-  vertical text; the first time, a one-time message offers horizontal instead (D-026); the reader
-  menu has an option to return to the standard reader (remembered per novel).
-- [ ] **4.3 Tap to look up** in the reader, with the sentence, highlight, book title, chapter and
-  cover filled into the card.
-- [ ] **4.4 Character counts and reading statistics**, compatible with ttu.
-- [ ] **4.5 Tsundoku parity**: list what Tsundoku's reader has that 0.4.0 lacks, then build the
-  ones you want. **You:** pick from the list.
+- [ ] **5.1 Local books**: import EPUB and TXT files as novels (one more source behind upstream's
+  novel source seam); they open in the Japanese reader with lookup, statistics and translation.
 
 ## Later
 
-- **Phase 5, local books**: import EPUB and TXT files as novels; they get the Japanese mode, lookup
-  and statistics too.
 - **Phase 6, learning extras**: a mining log with a jump back to the passage; colouring of known,
   unknown and frequent words from your Anki cards; sentences with exactly one unknown word; TTS
   sentence audio for cards.
@@ -78,6 +64,45 @@ notes: [research/phase4-design-2026-09.md](research/phase4-design-2026-09.md).
   `/sync-upstream` only when the session-start lines report a failed run. Log:
   - 2026-09-27: fork moved onto `upstream/feat/0.4.0` at `668d48c34`.
 - **Retro** (`/retro`, after a large item or when you ask): see [harness.md](harness.md).
+
+## Done: Phase 4, Japanese reading mode (2026-09-28)
+
+Built as one item in one session (D-028); plan, page contract, rulings and as-built notes in
+[research/phase4-design-2026-09.md](research/phase4-design-2026-09.md).
+
+- [x] **4.1 The reader**: a new Japanese reader for novels, vertical or horizontal text, pages or
+  continuous scrolling in both directions (your request), ttu's furigana modes, Mincho or Gothic
+  or an added font, Japanese line breaking, upright short numbers, sesame emphasis dots; the place
+  is kept to the character through size, font, direction and rotation changes. Tablet: a chapter
+  step takes a median ~98 ms (upstream's WebView mode ~194 ms), a page turn under 1 ms.
+- [x] **4.2 Default for Japanese, never forced**: Japanese sources open in it, vertical, with a
+  one-time offer of horizontal (D-026); "Switch to standard reader" / "Switch to Japanese reader"
+  in the reader's menu, remembered per novel.
+- [x] **4.3 Tap to look up** (D-029): a tap anywhere in a word or on its furigana looks up the whole
+  word with Yomitan's own scanner in the page (tablet: tap to results median 120 ms, max 166 ms);
+  the card gets the sentence with the word in bold, the chapter and novel, and the cover. "Tap on
+  text → Turn pages" makes taps turn pages instead.
+- [x] **4.4 Character counts and reading statistics**, counted as ttu counts them: Settings →
+  Japanese → Reading statistics, and "Export for ttu".
+- [x] **4.5 Tsundoku parity** (D-030, you picked): a status bar (clock, battery, chapter, progress,
+  characters and speed), chapters that fit on one screen marked read, chapter translation
+  (Google, DeepL or an AI service; keys kept out of backups), EPUB export of downloaded chapters.
+  **You:** only if you ran "Set up cards for Lapis" before, run it once more for the cover (in *Your
+  checklist*).
+  Rulings: in the design doc (16, from "its own viewport, one chapter per document" to "a Japanese
+  EPUB is vertical"), plus: volume keys turn pages only with the reader's **Volume keys** switch on,
+  as in the standard reader - cost if wrong: one switch.
+  Open, carried on: not checked on the phone; the ttu export not yet imported into ttu itself;
+  DeepL and AI translation checked only with bad keys; the standard reader's see-through status
+  bar and an EPUB with pictures not seen on a device; the "Look up" speed of a tap (median 120 ms)
+  is slower than the long-press path's 53 ms, still inside the budget.
+  **Done 2026-09-28** in `5b55bd797`..`8a06cf53d`: the reader `4af1df2ad`..`8da0d83bb`, device
+  fixes `5bfa3b268`..`5e7d9f819`, lookup `066d39a4c`..`dd706912d`, statistics, status bar and short
+  chapters `6981583e3`..`1c09d107d`, translation `c8ec63be5`..`b875a625c`, EPUB `006c1afa8`..`6d34d6734`,
+  review fixes `312ac0e7b`..`8a06cf53d`. Agent's device use (D-023): the tablet's "stay awake while
+  charging", left on by the previous session, was used and switched **off** at the end of this
+  session; its debug app keeps Jitendex and a Kakuyomu novel for later checks. The phone was not
+  used.
 
 ## Done: Phase 3, Yomitan engine and the lookup popup (2026-09-28)
 
