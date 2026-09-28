@@ -134,6 +134,16 @@ settings and from the popup's first add; the hidden engine only returns an error
 chimahon `AnkiDroidBridge.kt` (GPL-3.0, credit if adapted), yomihon (Apache-2.0). The AnkiConnect
 route must serve settings.html too (it builds its own `AnkiConnect`, `anki-controller.js:45`).
 
+**As built (2026-09-27, `jp-yomitan/.../anki/`):** AnkiDroid 2.24's provider also has `cards`
+(Anki search) and `cards/<id>`, so `findCards` and `cardsInfo` are real; card flags are not exposed
+(0). The duplicate check is one `notes_v2` query (`csum IN (...)`) plus, for deck scopes, one
+`notes_v2` query per distinct scope whose selection is SQL over `cards` (`did` or `odid` in the
+scope); measured 4-11 ms per popup on the tablet. `guiBrowse` opens the card browser through its
+`search_query` + `all_decks` extras (the `anki://` deep link keeps the last-chosen deck and can hide
+the note). Media goes through the module's own `AnkiMediaProvider` (one cache directory), not
+upstream's FileProvider. Without AnkiDroid or its permission every call answers a readable error
+(Yomitan shows "Anki error: ..."; the popup hides the add buttons) and `AnkiAccess.refusals` reports it.
+
 ## 3.3 Audio
 
 Yomitan's sources (`media/audio-downloader.js:49-59`): jpod101 (URL only), language-pod-101 (POST
@@ -148,6 +158,21 @@ served under AnkiConnect Android's scheme so desktop backups work unchanged:
 picked through SAF; opening SQLite on it needs a real path (copy, or a `/proc/self/fd` read-only
 open to test). **TTS fallback:** a custom source `http://localhost:8765/tts/get/?term={reading}`
 answered with `TextToSpeech.synthesizeToFile`, last in the list, so it plays and reaches cards.
+
+**As built (2026-09-27, `jp-yomitan/.../audio/`):**
+- **Ruling: the picked `android.db` is copied into app storage** (`noBackupFilesDir`, with progress
+  in `LocalAudio.status`). Opening it in place is impossible: the picker's descriptor links to the
+  FUSE path (`/mnt/user/0/emulated/0/Download/...`), and re-opening `/proc/self/fd/N` is refused
+  with EACCES for any open, plain Java included, so neither the bundled nor the framework SQLite can
+  use it (tablet, 2026-09-27). Cost: the file's size again in storage (several GB); the settings
+  screen should say so and that the original can then be deleted.
+- Ranking as Hoshi-Reader, without its mp3-only filter (WebView plays ogg/opus/m4a too).
+- Text-to-speech: Google TTS's `ja-JP` voice on the tablet, WAV (about 70 KB per word). WebView has
+  no `speechSynthesis` at all (`typeof speechSynthesis` is `undefined`), so Yomitan's own TTS source
+  never works in the app. Without a Japanese voice the route answers 404 and Yomitan moves on.
+- Yomitan's Japanese defaults (jpod101, language-pod-101, jisho) play and download through the
+  network routing (checked on the tablet); `YomitanAudioSources` puts local audio first and TTS
+  after the defaults.
 
 ## 3.4 The popup, search, "Look up"
 

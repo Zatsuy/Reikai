@@ -10,8 +10,8 @@ import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import jp.reikai.JpPreferences
 import jp.reikai.lookup.PreferenceYomitanStorage
-import jp.reikai.yomitan.YomitanConfig
 import jp.reikai.yomitan.LocalServer
+import jp.reikai.yomitan.YomitanConfig
 import jp.reikai.yomitan.YomitanEngine
 import jp.reikai.yomitan.anki.AnkiAccess
 import jp.reikai.yomitan.anki.AnkiConnect
