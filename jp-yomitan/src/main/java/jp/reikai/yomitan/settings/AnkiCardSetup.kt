@@ -18,16 +18,21 @@ import kotlinx.serialization.json.put
  * Lapis": the Lapis note type's fields filled with the markers Lapis's own README gives
  * (github.com/donkuri/lapis, "Yomitan field setup"), written into Yomitan's settings through its
  * backend's `modifySettings`, as Yomitan's own settings page would when the user picks the note type.
- * Only the current profile's first word card format changes; everything else stays the user's.
+ * Only the current profile's card formats change, and only those without a note type (which add
+ * nothing); everything else stays the user's.
  */
 object AnkiCardSetup {
 
     /** The note type Lapis's README tells users to pick. */
     const val LAPIS = "Lapis"
 
-    /** What the current profile adds to Anki from a word: [model] into [deck], or nothing yet. */
+    /**
+     * What the current profile adds to Anki: [model] into [deck] (its first card format with a note
+     * type), or nothing yet. A note type set while Anki is switched off (or in imported settings)
+     * still counts as the user's choice.
+     */
     data class Current(val enabled: Boolean, val model: String, val deck: String) {
-        val configured: Boolean get() = enabled && model.isNotEmpty()
+        val configured: Boolean get() = model.isNotEmpty()
     }
 
     /** The current profile's first word card format; reads Yomitan's settings through the engine. */
@@ -37,18 +42,14 @@ object AnkiCardSetup {
     suspend fun setUpLapis(engine: YomitanEngine, deck: String, lapis: AnkiAccess.NoteType) {
         val options = engine.api("optionsGetFull")
         val dictionaries = YomitanDictionaries.installed(engine)
-        engine.api(
-            "modifySettings",
-            buildJsonObject {
-                put("targets", lapisTargets(options, deck, lapis, dictionaries))
-                put("source", "reikai-jp")
-            },
-        )
+        YomitanSettings.modify(engine, lapisTargets(options, deck, lapis, dictionaries))
     }
 
     internal fun current(options: JsonElement): Current {
         val anki = currentProfile(options)?.obj("anki") ?: return Current(false, "", "")
-        val format = anki.array("cardFormats").firstOrNull { it.str("type") == "term" }
+        val formats = anki.array("cardFormats")
+        val format = formats.firstOrNull { !it.str("model").isNullOrEmpty() }
+            ?: formats.firstOrNull { it.str("type") == "term" }
         return Current(
             enabled = (anki["enable"] as? JsonPrimitive)?.booleanOrNull == true,
             model = format?.str("model").orEmpty(),
@@ -58,9 +59,11 @@ object AnkiCardSetup {
 
     /**
      * `modifySettings` targets for the current profile: Anki on, and its first word card format (a
-     * new one if it has none) set to [lapis] into [deck] with Lapis's markers. MainDefinition holds
-     * one dictionary's definitions (Lapis's `{single-glossary-...}`), preferring Jitendex, then JMdict,
-     * then the first enabled word dictionary; with none it falls back to Yomitan's first definition.
+     * new one if it has none) set to [lapis] into [deck] with Lapis's markers. Its other card formats
+     * without a note type go (Yomitan's defaults "Reading" and "Kanji" would each put an Add button on
+     * every entry that only fails); those with one stay. MainDefinition holds one dictionary's
+     * definitions (Lapis's `{single-glossary-...}`), preferring Jitendex, then JMdict, then the first
+     * enabled word dictionary; with none it falls back to Yomitan's first definition.
      */
     internal fun lapisTargets(
         options: JsonElement,
@@ -92,10 +95,11 @@ object AnkiCardSetup {
                 "fields" to fields,
             ),
         )
+        val kept = formats.filterIndexed { i, it -> i == at || !it.str("model").isNullOrEmpty() }
         val newFormats = if (at >= 0) {
-            JsonArray(formats.mapIndexed { i, it -> if (i == at) format(it) else it })
+            JsonArray(kept.map { if (it === formats[at]) format(it) else it })
         } else {
-            JsonArray(formats + format(null))
+            JsonArray(kept + format(null))
         }
         fun target(path: String, value: JsonElement) = buildJsonObject {
             put("action", "set")
@@ -136,9 +140,13 @@ object AnkiCardSetup {
             ?: enabled.firstOrNull()
     }
 
-    /** Yomitan's `getKebabCase` (`js/data/anki-template-util.js`), which names `{single-glossary-...}`. */
+    /**
+     * Yomitan's `getKebabCase` (`js/data/anki-template-util.js`), which names `{single-glossary-...}`.
+     * JavaScript's `\s` is Unicode's white space: spelled out, since Android's regex engine (ICU)
+     * refuses the JVM's `(?U)` flag, and the JVM's plain `\s` is ASCII only.
+     */
     internal fun kebabCase(text: String): String = text
-        .replace(Regex("(?U)[\\s_\\u3000]"), "-")
+        .replace(Regex("[\\s\\p{Z}\\uFEFF_]"), "-")
         .replace(Regex("[^\\p{L}\\p{N}-]"), "")
         .replace(Regex("--+"), "-")
         .replace(Regex("^-|-$"), "")

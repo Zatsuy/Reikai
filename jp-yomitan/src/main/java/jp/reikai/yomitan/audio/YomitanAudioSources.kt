@@ -1,6 +1,7 @@
 package jp.reikai.yomitan.audio
 
 import jp.reikai.yomitan.YomitanEngine
+import jp.reikai.yomitan.settings.YomitanSettings
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -53,13 +54,7 @@ object YomitanAudioSources {
             }
         }
         if (targets.isEmpty()) return 0
-        engine.api(
-            "modifySettings",
-            buildJsonObject {
-                put("targets", JsonArray(targets))
-                put("source", "reikai-jp")
-            },
-        )
+        YomitanSettings.modify(engine, JsonArray(targets))
         return targets.size
     }
 

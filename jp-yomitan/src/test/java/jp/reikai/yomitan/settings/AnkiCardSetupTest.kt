@@ -82,6 +82,7 @@ class AnkiCardSetupTest {
         "'JMdict (English)', jmdict-english",
         "'大辞林　第四版', 大辞林-第四版",
         "'  a__b  ', a-b",
+        "'JMdict\u00a0Extra\u2003(v2)', jmdict-extra-v2",
     )
     fun `dictionary names become Yomitan's kebab case`(title: String, kebab: String) {
         AnkiCardSetup.kebabCase(title) shouldBe kebab
@@ -103,14 +104,34 @@ class AnkiCardSetupTest {
             .shouldContainExactly("1", "1")
         targets.value("anki.enable").jsonPrimitive.content shouldBe "true"
         val formats = targets.value("anki.cardFormats").jsonArray.map { it.jsonObject }
-        formats.map { it["name"]!!.jsonPrimitive.content }.shouldContainExactly("Expression", "Reading", "Kanji")
+        // Yomitan's "Reading" and "Kanji" have no note type: each would add an Add button that only fails.
+        formats.map { it["name"]!!.jsonPrimitive.content }.shouldContainExactly("Expression")
         formats[0]["deck"]!!.jsonPrimitive.content shouldBe "Mining"
         formats[0]["model"]!!.jsonPrimitive.content shouldBe "Lapis"
         formats[0]["fields"]!!.jsonObject["MainDefinition"]!!.jsonObject["value"]!!.jsonPrimitive.content shouldBe
             "{single-glossary-jitendexorg-2026-08-11}"
         formats[0]["fields"]!!.jsonObject["Expression"]!!.jsonObject["overwriteMode"]!!.jsonPrimitive.content shouldBe
             "coalesce"
-        formats[1]["model"]!!.jsonPrimitive.content shouldBe ""
+    }
+
+    @Test
+    fun `card formats with a note type are kept`() {
+        val targets = AnkiCardSetup.lapisTargets(
+            options(
+                profileCurrent = 1,
+                formats = """[
+                    {"name":"Expression","type":"term","deck":"","model":"","fields":{}},
+                    {"name":"Kanji","type":"kanji","deck":"Kanji","model":"Kanji note","fields":{}},
+                    {"name":"Reading","type":"term","deck":"","model":"","fields":{}}
+                ]""",
+            ),
+            "Mining",
+            lapis,
+            emptyList(),
+        )
+
+        val formats = targets.value("anki.cardFormats").jsonArray.map { it.jsonObject }
+        formats.map { it["model"]!!.jsonPrimitive.content }.shouldContainExactly("Lapis", "Kanji note")
     }
 
     @Test
@@ -169,6 +190,22 @@ class AnkiCardSetupTest {
         AnkiCardSetup.current(configured) shouldBe
             AnkiCardSetup.Current(enabled = true, model = "Lapis", deck = "Mining")
         AnkiCardSetup.current(options()).configured shouldBe false
+    }
+
+    @Test
+    fun `a note type chosen while Anki is off, in any card format, counts as set up`() {
+        val imported = options(
+            profileCurrent = 1,
+            enable = false,
+            formats = """[
+                {"name":"Expression","type":"term","deck":"","model":"","fields":{}},
+                {"name":"Reading","type":"term","deck":"Mining","model":"Basic","fields":{}}
+            ]""",
+        )
+
+        AnkiCardSetup.current(imported) shouldBe
+            AnkiCardSetup.Current(enabled = false, model = "Basic", deck = "Mining")
+        AnkiCardSetup.current(imported).configured shouldBe true
     }
 
     private fun dictionary(name: String, enabled: Boolean = true) =

@@ -147,11 +147,13 @@ class JapaneseSettingsViewModel(
         refreshJob = viewModelScope.launch {
             val anki = withContext(Dispatchers.IO) { ankiAccess.status() }
             state.update { it.copy(anki = anki) }
+            // Asking for the voice starts a text-to-speech engine: only while its row can be used.
+            if (lease == null) return@launch
             launch {
                 val tts = ttsAudio.status()
                 state.update { it.copy(tts = tts) }
             }
-            if (lease == null || !engine.ready()) return@launch
+            if (!engine.ready()) return@launch
             runCatching { YomitanDictionaries.installed(engine) }
                 .onSuccess { list -> state.update { it.copy(dictionaries = list) } }
                 .onFailure { logcat(LogPriority.WARN, it) { "Japanese settings: dictionaries" } }
