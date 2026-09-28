@@ -106,9 +106,16 @@ internal class LookupSheet(
     var showing = false
         private set
 
+    /** The app's system settings were opened from the sheet, and its screen has not been back since. */
+    var inSettings = false
+        private set
+
     /** The share of the window's height the sheet takes; the reader's last choice is kept. */
     private val savedFraction = lookup.sheetHeight()
     private var fraction = savedFraction.get().coerceIn(MIN_FRACTION, MAX_FRACTION)
+
+    /** The height a drag that closed the sheet left for its next opening, until it takes it. */
+    private var nextFraction: Float? = null
 
     init {
         build()
@@ -162,7 +169,10 @@ internal class LookupSheet(
         this.askedAt = askedAt
         dark = lookup.dark ?: isNightMode()
         loading?.cancel()
-        if (!showing) place(word)
+        if (!showing) {
+            restoreFraction()
+            place(word)
+        }
         val popup = popup?.takeIf { !it.closed && it.webView.parent === body } ?: obtainPopup()
         if (popup != null && !showing && lookup == preloaded && popup.holds(preloadedToken)) {
             // Already looked up while the toolbar was up: only the sheet to open.
@@ -207,14 +217,13 @@ internal class LookupSheet(
         showing = false
         back.isEnabled = false
         loading?.cancel()
+        // Not left to the animation's end, which a lookup during the animation cancels.
+        if (thenFraction != null) nextFraction = thenFraction
         sheet.animate().translationY(offScreen()).setDuration(CLOSE_MILLIS)
             .setInterpolator(DecelerateInterpolator()).withEndAction {
                 if (!showing) {
-                    if (thenFraction != null) {
-                        fraction = thenFraction
-                        // Laid out again while parked, so the next lookup opens at full height.
-                        sheet.requestLayout()
-                    }
+                    // Laid out again while parked, so the next lookup opens at full height.
+                    restoreFraction()
                     popup?.clear()
                     park()
                     onClosed()
@@ -224,6 +233,7 @@ internal class LookupSheet(
     }
 
     override fun onResume(owner: LifecycleOwner) {
+        inSettings = false
         // Another screen may have borrowed the popup meanwhile.
         val lookup = current
         if (showing && lookup != null && popup?.webView?.parent !== body) show(lookup, SystemClock.uptimeMillis())
@@ -309,6 +319,7 @@ internal class LookupSheet(
             current?.let { show(it, SystemClock.uptimeMillis()) }
         } else if (!activity.shouldShowRequestPermissionRationale(AnkiAccess.PERMISSION)) {
             showNotice(R.string.jp_anki_denied, R.string.jp_anki_open_settings) {
+                inSettings = true
                 activity.startActivity(
                     Intent(
                         Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
@@ -357,9 +368,24 @@ internal class LookupSheet(
         sheet.alpha = 0f
     }
 
-    /** Just past the sheet's screen edge, where it slides in from and out to. */
+    private fun restoreFraction() {
+        val next = nextFraction ?: return
+        nextFraction = null
+        fraction = next
+        sheet.requestLayout()
+    }
+
+    /**
+     * The height the sheet takes its share of: the overlay's, or before the overlay's first layout (a
+     * lookup just after the reader opened) the view it fills.
+     */
+    private fun windowHeight(): Int = root.height.takeIf { it > 0 }
+        ?: (root.parent as? View)?.let { it.height - it.paddingTop - it.paddingBottom }
+        ?: 0
+
+    /** Just past the sheet's screen edge, where it slides in from and out to (at its coming height). */
     private fun offScreen(): Float {
-        val height = (sheet.height.takeIf { it > 0 } ?: root.height).toFloat()
+        val height = windowHeight() * fraction
         return if (atTop) -height else height
     }
 
@@ -368,7 +394,7 @@ internal class LookupSheet(
      * pixels, top to bottom) and at the top it would not, or would cover less of the page around it.
      */
     private fun place(word: IntRange?) {
-        val height = root.height
+        val height = windowHeight()
         val top = if (word == null || height <= 0) {
             false
         } else {

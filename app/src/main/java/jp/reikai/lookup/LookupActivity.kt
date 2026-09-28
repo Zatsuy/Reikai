@@ -14,7 +14,8 @@ import jp.reikai.yomitan.popup.PopupLookup
  * "Look up in Reikai JP" in any app's text-selection menu (`ACTION_PROCESS_TEXT`): the lookup sheet
  * over the app the text came from, closing back to it. It ends as soon as it is out of sight (a link
  * in the results opened another screen, or the user left), so it never waits over the other app
- * with an old lookup and holding the popup. The component is switched off with lookup (D-025,
+ * with an old lookup and holding the popup; only the app's system settings, opened from the sheet
+ * to allow AnkiDroid, come back to it. The component is switched off with lookup (D-025,
  * [JpLookup]); started anyway (before the switch reached it), it says lookup is off and offers to
  * turn it on.
  */
@@ -37,8 +38,10 @@ class LookupActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        // Not for a rotation, which it handles itself, nor a dialog over it (Anki's permission).
-        if (!isChangingConfigurations) finish()
+        // Not while it is recreated (a change it does not handle itself, such as the dark theme), nor
+        // while the settings the sheet opened are in front: back from them, the sheet is still there.
+        // A rotation it handles itself, and a dialog over it (Anki's permission) only pauses it.
+        if (!isChangingConfigurations && sheet?.inSettings != true) finish()
     }
 
     private fun handle(intent: Intent) {
