@@ -44,7 +44,7 @@ object YomitanWebViews {
     }
 }
 
-/** Callbacks for a screen hosting a Yomitan page ([YomitanEngine.attach]). All on the main thread. */
+/** Callbacks for a screen hosting a Yomitan page ([YomitanEngine.attach]), on the main thread except [intercept]. */
 interface YomitanPageListener {
     /** A main-frame page finished loading. */
     fun onPageFinished(url: String) {}
@@ -55,7 +55,10 @@ interface YomitanPageListener {
      */
     fun onRenderProcessGone() {}
 
-    /** A chance to answer a request before the engine does (the debug engine check serves test files). */
+    /**
+     * A chance to answer a request before the engine does (the debug engine check serves test files).
+     * Called on WebView's background thread.
+     */
     fun intercept(request: WebResourceRequest): WebResourceResponse? = null
 
     object None : YomitanPageListener

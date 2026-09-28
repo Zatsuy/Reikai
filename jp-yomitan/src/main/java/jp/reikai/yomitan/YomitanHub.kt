@@ -437,7 +437,10 @@ internal class YomitanHub(private val host: HubHost) {
             body = body.str("body")?.toByteArray() ?: body.str("bodyBase64")?.let { Base64.getDecoder().decode(it) },
         )
         val id = from to mid
-        fetches[id] = host.fetch(request) { result ->
+        // Registered before the request starts: a request may fail at once, inside host.fetch.
+        var cancel: () -> Unit = {}
+        fetches[id] = { cancel() }
+        cancel = host.fetch(request) { result ->
             if (fetches.remove(id) == null || docs[from.key] !== from) return@fetch
             when (result) {
                 is FetchResult.Failed -> replyError(from, mid, result.message)

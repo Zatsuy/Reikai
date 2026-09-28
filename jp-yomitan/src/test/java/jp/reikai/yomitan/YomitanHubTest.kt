@@ -34,7 +34,11 @@ class YomitanHubTest {
         override val localStorage = YomitanStorage.InMemory()
         var backendReady = 0
         override fun openPage(how: String, url: String?): JsonElement? = null
-        override fun fetch(request: FetchRequest, done: (FetchResult) -> Unit): () -> Unit = {}
+        var immediateAnswer: FetchResult? = null
+        override fun fetch(request: FetchRequest, done: (FetchResult) -> Unit): () -> Unit {
+            immediateAnswer?.let(done)
+            return {}
+        }
         override fun onBackendReady() {
             backendReady++
         }
@@ -203,6 +207,16 @@ class YomitanHubTest {
 
         (doc.port.received.none { "err" in Json.parseToJsonElement(it.substringBefore('\n')).jsonObject }) shouldBe
             allowed
+    }
+
+    @Test
+    fun `a request that fails at once is still answered`() {
+        val (_, settings) = engineAndSettings()
+        host.immediateAnswer = FetchResult.Failed("not an http(s) URL")
+
+        settings.say("""{"t":"req","op":"fetch","mid":4}""", """{"url":"ftp://x/","method":"GET","headers":{}}""")
+
+        settings.port.last()["err"]?.jsonPrimitive?.content shouldBe "not an http(s) URL"
     }
 
     @ParameterizedTest(name = "a chapter page sending {0}: delivered {1}")
