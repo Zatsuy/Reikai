@@ -36,6 +36,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.net.Inet6Address
+import java.net.InetAddress
 import java.util.Locale
 
 /** A service speaking OpenAI's chat API, with its address and a model to start from. */
@@ -73,6 +75,7 @@ class OpenAiTranslateEngine(
     override suspend fun translate(texts: List<String>, source: String, target: String): List<String> {
         if (texts.isEmpty()) return emptyList()
         val url = completions(address) ?: throw TranslationSetupMissing(TranslationSetupMissing.What.ADDRESS, name)
+        if (!secureEnough(url)) throw TranslationSetupMissing(TranslationSetupMissing.What.HTTPS, name)
         if (model.isBlank()) throw TranslationSetupMissing(TranslationSetupMissing.What.MODEL, name)
         return inParts(url, texts, systemPrompt(source, target))
     }
@@ -146,6 +149,38 @@ Rules:
         fun completions(address: String): String? {
             val base = address.trim().trimEnd('/').takeIf { it.isNotEmpty() } ?: return null
             return "$base/chat/completions".toHttpUrlOrNull()?.toString()
+        }
+
+        /**
+         * Whether [url] may carry the key and the chapter: https anywhere, plain http only to this device or
+         * the home network (loopback, the private ranges, link-local, a `.local` name), where a service
+         * such as Ollama runs without a certificate. The app allows cleartext traffic, so this is the guard.
+         */
+        fun secureEnough(url: String): Boolean {
+            val parsed = url.toHttpUrlOrNull() ?: return false
+            return parsed.isHttps || isLocalHost(parsed.host)
+        }
+
+        /** A host on this device or the home network, judged from its name or written-out address alone. */
+        fun isLocalHost(host: String): Boolean {
+            val name = host.lowercase().trimEnd('.')
+            if (name == "localhost" || name.endsWith(".localhost") || name.endsWith(".local")) return true
+            val address = ipLiteral(name) ?: return false
+            if (address.isLoopbackAddress || address.isSiteLocalAddress || address.isLinkLocalAddress) return true
+            // IPv6's private range (fc00::/7), which isSiteLocalAddress does not cover.
+            return address is Inet6Address && (address.address[0].toInt() and 0xfe) == 0xfc
+        }
+
+        /** [host] as the address it writes out, or null for a name; never looked up. */
+        private fun ipLiteral(host: String): InetAddress? {
+            if (':' in host) return runCatching { InetAddress.getByName(host) }.getOrNull()
+            val parts = host.split('.')
+            if (parts.size != 4) return null
+            val bytes = parts.map { part ->
+                part.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }?.toIntOrNull()?.takeIf { it in 0..255 }
+                    ?: return null
+            }
+            return InetAddress.getByAddress(ByteArray(4) { bytes[it].toByte() })
         }
 
         /** The model's text in a chat answer. */

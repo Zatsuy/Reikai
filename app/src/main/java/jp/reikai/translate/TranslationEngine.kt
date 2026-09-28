@@ -35,9 +35,12 @@ interface TranslationEngine {
 /** A translation that did not happen; [message] says why in the service's words. */
 open class TranslationFailure(message: String, cause: Throwable? = null) : Exception(message, cause)
 
-/** The engine needs something only the owner can set: a key, an address or a model. */
+/**
+ * The engine needs something only the owner can set: a key, an address or a model, or an address that
+ * is https (plain http only reaches a service on this device or the home network).
+ */
 class TranslationSetupMissing(val what: What, service: String) : TranslationFailure("$service: $what missing") {
-    enum class What { KEY, ADDRESS, MODEL }
+    enum class What { KEY, ADDRESS, MODEL, HTTPS }
 }
 
 /**

@@ -8,6 +8,7 @@
     <string name="jp_translate_started">Translating the chapter…</string>
     <string name="jp_translate_failed">Translation failed. %1$s</string>
     <string name="jp_translate_missing_key">Translation needs your key: add it in Settings, Japanese, Translation.</string>
+    <string name="jp_translate_needs_https">Translation sends your key and the chapter, so the AI service\'s address has to start with https://. Plain http:// works only for a service on this device or your home network. Change it in Settings, Japanese, Translation.</string>
     <string name="jp_translate_missing_address">Translation needs the AI service\'s address and model: set them in Settings, Japanese, Translation.</string>
     <string name="jp_translate_nothing">This chapter has no text to translate.</string>
 

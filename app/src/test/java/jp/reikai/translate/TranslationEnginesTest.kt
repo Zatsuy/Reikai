@@ -20,6 +20,8 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import java.io.IOException
 
 /** Each engine's request and the reading of its answer, against a stand-in server. */
@@ -219,6 +221,36 @@ class TranslationEnginesTest {
         answer(400, """[{"error":{"code":400,"message":"API key not valid.","status":"INVALID_ARGUMENT"}}]""")
         shouldThrow<TranslationFailure> { ai().translate(listOf("文"), "ja", "en") }
             .message shouldBe "Gemini: API key not valid."
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "https://api.openai.com/v1/chat/completions, true",
+        "http://localhost:11434/v1/chat/completions, true",
+        "http://127.0.0.1:8080/v1/chat/completions, true",
+        "http://[::1]:8080/v1/chat/completions, true",
+        "http://192.168.1.20:11434/v1/chat/completions, true",
+        "http://10.0.0.5/v1/chat/completions, true",
+        "http://172.20.1.1/v1/chat/completions, true",
+        "http://169.254.10.1/v1/chat/completions, true",
+        "http://[fd12:3456::1]/v1/chat/completions, true",
+        "http://ollama.local:11434/v1/chat/completions, true",
+        "http://api.example.com/v1/chat/completions, false",
+        "http://8.8.8.8/v1/chat/completions, false",
+        "http://172.32.0.1/v1/chat/completions, false",
+        "http://192.168.1.20.example.com/v1/chat/completions, false",
+        "http://[2001:db8::1]/v1/chat/completions, false",
+    )
+    fun `plain http reaches only this device or the home network`(url: String, allowed: Boolean) {
+        OpenAiTranslateEngine.secureEnough(url) shouldBe allowed
+    }
+
+    @Test
+    fun `a public http address is refused before the key or chapter is sent`() = runTest {
+        val engine = ai(address = "http://api.example.com/v1")
+        shouldThrow<TranslationSetupMissing> { engine.translate(listOf("一"), "ja", "en") }
+            .what shouldBe TranslationSetupMissing.What.HTTPS
+        requests.size shouldBe 0
     }
 
     @Test

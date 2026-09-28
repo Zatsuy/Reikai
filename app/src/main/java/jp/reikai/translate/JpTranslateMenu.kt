@@ -115,6 +115,7 @@ internal class ChapterTranslationControl(
     private fun message(e: Throwable): String = when (e) {
         is TranslationSetupMissing -> when (e.what) {
             TranslationSetupMissing.What.KEY -> context.getString(R.string.jp_translate_missing_key)
+            TranslationSetupMissing.What.HTTPS -> context.getString(R.string.jp_translate_needs_https)
             else -> context.getString(R.string.jp_translate_missing_address)
         }
         is NothingToTranslate -> context.getString(R.string.jp_translate_nothing)
