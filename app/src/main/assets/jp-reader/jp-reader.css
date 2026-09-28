@@ -1,0 +1,220 @@
+/*
+ * Reikai JP: the Japanese reading mode's stylesheet (roadmap 4.1). GPL-3.0-or-later.
+ *
+ * Styles the chapter document described in docs/fork/research/phase4-design-2026-09.md ("The page
+ * contract"). The root carries the mode classes (jp-vertical|jp-horizontal, jp-paged|jp-scroll,
+ * jp-furi-<mode>) and jp-reader.js sets every custom property below from the settings, through
+ * CSSOM, so the document needs no inline style to be right:
+ *   --jp-font-family --jp-font-size --jp-line-height --jp-indent --jp-align
+ *   --jp-bg --jp-text --jp-hint
+ *   --jp-pad-top --jp-pad-right --jp-pad-bottom --jp-pad-left   margins plus system-bar insets
+ *   --jp-page-w --jp-page-h --jp-col-w --jp-col-gap            the viewport and the page columns
+ *   --jp-img-max-w --jp-img-max-h                              the text area a picture must fit
+ *
+ * Paging (after chimahon, GPL-3.0, and Hoshi Reader, Copyright (c) 2026 Manhhao,
+ * GPL-3.0-or-later): the body is the multi-column container and the scroller, one column a page.
+ * In vertical text the columns stack downward (column width = page height), stepped by scrollTop;
+ * in horizontal text they run rightward, stepped by scrollLeft. The root never scrolls.
+ *
+ * The furigana modes follow ttu-ebook-reader's styles.scss (BSD-3-Clause,
+ * Copyright (c) 2026, ッツ Reader Authors), with its reveal-rt class named jp-reveal-rt here.
+ */
+
+html {
+  margin: 0;
+  padding: 0;
+  background: var(--jp-bg, #fff);
+  color: var(--jp-text, #000);
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  box-sizing: border-box;
+  padding: var(--jp-pad-top, 16px) var(--jp-pad-right, 16px) var(--jp-pad-bottom, 16px) var(--jp-pad-left, 16px);
+  background: var(--jp-bg, #fff);
+  color: var(--jp-text, #000);
+  font-family: var(--jp-font-family, serif);
+  font-size: var(--jp-font-size, 20px);
+  line-height: var(--jp-line-height, 1.8);
+  text-align: var(--jp-align, justify);
+  line-break: strict;
+  overflow-wrap: break-word;
+  font-kerning: normal;
+}
+
+/* Japanese typography (ruling 11). */
+@supports (text-spacing-trim: normal) {
+  body { text-spacing-trim: normal; }
+}
+
+html.jp-vertical,
+html.jp-vertical body {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+html.jp-horizontal,
+html.jp-horizontal body {
+  writing-mode: horizontal-tb;
+}
+
+/* One or two half-width digits, !!, !? and ?! set upright; jp-reader.js wraps them at load. */
+html.jp-vertical .jp-tcy {
+  text-combine-upright: all;
+  -webkit-text-combine: horizontal;
+}
+
+/* A chapter's own columns or orphan rules would break the one-column-a-page count. */
+body,
+body * {
+  orphans: 1;
+  widows: 1;
+}
+
+#jp-chapter,
+#jp-chapter * {
+  column-count: auto;
+  column-width: auto;
+}
+
+#jp-chapter p {
+  margin-block: 0;
+  text-indent: var(--jp-indent, 1em);
+}
+
+#jp-chapter .jp-title {
+  margin-block: 0 1.2em;
+  font-size: 1.4em;
+  font-weight: bold;
+  text-indent: 0;
+  text-align: start;
+}
+
+rt,
+rp {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Pictures fit one page and never split across two (the character pictures called gaiji excepted). */
+#jp-chapter img,
+#jp-chapter svg {
+  max-width: var(--jp-img-max-w, 100%);
+  max-height: var(--jp-img-max-h, 100%);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  break-inside: avoid;
+}
+
+#jp-chapter img.jp-block-img {
+  display: block;
+  margin: auto;
+}
+
+#jp-chapter figure,
+#jp-chapter p:has(> img:only-child) {
+  break-inside: avoid;
+}
+
+#jp-chapter img[class*="gaiji"] {
+  display: inline;
+  width: 1em;
+  height: 1em;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  vertical-align: text-bottom;
+}
+
+/* Pages. */
+html.jp-paged {
+  overflow: hidden;
+  width: var(--jp-page-w, 100vw);
+  height: var(--jp-page-h, 100vh);
+  overscroll-behavior: none;
+}
+
+html.jp-paged body {
+  overflow: hidden;
+  width: var(--jp-page-w, 100vw);
+  height: var(--jp-page-h, 100vh);
+  column-width: var(--jp-col-w, 100vw);
+  column-gap: var(--jp-col-gap, 32px);
+  column-fill: auto;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+/* Scrolling: vertical text scrolls right to left, horizontal text downward, both on the root. */
+html.jp-scroll.jp-horizontal {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+html.jp-scroll.jp-horizontal body {
+  min-height: 100%;
+  touch-action: pan-y;
+}
+
+html.jp-scroll.jp-vertical {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: var(--jp-page-h, 100vh);
+}
+
+html.jp-scroll.jp-vertical body {
+  height: var(--jp-page-h, 100vh);
+  touch-action: pan-x;
+}
+
+/* Furigana (ruling 10, ttu's modes). show: as printed; hide ("Never"): gone. */
+html.jp-furi-hide rt,
+html.jp-furi-hide rp {
+  display: none;
+}
+
+/* partial ("Dimmed"): the reading in the hint colour until a tap shows it. */
+html.jp-furi-partial ruby rt {
+  color: var(--jp-hint, #999);
+}
+
+html.jp-furi-partial ruby.jp-reveal-rt rt {
+  color: inherit;
+}
+
+/* full ("Hidden") and toggle ("Tap to toggle"): the reading hidden, the word marked by a glow. */
+html.jp-furi-full ruby,
+html.jp-furi-toggle ruby {
+  text-shadow: var(--jp-hint, #999) 1px 0 10px;
+}
+
+html.jp-furi-full ruby rt,
+html.jp-furi-toggle ruby rt {
+  visibility: hidden;
+}
+
+html.jp-furi-full ruby.jp-reveal-rt,
+html.jp-furi-toggle ruby.jp-reveal-rt {
+  text-shadow: none;
+}
+
+html.jp-furi-full ruby.jp-reveal-rt rt,
+html.jp-furi-toggle ruby.jp-reveal-rt rt {
+  visibility: visible;
+}
+
+/* Read-aloud mark. jp-reader.js writes the literal colour into this rule (a highlight does not
+   reliably see the page's custom properties). */
+::highlight(jp-tts) {
+  background-color: rgba(255, 196, 0, 0.35);
+}
+
+/* For the read-aloud paragraphs' one read of the text as shown, readings left out. */
+html.jp-readings-hidden rt,
+html.jp-readings-hidden rp {
+  display: none !important;
+}

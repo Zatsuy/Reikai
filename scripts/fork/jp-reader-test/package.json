@@ -1,0 +1,10 @@
+{
+  "name": "reikai-jp-reader-test",
+  "private": true,
+  "description": "Reikai JP: headless tests of the Japanese reading mode's page script (app/src/main/assets/jp-reader/).",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "1.63.0"
+  }
+}
