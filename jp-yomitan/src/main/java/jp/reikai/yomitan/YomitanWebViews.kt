@@ -169,7 +169,9 @@ internal class YomitanWebViewClient(
         // The backend never navigates; Yomitan's own pages move between each other in place.
         if (kind == PageKind.ENGINE) return true
         val url = request.url.toString()
-        if (YomitanOrigin.owns(url)) return false
+        // The popup stays on its page: Yomitan's other pages (a link to its settings) open where the
+        // app opens them.
+        if (YomitanOrigin.owns(url) && (kind != PageKind.POPUP || request.url.path == "/popup.html")) return false
         engine.openPage("tab", url)
         return true
     }
