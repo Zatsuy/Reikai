@@ -79,8 +79,19 @@ class PopupUrlsTest {
     }
 
     @ParameterizedTest
-    @CsvSource("true, popup.html#theme=dark", "false, popup.html#theme=light", ", popup.html")
+    @CsvSource(
+        "true, popup.html?reikai-load=3&reikai-theme=dark",
+        "false, popup.html?reikai-load=3&reikai-theme=light",
+        ", popup.html?reikai-load=3",
+    )
     fun `the empty page is prepared in the page's theme`(dark: Boolean?, expected: String) {
-        PopupUrls.empty(dark) shouldBe expected
+        PopupUrls.empty(dark, load = 3) shouldBe expected
+    }
+
+    @Test
+    fun `each load of the empty page has its own address, never only a jump within the page`() {
+        // A fragment ("#theme=dark") after the page's own address is a jump that loads nothing.
+        (PopupUrls.empty(true, 1) == PopupUrls.empty(true, 2)) shouldBe false
+        PopupUrls.empty(true, 1).contains('#') shouldBe false
     }
 }

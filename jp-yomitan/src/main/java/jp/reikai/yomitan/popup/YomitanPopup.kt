@@ -15,6 +15,7 @@ import jp.reikai.yomitan.YomitanPageListener
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
@@ -30,8 +31,11 @@ import java.io.Closeable
  * only chooses where the page sits (a sheet) and what it looks up ([PopupLookup]).
  *
  * Kept ready between lookups: [prepare] loads the page (with an empty lookup, which makes Yomitan
- * load its settings) so the next [show] only swaps the lookup in (`assets/jp-reikai/popup-host.js`). The WebView lives in a [MutableContextWrapper], so
- * the same prepared page moves between activities ([moveTo]). Main thread only.
+ * load its settings) so the next [show] only swaps the lookup in (`assets/jp-reikai/popup-host.js`).
+ * Yomitan reads its settings once per load, so when they or the dictionaries change the page loads
+ * again: at once while no lookup is on it, else with the next lookup or [clear]. The WebView lives in
+ * a [MutableContextWrapper], so the same prepared page moves between activities ([moveTo]). Main
+ * thread only.
  */
 class YomitanPopup private constructor(
     private val wrapper: MutableContextWrapper,
@@ -62,9 +66,16 @@ class YomitanPopup private constructor(
     var closed = false
         private set
 
+    /** Yomitan's history holds a lookup before the one on screen (a word tapped in the results). */
+    var canGoBack = false
+        private set
+
     private lateinit var page: YomitanPage
     private var nextToken = 0
     private var loading = false
+
+    /** Which load of the page is current: an answer from an earlier one is ignored. */
+    private var load = 0
 
     /** The page theme the page was prepared with ([PopupLookup.dark]); Yomitan sets it once per load. */
     private var theme: Boolean? = null
@@ -72,31 +83,47 @@ class YomitanPopup private constructor(
     /** A lookup asked for before the page was ready, and its token. */
     private var pending: Pair<PopupLookup, Int>? = null
 
+    /** The token of the lookup on the page (or waiting for it), -1 for none. */
+    private var current = -1
+
+    /** Yomitan's settings or dictionaries changed since the page loaded them. */
+    private var stale = false
+
     /**
      * Loads the page with nothing looked up, in the page theme [dark] (see [PopupLookup.dark]), so the
      * first lookup is as quick as the next.
      */
     fun prepare(dark: Boolean?) {
-        if (closed || ((loading || ready) && dark == theme)) return
+        if (closed || ((loading || ready) && dark == theme && !stale)) return
+        reload(dark)
+    }
+
+    private fun reload(dark: Boolean?) {
         ready = false
         loading = true
+        stale = false
+        canGoBack = false
         theme = dark
-        page.load(PopupUrls.empty(dark))
+        page.load(PopupUrls.empty(dark, ++load))
     }
 
     /** Looks [lookup] up; returns the token [Listener.onShown] reports it with. */
     fun show(lookup: PopupLookup): Int {
         val token = ++nextToken
         if (closed) return token
-        if (ready && (lookup.dark == null || lookup.dark == theme)) {
+        current = token
+        if (ready && !stale && (lookup.dark == null || lookup.dark == theme)) {
             swapIn(lookup, token)
         } else {
-            // First, or in the other theme: the page loads (again) first.
+            // First, in the other theme, or with changed settings: the page loads (again) first.
             pending = lookup to token
             prepare(lookup.dark ?: theme)
         }
         return token
     }
+
+    /** Whether the page still has the lookup [show] returned [token] for (no other lookup or load since). */
+    fun holds(token: Int): Boolean = !closed && token == current
 
     private fun swapIn(lookup: PopupLookup, token: Int) {
         val url = JsonPrimitive(PopupUrls.page(lookup))
@@ -105,7 +132,20 @@ class YomitanPopup private constructor(
 
     /** Empties the page (after the sheet closes), so the next lookup never opens on the last one. */
     fun clear() {
-        if (ready && !closed) webView.evaluateJavascript("__reikaiPopup.clear()", null)
+        current = -1
+        pending = null
+        canGoBack = false
+        if (closed) return
+        if (stale) {
+            reload(theme)
+        } else if (ready) {
+            webView.evaluateJavascript("__reikaiPopup.clear()", null)
+        }
+    }
+
+    /** Goes back to the lookup before the one on screen, as Yomitan's own back button does. */
+    fun goBack() {
+        if (ready && !closed && canGoBack) webView.evaluateJavascript("__reikaiPopup.back()", null)
     }
 
     /** Moves the WebView to [context]'s activity (take it out of its old parent first). */
@@ -123,8 +163,10 @@ class YomitanPopup private constructor(
 
     private fun onMessage(text: String) {
         val message = runCatching { Json.parseToJsonElement(text) as JsonObject }.getOrNull() ?: return
+        val fromLoad = message["load"]?.jsonPrimitive?.intOrNull
         when (message["t"]?.jsonPrimitive?.contentOrNull) {
             "ready" -> {
+                if (fromLoad != load) return
                 ready = true
                 loading = false
                 pending?.let { (lookup, token) -> swapIn(lookup, token) }
@@ -136,6 +178,14 @@ class YomitanPopup private constructor(
                 val shownAt = SystemClock.uptimeMillis()
                 listener?.onShown(token, ms, shownAt)
             }
+            "stale" -> {
+                if (fromLoad != load || closed) return
+                logcat(LogPriority.DEBUG) { "Yomitan popup: settings or dictionaries changed" }
+                stale = true
+                // Nothing on the page: load it again now, so the next lookup is quick.
+                if (current < 0) reload(theme)
+            }
+            "nav" -> canGoBack = message["back"]?.jsonPrimitive?.booleanOrNull == true
             "close" -> listener?.onCloseRequested()
         }
     }

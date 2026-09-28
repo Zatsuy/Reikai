@@ -30,11 +30,15 @@ data class PopupLookup(
 /** The popup page's addresses and history state for a [PopupLookup] (see `popup-host.js`). */
 internal object PopupUrls {
 
-    /** The page, before its first lookup, in the page theme [dark] if known. */
-    fun empty(dark: Boolean?): String = when (dark) {
-        null -> "popup.html"
-        true -> "popup.html#theme=dark"
-        false -> "popup.html#theme=light"
+    /**
+     * The page before its first lookup, in the page theme [dark] if known; [load] tells this load's
+     * answers from an earlier one's. A new address each time, so loading it always loads the page
+     * (never only a jump within the page the lookups left it at).
+     */
+    fun empty(dark: Boolean?, load: Int): String = "popup.html?reikai-load=$load" + when (dark) {
+        null -> ""
+        true -> "&reikai-theme=dark"
+        false -> "&reikai-theme=light"
     }
 
     /**
