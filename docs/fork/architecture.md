@@ -61,7 +61,7 @@ while staying a thin, mergeable layer over Reikai.
   the message port, and found what the stand-in must still cover (no SharedWorker in WebView, no
   worker started by a worker, `tabs.query` listing real tabs, AnkiConnect routed through the app):
   [the spike's findings](research/yomitan-spike-2026-09.md).
-- **Updates:** a weekly workflow takes Yomitan's latest promoted release after a 7-day wait,
+- **Updates:** a weekly workflow takes the newest promoted Yomitan release that has waited 7 days,
   vendors it, and applies it by itself (decision D-015) when two checks pass: a static tripwire
   (the `chrome.*` calls, actions, permissions, database schema and call sites the stand-in relies
   on, compared with a reviewed baseline) and a smoke test in headless Chrome (the release with the

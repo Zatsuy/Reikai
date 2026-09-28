@@ -105,7 +105,7 @@ The fork runs only its own workflows (decision D-013):
   builds the signed `nightly` build type (`app.reikai.jp`, updater on) and publishes it as
   `r<commit count>` on this repository's Releases, keeping ten (`scripts/fork/release.py`). The
   in-app updater installs any higher number. Same keepalive job.
-- `fork-yomitan-update.yml`: every Wednesday, takes Yomitan's latest promoted release once it is 7
+- `fork-yomitan-update.yml`: every Wednesday, takes the newest promoted Yomitan release once it is 7
   days old, vendors it, runs the static tripwire and a headless-Chrome smoke test, and pushes
   `chore(yomitan): update to <tag>` with the Actions token (`scripts/fork/yomitan_bump.py`). Most
   weeks only the check runs. A failure pushes nothing; what an agent then does, how to regenerate

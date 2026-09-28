@@ -263,10 +263,16 @@ export class Hub {
             if (result.failed) {
                 this.replyError(from, mid, result.failed);
             } else {
-                // A port without WEB_MESSAGE_ARRAY_BUFFER: the body goes as base64 after the header.
                 const head = {t: 'reply', mid, status: result.status, statusText: result.statusText ?? '',
                     url: result.url ?? body.url, headers: result.headers ?? {}};
-                this.post(from, head, Buffer.from(result.body ?? []).toString('base64'));
+                const bytes = Buffer.from(result.body ?? []);
+                if (from.port.binary) {
+                    // WEB_MESSAGE_ARRAY_BUFFER: the body follows its header as one ArrayBuffer message.
+                    head.bin = true;
+                    if (this.post(from, head)) { this.postBytes(from, bytes); }
+                } else {
+                    this.post(from, head, bytes.toString('base64'));
+                }
             }
             this.flushDead();
         });
@@ -328,6 +334,13 @@ export class Hub {
     post(to, header, payload = '') {
         if (this.docs.get(to.key) !== to) { return false; }
         const ok = to.port.post(`${JSON.stringify(header)}\n${payload}`);
+        if (!ok) { this.dead.push(to); }
+        return ok;
+    }
+
+    postBytes(to, bytes) {
+        if (this.docs.get(to.key) !== to) { return false; }
+        const ok = to.port.postBytes(bytes);
         if (!ok) { this.dead.push(to); }
         return ok;
     }

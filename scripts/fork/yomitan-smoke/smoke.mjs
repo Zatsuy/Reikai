@@ -7,7 +7,8 @@
  * worker's own workers are never served). It opens background.html (the engine), waits for the
  * backend to prepare, imports Yomitan's own test dictionary through the settings page's "Import
  * from URL", looks a word up through the app's findTerms path, draws a dictionary picture on the
- * search page, and fails on any tripwire entry, stand-in error or uncaught page error.
+ * search page, reaches a canned AnkiConnect through the app's network path (binary reply), and
+ * fails on any tripwire entry, stand-in error or uncaught page error.
  *
  * Run: scripts/fork/yomitan_bump.py smoke (or node scripts/fork/yomitan-smoke/smoke.mjs), after
  * `npm ci --prefix scripts/fork/yomitan-smoke`. Chrome: $REIKAI_CHROME if set, else the installed
@@ -104,6 +105,7 @@ async function serve(route) {
 const knownRace = (text) => /Failed to invoke action displaySetCustom(?:Outer)?Css: frame state invalid/.test(text);
 
 const tripwire = [];
+let ankiVersionAsked = false;
 let backendReady;
 const backendReadyPromise = new Promise((resolve) => { backendReady = resolve; });
 
@@ -111,7 +113,14 @@ const hub = new Hub({
     storage: new Map(),
     openPage: (how, url) => { say(`Yomitan asked to open (${how}) ${url}`); return null; },
     fetch: (request) => {
-        say(`Yomitan fetched ${request.method} ${request.url} (offline here)`);
+        const anki = request.url.startsWith('http://127.0.0.1:8765') && request.method === 'POST' ? JSON.parse(request.body ?? '{}') : null;
+        if (anki?.action === 'version') {
+            // A canned AnkiConnect, to prove the app's network path: Yomitan's POST in, a binary reply
+            // out. Yomitan asks with API version 2, which AnkiConnect answers with the bare result.
+            ankiVersionAsked = anki.version === 2;
+            return {status: 200, statusText: 'OK', headers: {'content-type': 'application/json'}, body: Buffer.from('6')};
+        }
+        say(`Yomitan fetched ${request.method} ${request.url}${anki ? ` (${anki.action})` : ''} (offline here)`);
         return {failed: 'offline in the smoke test'};
     },
     onBackendReady: () => backendReady(),
@@ -152,7 +161,9 @@ const documentStart = (kind) => `(() => {
     };
     Object.defineProperty(globalThis, '__reikaiReceive', {value: (to, list) => {
         if (to !== doc) { return false; }
-        for (const data of list) {
+        for (const item of list) {
+            // A binary message arrives as {b64}; WebView hands the page an ArrayBuffer.
+            const data = typeof item === 'string' ? item : Uint8Array.from(atob(item.b64), (c) => c.charCodeAt(0)).buffer;
             const event = new MessageEvent('message', {data});
             target.dispatchEvent(event);
             hub.onmessage?.(event);
@@ -173,7 +184,8 @@ class PagePort {
         this.queue = [];
         this.flushing = false;
         this.alive = true;
-        this.hubDoc = null;
+        /** Like a device whose WebView has WEB_MESSAGE_ARRAY_BUFFER: response bodies go as binary messages. */
+        this.binary = true;
     }
 
     post(text) {
@@ -181,6 +193,10 @@ class PagePort {
         this.queue.push(text);
         if (!this.flushing) { void this.flush(); }
         return true;
+    }
+
+    postBytes(bytes) {
+        return this.post({b64: Buffer.from(bytes).toString('base64')});
     }
 
     async flush() {
@@ -329,6 +345,18 @@ try {
         if (!workers.includes(path)) { fail(`the fork's worker ${path} never started`); }
     }
     say(`workers started: ${[...new Set(workers)].join(', ')}`);
+
+    // The network path the device uses for AnkiConnect and audio: Yomitan's own fetch, the
+    // stand-in's routing, the hub's request and its binary (ArrayBuffer) reply.
+    const full = (await api('optionsGetFull')).result;
+    full.profiles[0].options.anki.enable = true;
+    await api('setAllSettings', {value: full, source: 'reikai-smoke'});
+    const version = await api('getAnkiConnectVersion');
+    if (version?.result !== 6 || !ankiVersionAsked) {
+        fail(`AnkiConnect through the app's network path: ${JSON.stringify(version)} (asked: ${ankiVersionAsked})`);
+    } else {
+        say('AnkiConnect version 6 came back through the stand-in and a binary reply');
+    }
     await context.close();
     exitCode = failures.length === 0 ? 0 : 1;
 } catch (e) {
@@ -342,6 +370,6 @@ if (failures.length > 0) {
     console.log(`[smoke ${elapsed()}] FAILED (${failures.length}):\n  ${failures.join('\n  ')}`);
     exitCode = 1;
 } else {
-    console.log(`[smoke ${elapsed()}] passed: Yomitan ${MANIFEST.version} prepared, imported, looked up and drew a picture with an empty tripwire`);
+    console.log(`[smoke ${elapsed()}] passed: Yomitan ${MANIFEST.version} prepared, imported, looked up, drew a picture and reached AnkiConnect, with an empty tripwire`);
 }
 process.exit(exitCode);

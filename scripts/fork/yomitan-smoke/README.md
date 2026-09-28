@@ -9,22 +9,25 @@ apply themselves when the checks below pass, and wait for an agent when one fail
 `.github/workflows/fork-yomitan-update.yml`, Wednesdays 05:30 UTC (and by hand from the Actions
 tab), one job on `ubuntu-latest`:
 
-1. `scripts/fork/yomitan_bump.py check`: GitHub's `releases/latest` for `yomidevs/yomitan` (only
-   promoted releases, never pre-releases), taken once it is newer than the vendored version and has
-   been out 7 days. Most weeks it stops here (well under a minute; a year of weekly checks is about
-   52 billed minutes).
-2. Only when there is a release to take: `npm ci` here (just the pinned `playwright-core`, no
-   browser download), then `yomitan_bump.py update <tag>`:
+1. `scripts/fork/yomitan_bump.py check`: GitHub's release list for `yomidevs/yomitan`; it takes the
+   newest promoted release (never a draft or pre-release) that is newer than the vendored version
+   and has been out 7 days, so weekly releases still arrive, each a week late. Most weeks it stops
+   here (well under a minute; a year of weekly checks is about 52 billed minutes).
+2. Only when there is a release to take: `yomitan_bump.py update <tag> --no-smoke`:
    - **vendor**: downloads `yomitan-firefox.zip`, checks its SHA-256 against GitHub's asset digest,
-     unzips it over the vendored tree and rewrites `yomitan-release.json`; **verify** checks every
-     file against that record;
+     deletes the vendored tree, unzips the release in its place and rewrites
+     `yomitan-release.json`; **verify** checks every file against that record;
    - **tripwire**: the static check below;
-   - **smoke**: `smoke.mjs` in the runner's Google Chrome.
-3. All passed: commits `chore(yomitan): update to <tag>` (the vendored tree and
-   `yomitan-release.json` only) and pushes it to `main` with the Actions token. The daily App
-   release workflow ships it the next morning. If `main` moved during the run, nothing is pushed and
-   the next week's run tries again. An update run takes a few minutes; Yomitan releases every few
-   weeks, so the whole workflow costs roughly 80 to 100 CI minutes a year.
+
+   then `npm ci` here (just the pinned `playwright-core`, no install scripts, no browser download)
+   and **smoke**: `smoke.mjs` in the runner's Google Chrome. The Actions token reaches only the
+   keepalive, the release check and the push, never npm or the browser.
+3. All passed: commits `chore(yomitan): update to <tag>` (the vendored tree, staged with `git add
+   -f` so no `.gitignore` rule drops a file, and `yomitan-release.json`), checks out that commit
+   afresh and runs `verify --root` on it, then pushes it to `main`. The daily App release workflow
+   ships it the next morning. If `main` moved during the run, nothing is pushed and the next week's
+   run tries again. An update run takes a few minutes; Yomitan releases every few weeks, so the
+   whole workflow costs roughly 80 to 100 CI minutes a year.
 
 A failure pushes nothing. The next agent session's start lines say "GitHub automation failed:
 Yomitan update"; the run's summary shows the last lines of the update log.
@@ -56,7 +59,9 @@ run opens `background.html` and waits for the backend's
 `applicationBackendReady`, imports `test-dictionary.zip` through the settings page's "Import from
 URL", looks up 打ち込んだ through the app's `findTerms` path (expects 打ち込む), opens the search
 page for 画像 and waits for its dictionary picture to be drawn by the page's own database worker,
-and fails on any tripwire or stand-in "called" entry, stand-in error or uncaught page error (one
+then switches Anki on and asks Yomitan for AnkiConnect's version: Yomitan's own POST goes through
+the stand-in and the hub to a canned AnkiConnect, and the answer comes back as a binary
+(ArrayBuffer) message, the path a device uses for Anki and audio. It fails on any tripwire or stand-in "called" entry, stand-in error or uncaught page error (one
 known race in Yomitan's own settings preview excepted, see `knownRace` in `smoke.mjs`). It passes
 in about 4 seconds here, and 12 of 12 runs passed with every page slowed 6 times
 (`REIKAI_SMOKE_SLOWDOWN=6`), so a slow runner is no reason for a failure.
@@ -95,8 +100,9 @@ PLAYWRIGHT_BROWSERS_PATH=build/ms-playwright scripts/fork/yomitan_bump.py update
   the version in `package.json` and run `npm install --prefix scripts/fork/yomitan-smoke` to
   refresh `package-lock.json`.
 
-Then commit the update (`chore(yomitan): update to <tag>` plus the fixes) and push `main` after
-`/verify`. The next weekly run finds the release vendored and clears the session-start line.
+Then commit the update (`chore(yomitan): update to <tag>` plus the fixes; stage the vendored tree
+with `git add -f jp-yomitan/src/main/assets/yomitan`, since a `.gitignore` rule would silently drop
+a matching file) and push `main` after `/verify`. The next weekly run finds the release vendored and clears the session-start line.
 
 ## Updating by hand
 
