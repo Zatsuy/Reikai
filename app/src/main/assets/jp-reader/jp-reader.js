@@ -18,9 +18,9 @@
  * - ッツ Ebook Reader (https://github.com/ttu-ttu/ebook-reader, BSD-3-Clause, Copyright (c) 2026,
  *   ッツ Reader Authors. All rights reserved.): the character count (get-character-count.ts,
  *   get-paragraph-nodes.ts, is-element-gaiji.ts; the copied parts are marked below and keep that
- *   notice, the licence text is in LICENSES/BSD-3-Clause.txt), the furigana modes and their tap
- *   (reactive-elements.ts), and the "intended" position that only the reader's own moves change so
- *   that repeated re-layouts never drift (book-reader-paginated.svelte).
+ *   notice; ttu's full notice is in NOTICE.txt beside this file and in LICENSES/Reader-NOTICE.md), the
+ *   furigana modes and their tap (reactive-elements.ts), and the "intended" position that only the
+ *   reader's own moves change so that repeated re-layouts never drift (book-reader-paginated.svelte).
  * - The read-aloud paragraphs follow the rule of upstream Reikai's novel-web/reader.js.
  */
 (function () {
