@@ -37,23 +37,40 @@ published and Reikai JP offers it on its **New version available!** screen when 
 every Wednesday a new Yomitan release that is a week old and passes the checks is taken in. When something fails, nothing breaks: it just stops, GitHub may
 email you (safe to ignore), and the next agent session you start sees it and fixes it.
 
-## Now: Phase 5, local books
+## Now: Phase 5, first run and local books
 
-- [ ] **5.1 Local books**: import EPUB and TXT files as novels (one more source behind upstream's
-  novel source seam); they open in the Japanese reader with lookup, statistics and translation.
+Two sessions, one item each (D-033); what goes in each phase: D-032.
+
+- [ ] **5.1 First-run Japanese setup**: a native *Set up Japanese* screen instead of Yomitan's
+  desktop-style settings page, offered at the end of the Welcome setup and the first time a
+  Japanese novel opens with no dictionary, and always in Settings → Japanese. *Done when:* on a fresh
+  install a new user gets from nothing to a word lookup with an Anki button on that one screen:
+  Jitendex (and, if ticked, the JPDB frequency list) downloads with progress shown in the app,
+  AnkiDroid is allowed and a deck picked for Lapis, and Japanese sources show in Browse without
+  touching the language filter (today a fresh install on an English phone hides them).
+- [ ] **5.2 Local books**: import EPUB and TXT files as novels (one more source behind upstream's
+  novel source seam). *Done when:* an EPUB with furigana, pictures and a cover, and a plain TXT
+  file, picked from storage, appear in the library, open in the Japanese reader with lookup,
+  statistics and translation, and a Japanese EPUB opens in the direction its book says.
 
 ## Later
 
-- **Phase 6, learning extras**: a mining log with a jump back to the passage; colouring of known,
-  unknown and frequent words from your Anki cards; sentences with exactly one unknown word; TTS
-  sentence audio for cards.
-- **Phase 7, manga lookup**: tap text on manga pages: first `.mokuro` files, then a region you draw
-  read on the phone (model downloaded on request), then automatic text detection.
+- **Phase 6, manga lookup** (you chose it before the learning extras), three sessions:
+  6.1 `.mokuro` files (mokuro's text boxes over the pages, tap to look up); 6.2 a box you draw read
+  on the phone by an Apache-2.0 manga model downloaded on request (never bundled; one tap deletes
+  it again, D-031); 6.3 automatic text detection, so a tap on any speech bubble looks it up.
+  *Done when:* each works in Mihon's paged and webtoon viewers on the tablet and the phone, within
+  the tap-to-results budget.
+- **Phase 7, learning extras**, three sessions: 7.1 a mining log with a jump back to the passage;
+  7.2 known, unknown and frequent words coloured from your Anki cards, and sentences with exactly
+  one unknown word (its own session: every chapter is split into words, so it gets a speed budget
+  before it is built); 7.3 the device's voice reading the card's sentence into Anki.
 
 ## Ideas, not scheduled
 
-- ttu-compatible progress sync; audiobook read-along; translating a single sentence from the
-  lookup popup (whole chapters can be translated since Phase 4).
+- Translating a single sentence from the lookup popup (whole chapters can be translated since
+  Phase 4); an Aozora Bunko source (public-domain classics with their furigana).
+- Dropped (you, 2026-09-28): ttu-compatible progress sync, audiobook read-along.
 
 ## Recurring
 

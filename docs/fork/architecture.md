@@ -169,7 +169,7 @@ Built in Phase 4; details, the page contract and as-built notes in
   as EPUB" in `EntryToolbar`'s menu (`jp.reikai.export`, a background worker writing EPUB 3).
   Chapter translation (`jp.reikai.translate`) serves both readers through the `loadChapterHtml` seam.
 
-### 6. Local books, learning extras, manga lookup (later phases)
+### 6. Local books, manga lookup, learning extras (later phases, in that order: D-032)
 
 - **Local EPUB/TXT:** one more source adapter behind upstream's `NovelSource` seam.
 - **Learning extras:** a mining log with a jump back to the passage; known-word and frequency

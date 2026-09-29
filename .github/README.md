@@ -142,11 +142,12 @@ available!* screen with one button.
 
 ## Coming next
 
+- **A guided first-run setup**: one screen that downloads a dictionary, connects AnkiDroid and shows
+  Japanese sources, so a new install is reading and mining in a few minutes.
 - **Local books**: open your own EPUB and TXT files in the Japanese reader.
+- **Manga lookup**: tap text on manga pages, from `.mokuro` files, a box you draw, or on its own.
 - **Learning extras**: a history of the words you mined with a jump back to the passage, known and
   unknown words coloured from your Anki cards, and sentences with exactly one unknown word.
-- **Manga lookup**: tap text on manga pages, starting with `.mokuro` files and then on-device text
-  recognition.
 
 The full plan, and what is done, is in the [roadmap](../docs/fork/ROADMAP.md).
 
