@@ -48,7 +48,7 @@ the log; *Standing decisions* is the current state.
 Questions that need the owner. Each has options and a recommendation; the agent that reaches the
 item asks with AskUserQuestion and moves the answer to *Standing decisions*.
 
-(none)
+- **O-003 Is Reikai JP worth continuing next to Chimahon?** (raised by the owner, 2026-09-28, on learning that Chimahon and Yomihon exist). Chimahon (GPL, weekly releases since 2026-03) already has web novels through LNReader plugins, EPUB import, reading statistics with ttu sync, manga OCR (Google Lens by default), `.mokuro`, screen lookup in any app and an anime player; Yomihon is manga only. What only Reikai JP has: Yomitan's own engine (desktop-identical results, Handlebars card templates, settings import, automatic Yomitan updates), no cloud or closed binaries anywhere, Reikai's library, and a fork that maintains itself for the owner. Options: keep building as planned; build only what sets it apart and use Chimahon for the rest; pause the roadmap (the automation keeps the app updated at no cost). Recommendation: the owner reads with both apps for a few days first, and an agent can compare them side by side on the tablet in a short session (the same novel: lookup speed, memory, the card each one makes). **Ask before starting 5.1.**
 
 ## Log
 
