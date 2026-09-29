@@ -175,10 +175,13 @@ Built in Phase 4; details, the page contract and as-built notes in
 - **Learning extras:** a mining log with a jump back to the passage; known-word and frequency
   colouring from Yomitan's tokenizer plus AnkiDroid card state (Yomitan itself declined in-page
   highlighting); i+1 sentences; TTS sentence audio (reading statistics arrived in Phase 4).
-- **Manga:** an overlay on `ReaderPageImageView` (the one view both manga viewers share); first
-  `.mokuro` import, then a region the reader draws read by manga-ocr (Apache-2.0) downloaded on
-  demand, then automatic detection (PaddleOCR manga models). Never the redistributed Google Lens
-  binaries some forks use. Mihon's WebGPU viewer is left out at first.
+- **Manga (D-034):** an overlay on `ReaderPageImageView` (the one view both manga viewers share),
+  boxes kept in image coordinates and mapped with `SubsamplingScaleImageView.sourceToViewCoord`.
+  Each page's text lines are found and read on the device in the background (PP-OCRv6 manga
+  detection and CTC line reading on ncnn, CPU; models downloaded on request), characters placed by
+  their CTC time steps, and a tap looks up from the tapped character through the Yomitan engine.
+  A drawn box is the fallback. Never cloud OCR or Google's Lens binaries. Mihon's WebGPU viewer is
+  left out at first. Details: [research/manga-ocr-2026-09.md](research/manga-ocr-2026-09.md).
 
 ## Fork plumbing rules
 

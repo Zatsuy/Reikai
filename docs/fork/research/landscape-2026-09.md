@@ -146,6 +146,9 @@ decisions O-001. LNReader: `src/hooks/persisted/usePlugins.ts`, `BrowseSettings.
 
 ## Manga OCR
 
+Superseded by [manga-ocr-2026-09.md](manga-ocr-2026-09.md) (2026-09-28), which corrects this section.
+
+
 - Clean-licence options: manga-ocr (Apache-2.0; mobile TFLite ports 20-140 MB), PP-OCRv6_manga
   (Apache-2.0, about 11 MB detection plus recognition), `.mokuro` import (format free to parse; the
   tool is GPL). ML Kit is proprietary (blocks F-Droid, needs Play services). Google Lens (both forks'

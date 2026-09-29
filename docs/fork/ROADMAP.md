@@ -55,12 +55,15 @@ Two sessions, one item each (D-033); what goes in each phase: D-032.
 
 ## Later
 
-- **Phase 6, manga lookup** (you chose it before the learning extras), three sessions:
-  6.1 `.mokuro` files (mokuro's text boxes over the pages, tap to look up); 6.2 a box you draw read
-  on the phone by an Apache-2.0 manga model downloaded on request (never bundled; one tap deletes
-  it again, D-031); 6.3 automatic text detection, so a tap on any speech bubble looks it up.
-  *Done when:* each works in Mihon's paged and webtoon viewers on the tablet and the phone, within
-  the tap-to-results budget.
+- **Phase 6, manga lookup** (you chose it before the learning extras, and its design, D-034), two
+  sessions: 6.1 measure reading a page on the tablet and phone, then tap a word on a manga page and
+  get the same popup as in novels: the page's text lines are found and read on the device when the
+  page is shown, by a manga-trained model downloaded on request (about 12 MB, never bundled,
+  deletable), no cloud; 6.2 pages ahead read in the background, the webtoon viewer, and a
+  long-press-and-drag box for text the detector missed (sound effects, handwriting).
+  *Done when:* on a page already read, tap to popup is inside the novel budget (p95 under 200 ms),
+  in the paged and webtoon viewers on the tablet and the phone, with the reading's battery cost
+  measured. Research: [research/manga-ocr-2026-09.md](research/manga-ocr-2026-09.md).
 - **Phase 7, learning extras**, three sessions: 7.1 a mining log with a jump back to the passage;
   7.2 known, unknown and frequent words coloured from your Anki cards, and sentences with exactly
   one unknown word (its own session: every chapter is split into words, so it gets a speed budget
@@ -69,7 +72,8 @@ Two sessions, one item each (D-033); what goes in each phase: D-032.
 ## Ideas, not scheduled
 
 - Translating a single sentence from the lookup popup (whole chapters can be translated since
-  Phase 4); an Aozora Bunko source (public-domain classics with their furigana).
+  Phase 4); an Aozora Bunko source (public-domain classics with their furigana); `.mokuro` files
+  for manga pre-read on a PC (half a session on top of Phase 6).
 - Dropped (you, 2026-09-28): ttu-compatible progress sync, audiobook read-along.
 
 ## Recurring
